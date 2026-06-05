@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Burhan — Создаю сайты</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #000000;
+      --card: #111111;
+      --border: rgba(255, 255, 255, 0.1);
+      --accent1: #ffffff;
+      --accent2: #aaaaaa;
+      --accent3: #666666;
+      --text: #f0f0f0;
+      --muted: #888888;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background particles */
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+      animation: drift linear infinite;
+    }
+
+    .orb-1 {
+      width: 400px; height: 400px;
+      background: #ffffff;
+      top: -100px; left: -100px;
+      animation-duration: 20s;
+      opacity: 0.04;
+    }
+
+    .orb-2 {
+      width: 350px; height: 350px;
+      background: #bbbbbb;
+      bottom: -80px; right: -80px;
+      animation-duration: 25s;
+      animation-delay: -10s;
+      opacity: 0.04;
+    }
+
+    .orb-3 {
+      width: 250px; height: 250px;
+      background: #888888;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      animation-duration: 18s;
+      animation-delay: -5s;
+      opacity: 0.04;
+    }
+
+    @keyframes drift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25%       { transform: translate(30px, -20px) scale(1.05); }
+      50%       { transform: translate(-20px, 30px) scale(0.95); }
+      75%       { transform: translate(20px, 20px) scale(1.03); }
+    }
+
+    /* Card */
+    .card {
+      position: relative;
+      z-index: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 56px 48px 48px;
+      max-width: 420px;
+      width: calc(100% - 32px);
+      text-align: center;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 32px 80px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      animation: cardIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(32px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Top accent line */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 60%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #ffffff, #888888, transparent);
+      border-radius: 1px;
+    }
+
+    /* Avatar */
+    .avatar {
+      width: 88px; height: 88px;
+      border-radius: 50%;
+      margin: 0 auto 24px;
+      background: linear-gradient(135deg, #ffffff, #888888, #333333);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: 800;
+      color: #000;
+      letter-spacing: -1px;
+      position: relative;
+      box-shadow: 0 0 0 3px var(--card), 0 0 0 4px rgba(255,255,255,0.25), 0 0 30px rgba(255,255,255,0.1);
+      animation: pulseRing 3s ease-in-out infinite;
+    }
+
+    @keyframes pulseRing {
+      0%, 100% { box-shadow: 0 0 0 3px var(--card), 0 0 0 4px rgba(255,255,255,0.25), 0 0 30px rgba(255,255,255,0.1); }
+      50%       { box-shadow: 0 0 0 3px var(--card), 0 0 0 6px rgba(255,255,255,0.15), 0 0 50px rgba(255,255,255,0.08); }
+    }
+
+    /* Name */
+    .name {
+      font-size: clamp(2.2rem, 8vw, 3rem);
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      background: linear-gradient(135deg, #ffffff 0%, #cccccc 50%, #888888 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 24px rgba(255, 255, 255, 0.4));
+      margin-bottom: 10px;
+      animation: glow 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes glow {
+      from { filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.3)); }
+      to   { filter: drop-shadow(0 0 32px rgba(255, 255, 255, 0.5)); }
+    }
+
+    /* Specialization */
+    .spec {
+      font-size: 0.95rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+      position: relative;
+      display: inline-block;
+    }
+
+    .spec::before,
+    .spec::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 24px;
+      height: 1px;
+      background: var(--muted);
+      opacity: 0.4;
+    }
+    .spec::before { right: calc(100% + 8px); }
+    .spec::after  { left:  calc(100% + 8px); }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 0 0 28px;
+    }
+
+    /* Social links */
+    .socials {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin-bottom: 32px;
+    }
+
+    .social-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px; height: 52px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      color: var(--muted);
+      text-decoration: none;
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .social-link::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--hover-bg, var(--accent1));
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .social-link:hover {
+      transform: translateY(-4px) scale(1.08);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 8px 24px var(--hover-shadow, rgba(255,255,255,0.15));
+    }
+
+    .social-link:hover::before { opacity: 1; }
+
+    .social-link svg {
+      position: relative;
+      z-index: 1;
+      width: 22px; height: 22px;
+      fill: currentColor;
+    }
+
+    /* Telegram colors */
+    .link-tg { --hover-bg: linear-gradient(135deg,#333333,#555555); --hover-shadow: rgba(255,255,255,0.15); }
+
+    /* GitHub colors */
+    .link-gh { --hover-bg: linear-gradient(135deg,#222222,#444444); --hover-shadow: rgba(255,255,255,0.1); }
+
+    /* VK colors */
+    .link-vk { --hover-bg: linear-gradient(135deg,#2a2a2a,#4a4a4a); --hover-shadow: rgba(255,255,255,0.12); }
+
+    /* CTA Button */
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 32px;
+      border-radius: 100px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-decoration: none;
+      color: #000;
+      background: linear-gradient(135deg, #ffffff, #aaaaaa);
+      border: none;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease;
+      box-shadow: 0 4px 20px rgba(255,255,255,0.2);
+      animation: buttonPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes buttonPulse {
+      0%, 100% { box-shadow: 0 4px 20px rgba(255,255,255,0.15); }
+      50%       { box-shadow: 0 4px 30px rgba(255,255,255,0.25); }
+    }
+
+    .cta::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #cccccc, #ffffff);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .cta:hover {
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 8px 32px rgba(255,255,255,0.25);
+    }
+
+    .cta:hover::before { opacity: 1; }
+
+    .cta:active {
+      transform: scale(0.98);
+    }
+
+    .cta span, .cta svg {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cta svg {
+      width: 18px; height: 18px;
+      fill: currentColor;
+      transition: transform 0.2s ease;
+    }
+
+    .cta:hover svg { transform: translateX(3px); }
+
+    /* Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 24px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      opacity: 0.6;
+    }
+
+    .badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    /* Tooltip */
+    .social-link[data-tip] {
+      position: relative;
+    }
+
+    .social-link[data-tip]::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%) translateY(4px);
+      background: rgba(15,15,20,0.95);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.72rem;
+      white-space: nowrap;
+      padding: 4px 10px;
+      border-radius: 8px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+
+    .social-link[data-tip]:hover::after {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 480px) {
+      .card {
+        padding: 44px 28px 36px;
+        border-radius: 22px;
+      }
+      .avatar {
+        width: 76px; height: 76px;
+        font-size: 30px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <div class="card">
+    <div class="avatar">B</div>
+
+    <h1 class="name">Burhan</h1>
+    <p class="spec">Создаю сайты</p>
+
+    <div class="divider"></div>
+
+    <div class="socials">
+
+      <!-- Telegram -->
+      <a class="social-link link-tg"
+         href="https://t.me/ruzaka28"
+         target="_blank"
+         rel="noopener"
+         data-tip="@ruzaka28"
+         aria-label="Telegram">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+        </svg>
+      </a>
+
+      <!-- GitHub -->
+      <a class="social-link link-gh"
+         href="https://github.com/"
+         target="_blank"
+         rel="noopener"
+         data-tip="GitHub"
+         aria-label="GitHub">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+        </svg>
+      </a>
+
+      <!-- VK -->
+      <a class="social-link link-vk"
+         href="https://vk.com/"
+         target="_blank"
+         rel="noopener"
+         data-tip="VKontakte"
+         aria-label="VKontakte">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.408 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.864-.525-2.05-1.727-1.033-1-1.49-1.135-1.744-1.135-.356 0-.458.102-.458.593v1.575c0 .424-.135.678-1.253.678-1.846 0-3.896-1.118-5.335-3.202C4.624 10.857 4.03 8.57 4.03 8.096c0-.254.102-.491.593-.491h1.744c.44 0 .61.203.78.677.864 2.49 2.303 4.675 2.896 4.675.22 0 .322-.102.322-.66V9.721c-.068-1.186-.695-1.287-.695-1.71 0-.203.169-.407.44-.407h2.744c.373 0 .508.203.508.643v3.473c0 .372.169.508.271.508.22 0 .407-.136.813-.542 1.253-1.406 2.15-3.574 2.15-3.574.119-.254.322-.491.762-.491h1.744c.525 0 .644.27.525.643-.22 1.017-2.354 4.031-2.354 4.031-.186.305-.254.44 0 .78.186.254.796.779 1.2 1.253.745.847 1.32 1.558 1.473 2.05.17.49-.085.745-.576.745z"/>
+        </svg>
+      </a>
+
+      <!-- Email -->
+      <a class="social-link"
+         href="mailto:abazeburhan@gmail.com"
+         data-tip="Email"
+         aria-label="Email"
+         style="--hover-bg:linear-gradient(135deg,#333333,#555555);--hover-shadow:rgba(255,255,255,0.12);">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z"/>
+        </svg>
+      </a>
+
+    </div>
+
+    <a class="cta" href="https://t.me/ruzaka28" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24">
+        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+      </svg>
+      <span>Написать мне</span>
+      <svg viewBox="0 0 24 24" style="width:14px;height:14px;">
+        <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+    </a>
+
+    <div class="badge">
+      <span class="badge-dot"></span>
+      Открыт к новым проектам
+    </div>
+  </div>
+
+</body>
+</html>
