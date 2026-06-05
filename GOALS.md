@@ -1,32 +1,36 @@
 # Hedefler
 
-## Ana Hedef
-Erbil merkezli elektrik/mekanik/inşaat firması için ön muhasebe ve proje yönetim programı geliştirmek.
+## 3 Aylık Ana Hedef
+Albrus Company için çalışan bir ön muhasebe ve proje yönetim programı geliştirmek.
 
-## Aktif Görevler
-- [ ] Firma yönetim programı — mimari ve teknik karar
-- [ ] Firma yönetim programı — geliştirme
-- [ ] vizitka.html — renk ve tasarım güncellemesi (ertelendi)
+## Neden Önemli
+Şu an Excel ve WhatsApp ile 50 kişilik ekip ve birden fazla proje yönetiliyor. Bu sistem ölçeklenemiyor — para, zaman ve bilgi kaybı oluşuyor.
+
+## Aktif Hedefler
+
+### 1. Firma Yönetim Programı
+- [ ] Teknik mimari karar (Electron vs Web)
+- [ ] Veritabanı şeması tasarımı
+- [ ] Muhasebe modülü (gelir/gider/fatura)
+- [ ] Proje yönetimi modülü (aşama/görev takibi)
+- [ ] Personel modülü (devam/maaş/avans)
+- [ ] Satınalma modülü (teklif/fiyat karşılaştırma)
+- [ ] Teklif hazırlama modülü
+- [ ] Türkçe + Arapça dil desteği
+
+### 2. Vizitka
+- [ ] Renk ve tasarım güncellemesi (ertelendi, sonra yapılacak)
+
+### 3. Altyapı
+- [x] GitHub reposu açıldı
+- [x] Agent mimarisi kuruldu
+
+## Yapılmayacaklar (şimdilik)
+- Mobil uygulama
+- Bulut/sunucu sistemi
+- Muhasebe yazılımıyla entegrasyon
 
 ## Tamamlananlar
 - [x] vizitka.html oluşturuldu
-- [x] GitHub reposu açıldı (abazeburhan-del/albrus)
-- [x] Agent mimarisi kuruldu (CLAUDE.md, SOUL.md, MEMORY.md, GOALS.md)
-
-## Program Gereksinimleri
-### Muhasebe
-- Gelir / Gider takibi
-- Fatura oluşturma
-- Tedarikçi / Borç takibi
-- Raporlar (aylık, proje bazlı)
-
-### Proje Yönetimi
-- Proje ve iş takibi (aşamalar, görevler, durum)
-- Ekip / işçi yönetimi
-- Malzeme / stok takibi
-- Müşteri yönetimi
-
-### Teknik
-- Platform: Masaüstü (Electron) veya Web
-- Dil: Türkçe + Arapça
-- Veritabanı: SQLite
+- [x] GitHub reposu: abazeburhan-del/albrus
+- [x] Agent mimarisi 8 dosyayla kuruldu
