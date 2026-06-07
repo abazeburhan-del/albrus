@@ -195,6 +195,16 @@
       Banka
     </div>
 
+    <div class="nav-item" data-page="faturalar" onclick="goPage('faturalar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      Faturalar
+    </div>
+
     <div class="nav-section">Firma</div>
 
     <div class="nav-item" data-page="cariler" onclick="goPage('cariler')">
@@ -316,6 +326,25 @@
       <button class="btn btn-primary" onclick="openProjeEkle()">+ Yeni Proje</button>
     </div>
     <div class="table-wrap" id="projeler-wrap"></div>
+  </div>
+
+  <!-- ── FATURALAR ── -->
+  <div id="pg-faturalar" class="page">
+    <div class="sec-header">
+      <div class="page-title" style="margin:0">Faturalar</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" onclick="openFaturaEkle('alis')">+ Alış Faturası</button>
+        <button class="btn btn-primary" onclick="openFaturaEkle('satis')">+ Satış Faturası</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <select id="ft-filtre-tur" onchange="loadFaturalar()">
+        <option value="">Tümü</option>
+        <option value="satis">Satış</option>
+        <option value="alis">Alış</option>
+      </select>
+    </div>
+    <div class="table-wrap" id="faturalar-wrap"></div>
   </div>
 
 </main>
@@ -454,10 +483,11 @@
   </div>
 </div>
 
-<!-- Cari Ekle -->
+<!-- Cari Ekle / Düzenle -->
 <div class="overlay" id="m-cari-ekle">
   <div class="modal">
-    <div class="modal-title">Yeni Cari</div>
+    <div class="modal-title" id="m-cari-ekle-title">Yeni Cari</div>
+    <input type="hidden" id="c-id">
     <div class="fg"><label>Ad / Firma Adı</label><input type="text" id="c-ad"></div>
     <div class="row2">
       <div class="fg">
@@ -470,7 +500,10 @@
       </div>
       <div class="fg"><label>Telefon</label><input type="text" id="c-tel" placeholder="+964…"></div>
     </div>
-    <div class="fg"><label>Adres (opsiyonel)</label><input type="text" id="c-adres"></div>
+    <div class="row2">
+      <div class="fg"><label>Vergi No (opsiyonel)</label><input type="text" id="c-vergino" placeholder="Vergi / TC No"></div>
+      <div class="fg"><label>Adres (opsiyonel)</label><input type="text" id="c-adres" placeholder="Adres"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-cari-ekle')">İptal</button>
       <button class="btn btn-primary" onclick="saveCari()">Kaydet</button>
@@ -506,6 +539,45 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-proje-ekle')">İptal</button>
       <button class="btn btn-primary" onclick="saveProje()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fatura Modal -->
+<div class="overlay" id="m-fatura">
+  <div class="modal modal-wide">
+    <div class="modal-title" id="m-fatura-title">Satış Faturası</div>
+    <input type="hidden" id="ft-tur">
+    <div class="row2">
+      <div class="fg"><label>Fatura No</label><input type="text" id="ft-no"></div>
+      <div class="fg"><label>Tarih</label><input type="text" id="ft-tarih" placeholder="2026-06-08" maxlength="10" oninput="onTarihInput(this)"></div>
+    </div>
+    <div class="row2">
+      <div class="fg">
+        <label>Cari</label>
+        <select id="ft-cari"><option value="">— Seçiniz —</option></select>
+      </div>
+      <div class="fg">
+        <label>Para Birimi</label>
+        <select id="ft-pb"><option value="IQD">IQD — Dinar</option><option value="USD">USD — Dolar</option></select>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <label style="font-size:11px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Fatura Kalemleri</label>
+      <button class="btn btn-ghost btn-sm" onclick="faturaKalemEkle()">+ Kalem Ekle</button>
+    </div>
+    <div id="ft-kalemler-wrap" style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden"></div>
+    <div style="display:flex;justify-content:flex-end;gap:20px;align-items:center;margin-bottom:13px;padding-right:4px;font-size:14px">
+      <span style="color:var(--dim)">Subtotal: <b id="ft-toplam" style="color:var(--text)">0</b></span>
+      <span style="color:var(--dim)">Discount: <input type="text" id="ft-indirim" inputmode="numeric" placeholder="0"
+        oninput="onTutarInput(this);updateFaturaToplam()"
+        style="width:90px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:13px;text-align:right"></span>
+      <span style="font-weight:700">Grand Total: <span id="ft-grand-toplam" style="color:var(--green)">0</span></span>
+    </div>
+    <div class="fg"><label>Note (optional)</label><textarea id="ft-aciklama" rows="2" placeholder="Invoice note…"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-fatura')">İptal</button>
+      <button class="btn btn-primary" onclick="saveFatura()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -566,7 +638,8 @@ const pageLoaders = {
   kasa:      loadKasa,
   banka:     loadBanka,
   cariler:   loadCariler,
-  projeler:  loadProjeler
+  projeler:  loadProjeler,
+  faturalar: loadFaturalar
 };
 
 function goPage(page) {
@@ -681,6 +754,8 @@ const TIP_ETIKET = {
   'banka-komisyon':   '↓ Banka Komisyonu'
 };
 
+let _kasaHareketlerList = [];
+
 async function loadKasaHareketler() {
   if (!S.secilenKasa) return;
   let list = await api.invoke('kasa:hareketler', S.secilenKasa.id);
@@ -689,6 +764,8 @@ async function loadKasaHareketler() {
   const bit = document.getElementById('kf-bit').value;
   if (bas) list = list.filter(h => h.tarih >= bas);
   if (bit) list = list.filter(h => h.tarih <= bit);
+
+  _kasaHareketlerList = list;
 
   const el = document.getElementById('kasa-haraketler-tablo');
   if (!list.length) { el.innerHTML = '<div class="empty">Hareket bulunamadı</div>'; return; }
@@ -715,11 +792,59 @@ async function loadKasaHareketler() {
           <td>${h.proje_ad || '—'}</td>
           <td>${h.belge_no || '—'}</td>
           <td>${h.aciklama || '—'}</td>
-          <td><button class="btn-del" onclick="delFis(${h.id})">✕</button></td>
+          <td style="display:flex;gap:4px;align-items:center">
+            <button class="btn-link btn-sm" onclick="printKasaFis(${h.id})">Fis</button>
+            <button class="btn-del" onclick="delFis(${h.id})">✕</button>
+          </td>
         </tr>
       `).join('')}
     </tbody></table>
   `;
+}
+
+async function printKasaFis(id) {
+  const h = _kasaHareketlerList.find(x => x.id === id);
+  if (!h) return;
+  const k = S.secilenKasa;
+  document.getElementById('print-area').innerHTML = `
+    <div style="font-family:'Segoe UI',Tahoma,sans-serif;color:#000;padding:32px;max-width:560px;margin:40px auto;border:1px solid #ccc;border-radius:8px">
+      <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:14px;margin-bottom:22px">
+        <div style="font-size:22px;font-weight:800;letter-spacing:2px">ALBRUS COMPANY</div>
+        <div style="font-size:15px;font-weight:700;margin-top:5px">KASA MAKBUZU</div>
+        <div style="font-size:12px;color:#555;margin-top:3px">${TIP_ETIKET[h.tur] || h.tur}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        ${[
+          ['Fis / Belge No', h.belge_no || '—'],
+          ['Tarih', fmtDate(h.tarih)],
+          ['Kasa', k?.ad || '—'],
+          ...(h.cari_ad  ? [['Cari',    h.cari_ad]]  : []),
+          ...(h.proje_ad ? [['Proje',   h.proje_ad]] : []),
+          ['Tutar', fmtTutar(h.tutar) + ' ' + (k?.para_birimi || '')],
+          ...(h.aciklama ? [['Aciklama', h.aciklama]] : []),
+        ].map(([label, val], i) => `
+          <tr style="background:${i % 2 === 0 ? '#f7f7f7' : '#fff'}">
+            <td style="padding:10px 12px;border-bottom:1px solid #ddd;color:#555;width:42%;font-weight:600">${label}</td>
+            <td style="padding:10px 12px;border-bottom:1px solid #ddd;font-weight:${label === 'Tutar' ? '700' : '400'};font-size:${label === 'Tutar' ? '17px' : '14px'}">${val}</td>
+          </tr>
+        `).join('')}
+      </table>
+      <div style="margin-top:40px;display:flex;justify-content:space-between;font-size:12px;padding-top:18px;border-top:1px solid #ccc">
+        <div>
+          <div style="color:#888;margin-bottom:28px">Teslim Alan</div>
+          <div>Imza: _______________________</div>
+        </div>
+        <div style="text-align:right">
+          <div style="color:#888;margin-bottom:28px">Kase / Yetkili</div>
+          <div>Imza: _______________________</div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:18px;font-size:11px;color:#aaa">Albrus Company — ${today()}</div>
+    </div>
+  `;
+  try {
+    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+  } catch (e) { alert('PDF hatasi: ' + e.message); }
 }
 
 function clearKasaFiltre() {
@@ -1084,11 +1209,7 @@ async function printHavaleFis(id) {
           </tr>
         `).join('')}
       </table>
-      <div style="margin-top:40px;display:flex;justify-content:space-between;font-size:12px;padding-top:18px;border-top:1px solid #ccc">
-        <div>
-          <div style="color:#888;margin-bottom:28px">Teslim Alan</div>
-          <div>Imza: _______________________</div>
-        </div>
+      <div style="margin-top:40px;display:flex;justify-content:flex-end;font-size:12px;padding-top:18px;border-top:1px solid #ccc">
         <div style="text-align:right">
           <div style="color:#888;margin-bottom:28px">Kase / Yetkili</div>
           <div>Imza: _______________________</div>
@@ -1188,7 +1309,7 @@ async function loadCariler() {
   if (!list.length) { el.innerHTML = '<div class="empty">Cari bulunamadı</div>'; return; }
   el.innerHTML = `
     <table><thead><tr>
-      <th>Ad</th><th>Tür</th><th>Telefon</th>
+      <th>Ad</th><th>Tür</th><th>Telefon</th><th>Vergi No</th><th>Adres</th>
       <th>Bakiye IQD</th><th>Bakiye USD</th><th></th>
     </tr></thead><tbody>
       ${list.map(c => `
@@ -1196,9 +1317,14 @@ async function loadCariler() {
           <td>${c.ad}</td>
           <td><span class="badge b-${c.tur}">${c.tur}</span></td>
           <td>${c.telefon || '—'}</td>
+          <td>${c.vergi_no || '—'}</td>
+          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.adres || ''}">${c.adres || '—'}</td>
           <td class="${c.bakiye_IQD >= 0 ? 'amt-pos' : 'amt-neg'}">${fmt(c.bakiye_IQD, 'IQD')}</td>
           <td class="${c.bakiye_USD >= 0 ? 'amt-pos' : 'amt-neg'}">${fmt(c.bakiye_USD, 'USD')}</td>
-          <td><button class="btn-link" onclick="openEkstre(${c.id})">Ekstre</button></td>
+          <td style="display:flex;gap:6px">
+            <button class="btn-link" onclick="openCariEkle(${JSON.stringify(c).replace(/"/g,'&quot;')})">Düzenle</button>
+            <button class="btn-link" onclick="openEkstre(${c.id})">Ekstre</button>
+          </td>
         </tr>
       `).join('')}
     </tbody></table>
@@ -1238,25 +1364,34 @@ async function openEkstre(cari_id) {
   openModal('m-ekstre');
 }
 
-function openCariEkle() {
-  document.getElementById('c-ad').value = '';
-  document.getElementById('c-tel').value = '';
-  document.getElementById('c-adres').value = '';
+function openCariEkle(cari = null) {
+  document.getElementById('m-cari-ekle-title').textContent = cari ? 'Cariyi Düzenle' : 'Yeni Cari';
+  document.getElementById('c-id').value      = cari?.id ?? '';
+  document.getElementById('c-ad').value      = cari?.ad ?? '';
+  document.getElementById('c-tur').value     = cari?.tur ?? 'musteri';
+  document.getElementById('c-tel').value     = cari?.telefon ?? '';
+  document.getElementById('c-adres').value   = cari?.adres ?? '';
+  document.getElementById('c-vergino').value = cari?.vergi_no ?? '';
   openModal('m-cari-ekle');
   setTimeout(() => document.getElementById('c-ad').focus(), 80);
 }
 
 async function saveCari() {
+  const id = document.getElementById('c-id').value;
   const d = {
-    ad:     document.getElementById('c-ad').value,
-    tur:    document.getElementById('c-tur').value,
-    telefon: document.getElementById('c-tel').value,
-    adres:  document.getElementById('c-adres').value
+    ad:       document.getElementById('c-ad').value,
+    tur:      document.getElementById('c-tur').value,
+    telefon:  document.getElementById('c-tel').value,
+    adres:    document.getElementById('c-adres').value,
+    vergi_no: document.getElementById('c-vergino').value
   };
   if (!d.ad) { alert('Ad zorunludur.'); return; }
-  await api.invoke('cariler:ekle', d);
-  closeModal('m-cari-ekle');
-  loadCariler();
+  try {
+    if (id) await api.invoke('cariler:guncelle', { ...d, id: Number(id) });
+    else    await api.invoke('cariler:ekle', d);
+    closeModal('m-cari-ekle');
+    loadCariler();
+  } catch (e) { alert('Hata: ' + e.message); }
 }
 
 // ══════════════════════════════════════════════════
@@ -1303,6 +1438,331 @@ async function saveProje() {
   await api.invoke('projeler:ekle', d);
   closeModal('m-proje-ekle');
   loadProjeler();
+}
+
+// ══════════════════════════════════════════════════
+// FATURALAR
+// ══════════════════════════════════════════════════
+
+async function loadFaturalar() {
+  const tur = document.getElementById('ft-filtre-tur').value;
+  const list = await api.invoke('faturalar:getir', tur ? { tur } : null);
+  const el = document.getElementById('faturalar-wrap');
+  if (!list.length) { el.innerHTML = '<div class="empty">Fatura bulunamadı</div>'; return; }
+  el.innerHTML = `
+    <table><thead><tr>
+      <th>Fatura No</th><th>Tür</th><th>Tarih</th><th>Cari</th>
+      <th>Toplam</th><th>Para Birimi</th><th>Durum</th><th></th>
+    </tr></thead><tbody>
+      ${list.map(f => `
+        <tr>
+          <td>${f.fatura_no}</td>
+          <td><span class="badge ${f.tur === 'satis' ? 'b-giris' : 'b-cikis'}">${f.tur === 'satis' ? '↑ Satış' : '↓ Alış'}</span></td>
+          <td>${fmtDate(f.tarih)}</td>
+          <td>${f.cari_ad || '—'}</td>
+          <td class="${f.tur === 'satis' ? 'amt-pos' : 'amt-neg'}">${fmtTutar(f.toplam)}</td>
+          <td>${f.para_birimi}</td>
+          <td><span class="badge ${f.durum === 'acik' ? 'b-alacak' : 'b-diger'}">${f.durum === 'acik' ? 'Açık' : f.durum}</span></td>
+          <td style="display:flex;gap:4px">
+            <button class="btn-link btn-sm" onclick="printFatura(${f.id})">PDF</button>
+            <button class="btn-del" onclick="delFatura(${f.id})">✕</button>
+          </td>
+        </tr>
+      `).join('')}
+    </tbody></table>
+  `;
+}
+
+let _faturaKalemler = [];
+
+function syncKalemlerFromDom() {
+  _faturaKalemler = _faturaKalemler.map((_, i) => ({
+    aciklama:    document.getElementById(`fk-aciklama-${i}`)?.value || '',
+    marka:       document.getElementById(`fk-marka-${i}`)?.value || '',
+    miktar:      parseFloat(document.getElementById(`fk-miktar-${i}`)?.value.replace(',', '.')) || 1,
+    birim:       document.getElementById(`fk-birim-${i}`)?.value || 'Adet',
+    birim_fiyat: parseInt(document.getElementById(`fk-fiyat-${i}`)?.value.replace(/\D/g, '') || '0', 10),
+  }));
+}
+
+function renderFaturaKalemler() {
+  const wrap = document.getElementById('ft-kalemler-wrap');
+  wrap.innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:rgba(255,255,255,.03)">
+          <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--dim)">Description</th>
+          <th style="padding:8px 6px;text-align:center;font-size:11px;color:var(--dim);width:70px">Brand</th>
+          <th style="padding:8px 6px;text-align:right;font-size:11px;color:var(--dim);width:45px">Qty</th>
+          <th style="padding:8px 6px;text-align:center;font-size:11px;color:var(--dim);width:55px">Unit</th>
+          <th style="padding:8px 6px;text-align:right;font-size:11px;color:var(--dim);width:110px">Unit Price</th>
+          <th style="padding:8px 10px;text-align:right;font-size:11px;color:var(--dim);width:100px">Amount</th>
+          <th style="width:30px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${_faturaKalemler.map((k, i) => `
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:5px 6px">
+              <input id="fk-aciklama-${i}" type="text" value="${k.aciklama}"
+                oninput="updateFaturaToplam()"
+                placeholder="Product / Service"
+                style="width:100%;background:transparent;border:none;color:var(--text);padding:5px 4px;font-size:13px;font-family:inherit;outline:none">
+            </td>
+            <td style="padding:5px 6px">
+              <input id="fk-marka-${i}" type="text" value="${k.marka || ''}"
+                placeholder="—"
+                style="width:100%;text-align:center;background:transparent;border:none;color:var(--text);padding:5px 4px;font-size:12px;font-family:inherit;outline:none">
+            </td>
+            <td style="padding:5px 6px">
+              <input id="fk-miktar-${i}" type="text" value="${k.miktar}"
+                oninput="updateFaturaToplam()" inputmode="decimal"
+                style="width:100%;text-align:right;background:transparent;border:none;color:var(--text);padding:5px 4px;font-size:13px;font-family:inherit;outline:none">
+            </td>
+            <td style="padding:5px 6px">
+              <input id="fk-birim-${i}" type="text" value="${k.birim || 'Adet'}"
+                placeholder="Adet"
+                style="width:100%;text-align:center;background:transparent;border:none;color:var(--text);padding:5px 4px;font-size:12px;font-family:inherit;outline:none">
+            </td>
+            <td style="padding:5px 6px">
+              <input id="fk-fiyat-${i}" type="text" value="${k.birim_fiyat || ''}"
+                oninput="updateFaturaToplam()" inputmode="numeric" placeholder="0"
+                style="width:100%;text-align:right;background:transparent;border:none;color:var(--text);padding:5px 4px;font-size:13px;font-family:inherit;outline:none">
+            </td>
+            <td id="fk-tutar-${i}" style="padding:5px 10px;text-align:right;font-weight:600;font-size:13px">
+              ${fmtTutar(Math.round(k.miktar * k.birim_fiyat))}
+            </td>
+            <td style="padding:5px 4px">
+              <button onclick="faturaKalemSil(${i})" class="btn-del" ${_faturaKalemler.length <= 1 ? 'disabled style="opacity:.3"' : ''}>✕</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  updateFaturaToplam();
+}
+
+function updateFaturaToplam() {
+  let total = 0;
+  _faturaKalemler.forEach((_, i) => {
+    const miktar = parseFloat(document.getElementById(`fk-miktar-${i}`)?.value.replace(',', '.')) || 0;
+    const fiyat  = parseInt(document.getElementById(`fk-fiyat-${i}`)?.value.replace(/\D/g, '') || '0', 10);
+    const tutar  = Math.round(miktar * fiyat);
+    const el = document.getElementById(`fk-tutar-${i}`);
+    if (el) el.textContent = fmtTutar(tutar);
+    total += tutar;
+  });
+  const indirim = parseInt(document.getElementById('ft-indirim')?.value.replace(/\D/g, '') || '0', 10);
+  document.getElementById('ft-toplam').textContent = fmtTutar(total);
+  document.getElementById('ft-grand-toplam').textContent = fmtTutar(Math.max(0, total - indirim));
+}
+
+function faturaKalemEkle() {
+  syncKalemlerFromDom();
+  _faturaKalemler.push({ aciklama: '', marka: '', miktar: 1, birim: 'Adet', birim_fiyat: 0 });
+  renderFaturaKalemler();
+}
+
+function faturaKalemSil(i) {
+  if (_faturaKalemler.length <= 1) return;
+  syncKalemlerFromDom();
+  _faturaKalemler.splice(i, 1);
+  renderFaturaKalemler();
+}
+
+async function openFaturaEkle(tur) {
+  document.getElementById('ft-tur').value = tur;
+  document.getElementById('m-fatura-title').textContent = tur === 'satis' ? 'Satış Faturası' : 'Alış Faturası';
+  document.getElementById('ft-tarih').value = today();
+  document.getElementById('ft-aciklama').value = '';
+  document.getElementById('ft-indirim').value = '';
+  document.getElementById('ft-pb').value = 'IQD';
+
+  const ftNo = await api.invoke('sonraki:fatura:no', tur);
+  document.getElementById('ft-no').value = ftNo;
+
+  _faturaKalemler = [{ aciklama: '', marka: '', miktar: 1, birim: 'Adet', birim_fiyat: 0 }];
+  renderFaturaKalemler();
+
+  const cariler = await api.invoke('cariler:getir');
+  document.getElementById('ft-cari').innerHTML =
+    '<option value="">— Seçiniz —</option>' +
+    cariler.map(c => `<option value="${c.id}">${c.ad}</option>`).join('');
+
+  openModal('m-fatura');
+  setTimeout(() => document.getElementById('ft-no').focus(), 80);
+}
+
+async function saveFatura() {
+  syncKalemlerFromDom();
+  const kalemler = _faturaKalemler.filter(k => k.aciklama.trim() && k.miktar > 0 && k.birim_fiyat > 0);
+  if (!kalemler.length) { alert('En az bir geçerli kalem girilmelidir.'); return; }
+  const data = {
+    fatura_no:   document.getElementById('ft-no').value,
+    tur:         document.getElementById('ft-tur').value,
+    tarih:       document.getElementById('ft-tarih').value,
+    cari_id:     document.getElementById('ft-cari').value || null,
+    para_birimi: document.getElementById('ft-pb').value,
+    indirim:     parseInt(document.getElementById('ft-indirim').value.replace(/\D/g, '') || '0', 10),
+    aciklama:    document.getElementById('ft-aciklama').value,
+    kalemler
+  };
+  if (!data.tarih) { alert('Tarih zorunludur.'); return; }
+  try {
+    await api.invoke('fatura:ekle', data);
+    closeModal('m-fatura');
+    loadFaturalar();
+  } catch (e) { alert('Hata: ' + e.message); }
+}
+
+async function delFatura(id) {
+  if (!confirm('Bu faturayı silmek istediğinizden emin misiniz?')) return;
+  await api.invoke('fatura:sil', id);
+  loadFaturalar();
+}
+
+function numToWords(n) {
+  if (n === 0) return 'Zero';
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+    'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function b1000(n) {
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n/10)] + (n%10 ? ' '+ones[n%10] : '');
+    return ones[Math.floor(n/100)]+' Hundred'+(n%100 ? ' '+b1000(n%100) : '');
+  }
+  if (n < 1000) return b1000(n);
+  if (n < 1000000) return b1000(Math.floor(n/1000))+' Thousand'+(n%1000 ? ' '+b1000(n%1000) : '');
+  if (n < 1000000000) return b1000(Math.floor(n/1000000))+' Million'+(n%1000000 ? ' '+numToWords(n%1000000) : '');
+  return b1000(Math.floor(n/1000000000))+' Billion'+(n%1000000000 ? ' '+numToWords(n%1000000000) : '');
+}
+
+async function printFatura(id) {
+  const f = await api.invoke('fatura:getir', id);
+  if (!f) return;
+  const pb = f.para_birimi;
+  const indirim = f.indirim ?? 0;
+  const grandTotal = Math.max(0, f.toplam - indirim);
+  const cariLabel = f.tur === 'satis' ? 'Customer' : 'Supplier';
+
+  const logoSvg = `<svg width="56" height="56" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="28" cy="28" r="27" fill="none" stroke="#1a1a2e" stroke-width="2.5"/>
+    <circle cx="28" cy="28" r="22" fill="none" stroke="#1a1a2e" stroke-width="1"/>
+    <text x="28" y="34" font-family="Arial Black,Arial" font-weight="900" font-size="20" fill="#1a1a2e" text-anchor="middle">A</text>
+  </svg>`;
+
+  const cellStyle = 'border:1px solid #ccc;padding:6px 9px;font-size:12px';
+  const thStyle   = 'padding:7px 9px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.5px';
+
+  document.getElementById('print-area').innerHTML = `
+    <div style="font-family:Arial,Tahoma,sans-serif;color:#000;padding:22px 26px;max-width:760px;margin:0 auto;border:1px solid #888">
+
+      <!-- ── HEADER ── -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          ${logoSvg}
+          <div>
+            <div style="font-size:26px;font-weight:900;line-height:1;letter-spacing:1px">ALBRUS</div>
+            <div style="font-size:18px;font-weight:700;letter-spacing:1px">COMPANY</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;line-height:1.7;text-align:right">
+          <div><b>Address :</b> Justice Tower 23. Floor No: 27 Erbil / IRAQ</div>
+          <div><b>Mobile &nbsp;:</b> +964 750 321 0101 &nbsp; +964 750 424 1497</div>
+          <div><b>Web &nbsp;&nbsp;&nbsp;&nbsp;:</b> www.albrustech.com</div>
+          <div><b>E-mail &nbsp;:</b> kamuran.ebiri@albrustech.com</div>
+          <div><b>E-mail &nbsp;:</b> burhan.arslan@albrustech.com</div>
+          <div style="margin-top:5px"><b>DATE &nbsp;&nbsp;&nbsp;:</b> ${fmtDate(f.tarih)}</div>
+          <div><b>SERIAL &nbsp;:</b> ${f.fatura_no}</div>
+        </div>
+      </div>
+
+      <!-- ── INVOICE TITLE ── -->
+      <div style="background:#1a1a2e;color:#fff;text-align:center;padding:7px 0;font-size:15px;font-weight:700;letter-spacing:4px;margin-bottom:0">
+        İNVOICE
+      </div>
+
+      <!-- ── BILL TO ── -->
+      <table style="width:100%;border-collapse:collapse;border:1px solid #aaa;border-top:none;margin-bottom:10px;font-size:12px">
+        <tr style="border-bottom:1px solid #ddd">
+          <td style="padding:5px 10px;font-weight:700;width:90px;color:#333">BILL TO</td>
+          <td style="padding:5px 10px">: ${f.cari_ad || '&nbsp;'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #ddd">
+          <td style="padding:5px 10px;font-weight:700;color:#333">ADDRESS</td>
+          <td style="padding:5px 10px">: ${f.cari_adres || '&nbsp;'}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #ddd">
+          <td style="padding:5px 10px;font-weight:700;color:#333">ATTN</td>
+          <td style="padding:5px 10px">: TAX NUMBER &nbsp; ${f.cari_vergi_no || '&nbsp;'}</td>
+        </tr>
+        <tr>
+          <td style="padding:5px 10px;font-weight:700;color:#333">TEL</td>
+          <td style="padding:5px 10px">: ${f.cari_tel || '&nbsp;'}</td>
+        </tr>
+      </table>
+
+      <!-- ── ITEMS TABLE ── -->
+      <table style="width:100%;border-collapse:collapse;margin-bottom:14px">
+        <thead>
+          <tr style="background:#2c2c3e;color:#fff">
+            <th style="${thStyle};text-align:center;width:38px">S.NO</th>
+            <th style="${thStyle};text-align:left">PRODUCT OR SERVICE DESCRIPTION</th>
+            <th style="${thStyle};width:65px">BRAND</th>
+            <th style="${thStyle};width:60px">QUANTITY</th>
+            <th style="${thStyle};width:48px">UNIT</th>
+            <th style="${thStyle};text-align:right;width:115px">UNIT PRICE</th>
+            <th style="${thStyle};text-align:right;width:115px">TOTAL PRICE</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${f.kalemler.map((k, i) => `
+            <tr style="background:${i%2===0?'#fff':'#f7f7f7'}">
+              <td style="${cellStyle};text-align:center">${i+1}</td>
+              <td style="${cellStyle}">${k.aciklama}</td>
+              <td style="${cellStyle};text-align:center">${k.marka || ''}</td>
+              <td style="${cellStyle};text-align:center">${k.miktar}</td>
+              <td style="${cellStyle};text-align:center">${k.birim || 'Pcs'}</td>
+              <td style="${cellStyle};text-align:right">${pb} ${fmtTutar(k.birim_fiyat)}.00</td>
+              <td style="${cellStyle};text-align:right">${pb} ${fmtTutar(k.toplam)}.00</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <!-- ── FOOTER ── -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:8px;border-top:1px solid #aaa">
+        <div style="font-size:12px;max-width:340px">
+          <div style="font-size:10px;color:#666;margin-bottom:2px">Total (by Text)</div>
+          <div style="font-style:italic;font-weight:600">${numToWords(grandTotal)} ${pb}</div>
+          ${f.aciklama ? `<div style="margin-top:8px;font-size:11px;color:#555"><b>Note:</b> ${f.aciklama}</div>` : ''}
+        </div>
+        <table style="font-size:12.5px;min-width:260px">
+          <tr>
+            <td style="padding:3px 14px 3px 0;color:#444">TOTAL</td>
+            <td style="text-align:right;padding:3px 0;font-weight:600">${pb} ${fmtTutar(f.toplam)}.00</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 14px 3px 0;color:#444">DISCOUNT</td>
+            <td style="text-align:right;padding:3px 0">${indirim ? pb+' '+fmtTutar(indirim)+'.00' : '—'}</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 14px 3px 0;color:#444">SUBTOTAL</td>
+            <td style="text-align:right;padding:3px 0;font-weight:600">${pb} ${fmtTutar(grandTotal)}.00</td>
+          </tr>
+          <tr style="border-top:2px solid #000">
+            <td style="padding:5px 14px 3px 0;font-weight:800;font-size:13px">GRAND TOTAL</td>
+            <td style="text-align:right;padding:5px 0;font-weight:800;font-size:13px">${pb} ${fmtTutar(grandTotal)}.00</td>
+          </tr>
+        </table>
+      </div>
+
+    </div>
+  `;
+  try {
+    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+  } catch (e) { alert('PDF hatası: ' + e.message); }
 }
 
 // ── Boot ──────────────────────────────────────────

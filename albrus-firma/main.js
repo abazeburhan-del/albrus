@@ -102,6 +102,27 @@ async function initDb() {
       ad TEXT NOT NULL,
       tur TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS faturalar (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fatura_no TEXT NOT NULL,
+      tur TEXT NOT NULL,
+      tarih TEXT NOT NULL,
+      cari_id INTEGER,
+      para_birimi TEXT NOT NULL DEFAULT 'IQD',
+      toplam REAL NOT NULL DEFAULT 0,
+      aciklama TEXT DEFAULT '',
+      durum TEXT DEFAULT 'acik'
+    );
+
+    CREATE TABLE IF NOT EXISTS fatura_kalemleri (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fatura_id INTEGER NOT NULL,
+      aciklama TEXT NOT NULL,
+      miktar REAL NOT NULL DEFAULT 1,
+      birim_fiyat REAL NOT NULL DEFAULT 0,
+      toplam REAL NOT NULL DEFAULT 0
+    );
   `);
 
   // Varsayılan veriler
@@ -116,6 +137,12 @@ async function initDb() {
     run('INSERT INTO banka_hesaplari (banka_adi, para_birimi, bakiye) VALUES (?, ?, 0)', ['IQD Banka', 'IQD']);
     run('INSERT INTO banka_hesaplari (banka_adi, para_birimi, bakiye) VALUES (?, ?, 0)', ['USD Banka', 'USD']);
   }
+
+  // Migrations
+  try { db.run("ALTER TABLE cariler ADD COLUMN vergi_no TEXT DEFAULT ''"); } catch (_) {}
+  try { db.run("ALTER TABLE fatura_kalemleri ADD COLUMN birim TEXT DEFAULT 'Adet'"); } catch (_) {}
+  try { db.run("ALTER TABLE fatura_kalemleri ADD COLUMN marka TEXT DEFAULT ''"); } catch (_) {}
+  try { db.run("ALTER TABLE faturalar ADD COLUMN indirim INTEGER DEFAULT 0"); } catch (_) {}
 
   const katSayisi = getOne('SELECT COUNT(*) as n FROM kategoriler').n;
   if (katSayisi === 0) {
@@ -390,16 +417,16 @@ ipcMain.handle('cariler:getir', (_, f) => {
 
 ipcMain.handle('cariler:ekle', (_, d) => {
   const r = insertAndGet('cariler',
-    'INSERT INTO cariler (ad, tur, telefon, adres) VALUES (?, ?, ?, ?)',
-    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '']
+    'INSERT INTO cariler (ad, tur, telefon, adres, vergi_no) VALUES (?, ?, ?, ?, ?)',
+    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '']
   );
   saveDb();
   return r;
 });
 
 ipcMain.handle('cariler:guncelle', (_, d) => {
-  run('UPDATE cariler SET ad = ?, tur = ?, telefon = ?, adres = ? WHERE id = ?',
-    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.id]);
+  run('UPDATE cariler SET ad = ?, tur = ?, telefon = ?, adres = ?, vergi_no = ? WHERE id = ?',
+    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '', d.id]);
   saveDb();
   return getOne('SELECT * FROM cariler WHERE id = ?', [d.id]);
 });
@@ -423,6 +450,93 @@ ipcMain.handle('projeler:ekle', (_, d) => {
   );
   saveDb();
   return r;
+});
+
+// ════════════════════════════════════════════════════════════
+// FATURA
+// ════════════════════════════════════════════════════════════
+
+ipcMain.handle('sonraki:fatura:no', (_, tur) => {
+  const prefix = tur === 'satis' ? 'SAT' : 'AL';
+  const row = getOne('SELECT COUNT(*) as n FROM faturalar WHERE tur = ?', [tur]);
+  const next = (row?.n ?? 0) + 1;
+  return prefix + '-' + String(next).padStart(4, '0');
+});
+
+ipcMain.handle('faturalar:getir', (_, f) => {
+  let sql = `
+    SELECT f.*, c.ad as cari_ad
+    FROM faturalar f
+    LEFT JOIN cariler c ON c.id = f.cari_id
+  `;
+  const params = [];
+  const conds = [];
+  if (f?.tur)     { conds.push('f.tur = ?');     params.push(f.tur); }
+  if (f?.cari_id) { conds.push('f.cari_id = ?'); params.push(f.cari_id); }
+  if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
+  sql += ' ORDER BY f.tarih DESC, f.id DESC';
+  return getAll(sql, params);
+});
+
+ipcMain.handle('fatura:getir', (_, id) => {
+  const fatura = getOne(`
+    SELECT f.*, c.ad as cari_ad, c.vergi_no as cari_vergi_no, c.adres as cari_adres, c.telefon as cari_tel
+    FROM faturalar f LEFT JOIN cariler c ON c.id = f.cari_id
+    WHERE f.id = ?
+  `, [id]);
+  if (!fatura) return null;
+  fatura.kalemler = getAll('SELECT * FROM fatura_kalemleri WHERE fatura_id = ? ORDER BY id', [id]);
+  return fatura;
+});
+
+ipcMain.handle('fatura:ekle', (_, d) => {
+  if (!d.kalemler?.length) throw new Error('En az bir kalem girilmelidir.');
+  const toplam = d.kalemler.reduce((s, k) => s + Math.round(k.miktar * k.birim_fiyat), 0);
+
+  const indirim = Math.abs(d.indirim ?? 0);
+  const grandToplam = Math.max(0, toplam - indirim);
+
+  const fatura = insertAndGet('faturalar',
+    'INSERT INTO faturalar (fatura_no, tur, tarih, cari_id, para_birimi, toplam, indirim, aciklama, durum) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [d.fatura_no, d.tur, d.tarih,
+     d.cari_id ? Number(d.cari_id) : null,
+     d.para_birimi, toplam, indirim, d.aciklama ?? '', 'acik']
+  );
+
+  for (const k of d.kalemler) {
+    const kt = Math.round(k.miktar * k.birim_fiyat);
+    run('INSERT INTO fatura_kalemleri (fatura_id, aciklama, birim, marka, miktar, birim_fiyat, toplam) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [fatura.id, k.aciklama, k.birim ?? 'Adet', k.marka ?? '', k.miktar, k.birim_fiyat, kt]);
+  }
+
+  if (fatura.cari_id) {
+    const cariTur = d.tur === 'satis' ? 'alacak' : 'borc';
+    run('INSERT INTO cari_hareketleri (cari_id, tarih, tur, tutar, para_birimi, aciklama, belge_no, kaynak) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [fatura.cari_id, fatura.tarih, cariTur, grandToplam, fatura.para_birimi, fatura.aciklama, fatura.fatura_no, 'fatura']);
+    const alan = fatura.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
+    const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fatura.cari_id]);
+    const delta = cariTur === 'alacak' ? grandToplam : -grandToplam;
+    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fatura.cari_id]);
+  }
+
+  saveDb();
+  return fatura;
+});
+
+ipcMain.handle('fatura:sil', (_, id) => {
+  const fatura = getOne('SELECT * FROM faturalar WHERE id = ?', [id]);
+  if (!fatura) return false;
+  if (fatura.cari_id) {
+    const cariTur = fatura.tur === 'satis' ? 'alacak' : 'borc';
+    const alan = fatura.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
+    const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fatura.cari_id]);
+    const delta = cariTur === 'alacak' ? -fatura.toplam : fatura.toplam;
+    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fatura.cari_id]);
+  }
+  run('DELETE FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
+  run('DELETE FROM faturalar WHERE id = ?', [id]);
+  saveDb();
+  return true;
 });
 
 // ════════════════════════════════════════════════════════════
