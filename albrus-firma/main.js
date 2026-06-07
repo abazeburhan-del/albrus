@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 let db;
 let SQL;
@@ -422,6 +423,40 @@ ipcMain.handle('projeler:ekle', (_, d) => {
   );
   saveDb();
   return r;
+});
+
+// ════════════════════════════════════════════════════════════
+// PDF PRINT
+// ════════════════════════════════════════════════════════════
+
+ipcMain.handle('print:pdf', async (_, htmlContent) => {
+  const printWin = new BrowserWindow({
+    show: false,
+    width: 900, height: 700,
+    webPreferences: { contextIsolation: true, nodeIntegration: false }
+  });
+
+  const fullHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; }
+      * { box-sizing: border-box; }
+    </style>
+  </head><body>${htmlContent}</body></html>`;
+
+  await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(fullHtml));
+
+  const pdfData = await printWin.webContents.printToPDF({
+    printBackground: false,
+    pageSize: 'A4',
+    margins: { marginType: 'default' }
+  });
+
+  printWin.close();
+
+  const pdfPath = path.join(os.tmpdir(), `albrus-${Date.now()}.pdf`);
+  fs.writeFileSync(pdfPath, pdfData);
+  shell.openPath(pdfPath);
+  return true;
 });
 
 // ════════════════════════════════════════════════════════════
