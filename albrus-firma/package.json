@@ -1,0 +1,16 @@
+{
+  "name": "albrus-firma",
+  "version": "1.0.0",
+  "description": "Albrus Company Firma Yönetim Programı",
+  "main": "main.js",
+  "scripts": {
+    "start": "node launch.js"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "playwright-core": "^1.60.0"
+  },
+  "dependencies": {
+    "sql.js": "^1.14.1"
+  }
+}

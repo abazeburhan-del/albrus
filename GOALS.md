@@ -12,7 +12,6 @@ Albrus Company için çalışan bir ön muhasebe ve proje yönetim programı gel
 - [ ] Teknik mimari karar (Electron vs Web)
 - [ ] Veritabanı şeması tasarımı
 - [ ] Muhasebe modülü (gelir/gider/fatura)
-- [ ] Proje yönetimi modülü (aşama/görev takibi)
 - [ ] Personel modülü (devam/maaş/avans)
 - [ ] Satınalma modülü (teklif/fiyat karşılaştırma)
 - [ ] Teklif hazırlama modülü
