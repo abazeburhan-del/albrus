@@ -523,6 +523,51 @@ ipcMain.handle('fatura:ekle', (_, d) => {
   return fatura;
 });
 
+ipcMain.handle('fatura:guncelle', (_, id, d) => {
+  const eski = getOne('SELECT * FROM faturalar WHERE id = ?', [id]);
+  if (!eski) throw new Error('Fatura bulunamadı.');
+
+  // Eski cari etkisini geri al
+  if (eski.cari_id) {
+    const eskiGrand = Math.max(0, eski.toplam - (eski.indirim ?? 0));
+    const eskiCariTur = eski.tur === 'satis' ? 'alacak' : 'borc';
+    const alan = eski.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
+    const cari = getOne('SELECT * FROM cariler WHERE id = ?', [eski.cari_id]);
+    const geriDelta = eskiCariTur === 'alacak' ? -eskiGrand : eskiGrand;
+    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + geriDelta, eski.cari_id]);
+    run('DELETE FROM cari_hareketleri WHERE belge_no = ? AND kaynak = ?', [eski.fatura_no, 'fatura']);
+  }
+
+  const yeniToplam = d.kalemler.reduce((s, k) => s + Math.round(k.miktar * k.birim_fiyat), 0);
+  const yeniIndirim = Math.abs(d.indirim ?? 0);
+  const yeniGrand = Math.max(0, yeniToplam - yeniIndirim);
+
+  run('UPDATE faturalar SET fatura_no=?, tur=?, tarih=?, cari_id=?, para_birimi=?, toplam=?, indirim=?, aciklama=? WHERE id=?',
+    [d.fatura_no, d.tur, d.tarih,
+     d.cari_id ? Number(d.cari_id) : null,
+     d.para_birimi, yeniToplam, yeniIndirim, d.aciklama ?? '', id]);
+
+  run('DELETE FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
+  for (const k of d.kalemler) {
+    const kt = Math.round(k.miktar * k.birim_fiyat);
+    run('INSERT INTO fatura_kalemleri (fatura_id, aciklama, birim, marka, miktar, birim_fiyat, toplam) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, k.aciklama, k.birim ?? 'Adet', k.marka ?? '', k.miktar, k.birim_fiyat, kt]);
+  }
+
+  if (d.cari_id) {
+    const cariTur = d.tur === 'satis' ? 'alacak' : 'borc';
+    run('INSERT INTO cari_hareketleri (cari_id, tarih, tur, tutar, para_birimi, aciklama, belge_no, kaynak) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [Number(d.cari_id), d.tarih, cariTur, yeniGrand, d.para_birimi, d.aciklama, d.fatura_no, 'fatura']);
+    const alan = d.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
+    const cari = getOne('SELECT * FROM cariler WHERE id = ?', [Number(d.cari_id)]);
+    const delta = cariTur === 'alacak' ? yeniGrand : -yeniGrand;
+    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, Number(d.cari_id)]);
+  }
+
+  saveDb();
+  return true;
+});
+
 ipcMain.handle('fatura:sil', (_, id) => {
   const fatura = getOne('SELECT * FROM faturalar WHERE id = ?', [id]);
   if (!fatura) return false;
@@ -560,7 +605,7 @@ ipcMain.handle('print:pdf', async (_, htmlContent) => {
   await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(fullHtml));
 
   const pdfData = await printWin.webContents.printToPDF({
-    printBackground: false,
+    printBackground: true,
     pageSize: 'A4',
     margins: { marginType: 'default' }
   });
