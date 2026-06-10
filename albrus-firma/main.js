@@ -426,6 +426,8 @@ ipcMain.handle('kasa:fis:sil', (_, id) => {
     const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fis.cari_id]);
     const cariDelta = isGiris(fis.tur) ? -fis.tutar : fis.tutar;
     run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + cariDelta, fis.cari_id]);
+    run("DELETE FROM cari_hareketleri WHERE cari_id=? AND tutar=? AND tarih=? AND kaynak='kasa'",
+      [fis.cari_id, fis.tutar, fis.tarih]);
   }
   run('DELETE FROM kasa_hareketleri WHERE id = ?', [id]);
   saveDb();
@@ -515,6 +517,8 @@ ipcMain.handle('banka:fis:sil', (_, id) => {
     const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fis.cari_id]);
     const cariDelta = isGiris(fis.tur) ? -fis.tutar : fis.tutar;
     run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + cariDelta, fis.cari_id]);
+    run("DELETE FROM cari_hareketleri WHERE cari_id=? AND tutar=? AND tarih=? AND kaynak='banka'",
+      [fis.cari_id, fis.tutar, fis.tarih]);
   }
 
   run('DELETE FROM banka_hareketleri WHERE id = ?', [id]);
@@ -675,8 +679,8 @@ ipcMain.handle('fatura:guncelle', (_, id, d) => {
   run('DELETE FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
   for (const k of d.kalemler) {
     const kt = Math.round(k.miktar * k.birim_fiyat);
-    run('INSERT INTO fatura_kalemleri (fatura_id, aciklama, birim, marka, miktar, birim_fiyat, toplam) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, k.aciklama, k.birim ?? 'Adet', k.marka ?? '', k.miktar, k.birim_fiyat, kt]);
+    run('INSERT INTO fatura_kalemleri (fatura_id, aciklama, birim, marka, miktar, birim_fiyat, toplam, stok_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, k.aciklama, k.birim ?? 'Adet', k.marka ?? '', k.miktar, k.birim_fiyat, kt, k.stok_id ?? null]);
   }
 
   if (d.cari_id) {
@@ -731,13 +735,28 @@ ipcMain.handle('stok:hareketler', (_, stokId) =>
 ipcMain.handle('fatura:sil', (_, id) => {
   const fatura = getOne('SELECT * FROM faturalar WHERE id = ?', [id]);
   if (!fatura) return false;
+
   if (fatura.cari_id) {
+    const grandToplam = Math.max(0, fatura.toplam - (fatura.indirim ?? 0));
     const cariTur = fatura.tur === 'satis' ? 'borc' : 'alacak';
     const alan = fatura.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
     const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fatura.cari_id]);
-    const delta = cariTur === 'borc' ? -fatura.toplam : fatura.toplam;
+    const delta = cariTur === 'borc' ? -grandToplam : grandToplam;
     run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fatura.cari_id]);
+    run("DELETE FROM cari_hareketleri WHERE belge_no=? AND kaynak='fatura'", [fatura.fatura_no]);
   }
+
+  if (fatura.tur === 'alis') {
+    const kalemler = getAll('SELECT * FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
+    for (const k of kalemler) {
+      if (k.stok_id) {
+        const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [k.stok_id]);
+        if (stok) run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [stok.mevcut_miktar - k.miktar, k.stok_id]);
+      }
+    }
+    run('DELETE FROM stok_hareketleri WHERE fatura_id = ?', [id]);
+  }
+
   run('DELETE FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
   run('DELETE FROM faturalar WHERE id = ?', [id]);
   saveDb();
@@ -901,7 +920,7 @@ ipcMain.handle('maas:odeme:sil', (_, id) => {
     }
   }
 
-  run("DELETE FROM personel_hareketleri WHERE kaynak='maas_odeme' AND tutar=? AND tarih=? AND personel_id=? AND tur='borc'",
+  run("DELETE FROM personel_hareketleri WHERE id=(SELECT id FROM personel_hareketleri WHERE kaynak='maas_odeme' AND tutar=? AND tarih=? AND personel_id=? AND tur='borc' ORDER BY id DESC LIMIT 1)",
     [odeme.net, odeme.tarih, odeme.personel_id]);
   run('DELETE FROM maas_odemeleri WHERE id = ?', [id]);
   saveDb();
