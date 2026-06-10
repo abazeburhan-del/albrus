@@ -229,6 +229,18 @@ async function initDb() {
       kaynak_id INTEGER,
       aciklama TEXT DEFAULT ''
     );
+    CREATE TABLE IF NOT EXISTS personel_hareketleri (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      personel_id INTEGER NOT NULL,
+      tarih TEXT NOT NULL,
+      tur TEXT NOT NULL,
+      tutar REAL NOT NULL DEFAULT 0,
+      kaynak TEXT DEFAULT '',
+      yil INTEGER DEFAULT NULL,
+      ay INTEGER DEFAULT NULL,
+      gun INTEGER DEFAULT NULL,
+      aciklama TEXT DEFAULT ''
+    );
   `);
 
   // Migrations
@@ -239,6 +251,10 @@ async function initDb() {
   try { db.run("ALTER TABLE fatura_kalemleri ADD COLUMN stok_id INTEGER"); } catch (_) {}
   try { db.run("ALTER TABLE kasa_hareketleri ADD COLUMN ortak_id INTEGER"); } catch (_) {}
   try { db.run("ALTER TABLE banka_hareketleri ADD COLUMN ortak_id INTEGER"); } catch (_) {}
+  try { db.run("ALTER TABLE personel_hareketleri ADD COLUMN yil INTEGER DEFAULT NULL"); } catch (_) {}
+  try { db.run("ALTER TABLE personel_hareketleri ADD COLUMN ay INTEGER DEFAULT NULL"); } catch (_) {}
+  try { db.run("ALTER TABLE personel_hareketleri ADD COLUMN gun INTEGER DEFAULT NULL"); } catch (_) {}
+  try { db.run("ALTER TABLE puantaj ADD COLUMN mesai_saat REAL DEFAULT 0"); } catch (_) {}
 
   const katSayisi = getOne('SELECT COUNT(*) as n FROM kategoriler').n;
   if (katSayisi === 0) {
@@ -775,9 +791,14 @@ ipcMain.handle('kategoriler:getir', (_, tur) => {
 // PERSONEL
 // ════════════════════════════════════════════════════════════
 
-ipcMain.handle('personeller:getir', () =>
-  getAll('SELECT * FROM personeller ORDER BY ad, soyad')
-);
+ipcMain.handle('personeller:getir', () => {
+  const personeller = getAll('SELECT * FROM personeller ORDER BY ad, soyad');
+  return personeller.map(p => {
+    const alacak = getOne("SELECT COALESCE(SUM(tutar),0) as t FROM personel_hareketleri WHERE personel_id=? AND tur='alacak'", [p.id])?.t || 0;
+    const borc   = getOne("SELECT COALESCE(SUM(tutar),0) as t FROM personel_hareketleri WHERE personel_id=? AND tur='borc'",   [p.id])?.t || 0;
+    return { ...p, alacak, borc, net_alacak: alacak - borc };
+  });
+});
 
 ipcMain.handle('personeller:ekle', (_, d) => {
   const r = insertAndGet('personeller',
@@ -852,6 +873,9 @@ ipcMain.handle('maas:odeme:ekle', (_, d) => {
     }
   }
 
+  run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, aciklama) VALUES (?,?,?,?,?,?)',
+    [d.personel_id, d.tarih, 'borc', net, 'maas_odeme', aciklama]);
+
   saveDb();
   return odeme;
 });
@@ -877,6 +901,8 @@ ipcMain.handle('maas:odeme:sil', (_, id) => {
     }
   }
 
+  run("DELETE FROM personel_hareketleri WHERE kaynak='maas_odeme' AND tutar=? AND tarih=? AND personel_id=? AND tur='borc'",
+    [odeme.net, odeme.tarih, odeme.personel_id]);
   run('DELETE FROM maas_odemeleri WHERE id = ?', [id]);
   saveDb();
   return true;
@@ -887,7 +913,7 @@ ipcMain.handle('maas:odeme:sil', (_, id) => {
 // ════════════════════════════════════════════════════════════
 
 ipcMain.handle('puantaj:getir', (_, personel_id, yil, ay) =>
-  getAll('SELECT gun, durum FROM puantaj WHERE personel_id = ? AND yil = ? AND ay = ? ORDER BY gun',
+  getAll('SELECT gun, durum, COALESCE(mesai_saat,0) as mesai_saat FROM puantaj WHERE personel_id = ? AND yil = ? AND ay = ? ORDER BY gun',
     [personel_id, yil, ay])
 );
 
@@ -896,9 +922,86 @@ ipcMain.handle('puantaj:guncelle', (_, personel_id, yil, ay, gun, durum) => {
     run('DELETE FROM puantaj WHERE personel_id = ? AND yil = ? AND ay = ? AND gun = ?',
       [personel_id, yil, ay, gun]);
   } else {
-    run('INSERT OR REPLACE INTO puantaj (personel_id, yil, ay, gun, durum) VALUES (?, ?, ?, ?, ?)',
+    run('INSERT OR IGNORE INTO puantaj (personel_id, yil, ay, gun, durum, mesai_saat) VALUES (?,?,?,?,?,0)',
       [personel_id, yil, ay, gun, durum]);
+    run('UPDATE puantaj SET durum=?, mesai_saat=0 WHERE personel_id=? AND yil=? AND ay=? AND gun=?',
+      [durum, personel_id, yil, ay, gun]);
   }
+  run("DELETE FROM personel_hareketleri WHERE personel_id=? AND yil=? AND ay=? AND gun=? AND kaynak IN ('puantaj','mesai')",
+    [personel_id, yil, ay, gun]);
+  if (durum === 'X' || durum === 'İ') {
+    const p = getOne('SELECT maas FROM personeller WHERE id=?', [personel_id]);
+    if (p && p.maas > 0) {
+      const tarih = `${yil}-${String(ay).padStart(2,'0')}-${String(gun).padStart(2,'0')}`;
+      run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, yil, ay, gun, aciklama) VALUES (?,?,?,?,?,?,?,?,?)',
+        [personel_id, tarih, 'alacak', p.maas / 30, 'puantaj', yil, ay, gun,
+         durum === 'X' ? 'Çalışma günü' : 'Ücretli izin']);
+    }
+  }
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('puantaj:mesai:guncelle', (_, personel_id, yil, ay, gun, mesai_saat) => {
+  run('UPDATE puantaj SET mesai_saat=? WHERE personel_id=? AND yil=? AND ay=? AND gun=?',
+    [mesai_saat, personel_id, yil, ay, gun]);
+  run("DELETE FROM personel_hareketleri WHERE personel_id=? AND yil=? AND ay=? AND gun=? AND kaynak='mesai'",
+    [personel_id, yil, ay, gun]);
+  if (mesai_saat > 0) {
+    const p = getOne('SELECT maas FROM personeller WHERE id=?', [personel_id]);
+    if (p && p.maas > 0) {
+      const saatlik = (p.maas / 30) / 9;
+      const tarih = `${yil}-${String(ay).padStart(2,'0')}-${String(gun).padStart(2,'0')}`;
+      run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, yil, ay, gun, aciklama) VALUES (?,?,?,?,?,?,?,?,?)',
+        [personel_id, tarih, 'alacak', mesai_saat * saatlik, 'mesai', yil, ay, gun,
+         `Mesai (${mesai_saat} saat)`]);
+    }
+  }
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('puantaj:toplu:ozet', (_, yil, ay) => {
+  const personeller = getAll('SELECT * FROM personeller ORDER BY ad, soyad');
+  return personeller.map(p => {
+    const gunler = getAll(
+      'SELECT gun, durum, COALESCE(mesai_saat,0) as mesai_saat FROM puantaj WHERE personel_id=? AND yil=? AND ay=? ORDER BY gun',
+      [p.id, yil, ay]);
+    const durumMap = {};
+    const mesaiMap = {};
+    gunler.forEach(g => {
+      durumMap[g.gun] = g.durum;
+      if (g.mesai_saat > 0) mesaiMap[g.gun] = g.mesai_saat;
+    });
+    const x  = gunler.filter(g => g.durum === 'X').length;
+    const iz = gunler.filter(g => g.durum === 'İ').length;
+    const g2 = gunler.filter(g => g.durum === 'G').length;
+    const gunluk  = p.maas > 0 ? p.maas / 30 : 0;
+    const saatlik = gunluk / 9;
+    const mesaiToplamSaat = gunler.reduce((s, g) => s + (g.mesai_saat || 0), 0);
+    const mesai_ucreti = mesaiToplamSaat * saatlik;
+    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik,
+             net_kazanc: (x + iz) * gunluk + mesai_ucreti,
+             mesai_saat_toplam: mesaiToplamSaat, mesai_ucreti, durumMap, mesaiMap };
+  });
+});
+
+ipcMain.handle('personel:kasa:ode', (_, d) => {
+  const personel = getOne('SELECT * FROM personeller WHERE id=?', [d.personel_id]);
+  if (!personel) throw new Error('Personel bulunamadı');
+  const kasa = getOne('SELECT * FROM kasalar WHERE id=?', [d.kasa_id]);
+  if (!kasa) throw new Error('Kasa bulunamadı');
+  if (!d.tutar || d.tutar <= 0) throw new Error('Tutar sıfırdan büyük olmalıdır');
+
+  const adSoyad = `${personel.ad}${personel.soyad ? ' ' + personel.soyad : ''}`;
+  const aciklama = d.aciklama?.trim() || `Personel Ödemesi: ${adSoyad}`;
+
+  run('INSERT INTO kasa_hareketleri (kasa_id, tarih, tur, tutar, aciklama) VALUES (?,?,?,?,?)',
+    [kasa.id, d.tarih, 'odeme', d.tutar, aciklama]);
+  run('UPDATE kasalar SET bakiye=? WHERE id=?', [kasa.bakiye - d.tutar, kasa.id]);
+  run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, aciklama) VALUES (?,?,?,?,?,?)',
+    [personel.id, d.tarih, 'borc', d.tutar, 'kasa_odeme', aciklama]);
+
   saveDb();
   return true;
 });

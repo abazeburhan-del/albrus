@@ -5,17 +5,17 @@
   <title>Albrus Firma Yönetim</title>
   <style>
     :root {
-      --bg: #0d0d0d;
-      --sidebar: #111111;
-      --card: #1a1a1a;
-      --border: #262626;
-      --text: #e5e5e5;
-      --dim: #777;
-      --blue: #3b82f6;
-      --green: #22c55e;
-      --red: #ef4444;
-      --yellow: #f59e0b;
-      --purple: #a855f7;
+      --bg: #e0e0e0;
+      --sidebar: #cccccc;
+      --card: #f0f0f0;
+      --border: #b0b0b0;
+      --text: #111111;
+      --dim: #555555;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --red: #dc2626;
+      --yellow: #d97706;
+      --purple: #7c3aed;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -47,7 +47,7 @@
       padding: 10px 16px; cursor: pointer; color: var(--dim);
       transition: .12s; user-select: none;
     }
-    .nav-item:hover { background: rgba(255,255,255,.04); color: var(--text); }
+    .nav-item:hover { background: rgba(0,0,0,.07); color: var(--text); }
     .nav-item.active { background: rgba(59,130,246,.12); color: var(--blue); border-right: 2px solid var(--blue); }
     .nav-item svg { width: 17px; height: 17px; flex-shrink: 0; }
 
@@ -84,9 +84,9 @@
     .table-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
     .table-head-title { font-size: 14px; font-weight: 600; }
     table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--dim); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; background: rgba(255,255,255,.02); }
+    th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--dim); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; background: rgba(0,0,0,.05); }
     td { padding: 11px 14px; border-top: 1px solid var(--border); }
-    tr:hover td { background: rgba(255,255,255,.02); }
+    tr:hover td { background: rgba(0,0,0,.04); }
     .empty { padding: 36px; text-align: center; color: var(--dim); }
 
     /* ── Badges ── */
@@ -108,8 +108,8 @@
     .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: .12s; font-family: inherit; text-transform: uppercase; letter-spacing: .4px; }
     .btn-primary { background: #4b5563; color: #fff; }
     .btn-primary:hover { background: #374151; }
-    .btn-ghost { background: rgba(255,255,255,.08); color: var(--text); border: 1px solid var(--border); }
-    .btn-ghost:hover { background: rgba(255,255,255,.13); }
+    .btn-ghost { background: rgba(0,0,0,.07); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: rgba(0,0,0,.13); }
     .btn-sm { padding: 4px 10px; font-size: 12px; }
     .btn-del { background: transparent; color: var(--red); border: none; padding: 3px 7px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: inherit; transition: .12s; }
     .btn-del:hover { background: rgba(239,68,68,.1); }
@@ -289,6 +289,7 @@
       <div class="page-title" style="margin:0">Kasa</div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="openKasaEkle()">+ Yeni Kasa</button>
+        <button class="btn btn-ghost" onclick="openPersonelOde()" id="btn-personel-ode" disabled>Personel Ödemesi</button>
         <button class="btn btn-primary" onclick="openFis()" id="btn-yeni-fis" disabled>+ Yeni Fiş</button>
       </div>
     </div>
@@ -388,7 +389,10 @@
       <div class="page-title" style="margin:0">Personel</div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="openPersonelEkle()">+ Yeni Personel</button>
+        <button class="btn btn-ghost" onclick="openTopluPuantaj()">Toplu Giriş</button>
+        <button class="btn btn-ghost" onclick="topluPuantajPdf()">Toplu Puantaj PDF</button>
         <button class="btn btn-ghost" onclick="openPuantaj()" id="btn-puantaj" disabled>Puantaj</button>
+        <button class="btn btn-ghost" onclick="openTopluMaasOde()">Toplu Öde</button>
         <button class="btn btn-primary" onclick="openMaasOde()" id="btn-maas-ode" disabled>Maaş Öde</button>
       </div>
     </div>
@@ -462,6 +466,32 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-fis')">İptal</button>
       <button class="btn btn-primary" onclick="saveFis()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Personel Ödemesi -->
+<div class="overlay" id="m-personel-ode">
+  <div class="modal">
+    <div class="modal-title">Personel Ödemesi</div>
+    <div class="fg">
+      <label>Personel</label>
+      <select id="po-personel" onchange="onPoPersonelChange()">
+        <option value="">— Seçiniz —</option>
+      </select>
+    </div>
+    <div id="po-alacak-bilgi" style="display:none;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:6px;padding:8px 12px;font-size:12px;color:#22c55e;margin-bottom:2px">
+      Mevcut Alacak: <strong id="po-alacak-tutar">—</strong>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>Tarih</label><input type="text" id="po-tarih" placeholder="2026-06-10" maxlength="10" oninput="onTarihInput(this)"></div>
+      <div class="fg"><label>Tutar</label><input type="text" id="po-tutar" placeholder="örn: 500.000" inputmode="numeric" oninput="onTutarInput(this)" autocomplete="off"></div>
+    </div>
+    <div class="fg"><label>Açıklama (opsiyonel)</label><input type="text" id="po-aciklama" placeholder="Maaş ödemesi, avans…"></div>
+    <div id="po-kasa-bilgi" style="font-size:12px;color:var(--text-muted);margin-bottom:4px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-personel-ode')">İptal</button>
+      <button class="btn btn-primary" onclick="savePersonelOde()">Öde</button>
     </div>
   </div>
 </div>
@@ -702,6 +732,18 @@
   </div>
 </div>
 
+<!-- Toplu Maaş Ödeme Modal -->
+<div class="overlay" id="m-toplu-maas-ode">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-title">Toplu Maaş Ödemesi</div>
+    <div id="toplu-ode-icerik" style="max-height:65vh;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-toplu-maas-ode')">İptal</button>
+      <button class="btn btn-primary" onclick="saveTopluMaasOde()">Tümünü Öde</button>
+    </div>
+  </div>
+</div>
+
 <!-- Maaş Ödeme Modal -->
 <div class="overlay" id="m-maas-ode">
   <div class="modal">
@@ -757,8 +799,56 @@
       <span style="color:#60a5fa;font-weight:700">İ</span> Ücretli İzin (kesilmez) &nbsp;
       <span style="opacity:.45">□</span> Girilmedi
     </div>
-    <div id="puantaj-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:14px"></div>
-    <div id="puantaj-ozet" style="background:rgba(255,255,255,.04);border-radius:8px;padding:12px;display:flex;gap:20px;flex-wrap:wrap;align-items:center;font-size:13px"></div>
+    <div id="puantaj-grid" style="display:grid;gap:5px;margin-bottom:14px"></div>
+    <div id="puantaj-ozet" style="background:rgba(0,0,0,.05);border-radius:8px;padding:12px;display:flex;gap:20px;flex-wrap:wrap;align-items:center;font-size:13px"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-ghost btn-sm" onclick="puantajPdf()">Rapor PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toplu Puantaj Girişi -->
+<div class="overlay" id="m-toplu-puantaj">
+  <div class="modal" style="max-width:99vw;width:99vw;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;padding:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-shrink:0;flex-wrap:wrap">
+      <div style="font-size:14px;font-weight:700">Toplu Puantaj</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="tpAyDegistir(-1)">&#8592;</button>
+        <span id="tp-ay-label" style="min-width:120px;text-align:center;font-weight:600;font-size:13px"></span>
+        <button class="btn btn-ghost btn-sm" onclick="tpAyDegistir(1)">&#8594;</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="tpHepsiniDoldur('X')">Hafta içi → X</button>
+      <button class="btn btn-ghost btn-sm" onclick="tpSifirla()">Temizle</button>
+      <button class="btn btn-ghost btn-sm" onclick="tpPdf()">PDF</button>
+      <span style="font-size:10px;color:var(--text-muted);margin-left:4px">
+        <b style="color:#16a34a">X</b> Çalıştı &nbsp;
+        <b style="color:#dc2626">G</b> Gelmedi &nbsp;
+        <b style="color:#2563eb">İ</b> İzin
+      </span>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="closeModal('m-toplu-puantaj')">Kapat</button>
+    </div>
+    <div style="overflow:auto;flex:1;border:1px solid var(--border);border-radius:6px">
+      <table id="tp-grid" style="border-collapse:collapse;min-width:max-content;width:100%">
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Mesai Girişi -->
+<div class="overlay" id="m-mesai-gir">
+  <div class="modal" style="max-width:320px">
+    <div class="modal-title" id="mesai-gir-baslik">Mesai Girişi</div>
+    <div class="fg" style="margin-bottom:16px">
+      <label id="mesai-gir-label">Mesai saati</label>
+      <input type="number" id="mesai-gir-saat" min="0" max="24" step="0.5" placeholder="0"
+             style="font-size:20px;text-align:center;padding:10px"
+             onkeydown="if(event.key==='Enter')saveMesaiGir()">
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Toplam çalışılan saat. 9 saatin üstü mesai ücreti hesabına eklenir.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-mesai-gir')">İptal</button>
+      <button class="btn btn-primary" onclick="saveMesaiGir()">Kaydet</button>
+    </div>
   </div>
 </div>
 
@@ -1032,6 +1122,7 @@ async function loadKasa() {
 async function secilenKasa(id) {
   S.secilenKasa = S.kasalar.find(k => k.id === id);
   document.getElementById('btn-yeni-fis').disabled = false;
+  document.getElementById('btn-personel-ode').disabled = false;
   document.getElementById('kasa-hareket-wrap').style.display = 'block';
   document.querySelectorAll('#kasa-cards .card').forEach((c, i) => {
     c.classList.toggle('selected', S.kasalar[i]?.id === id);
@@ -1814,7 +1905,7 @@ function renderFaturaKalemler() {
   wrap.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
       <thead>
-        <tr style="background:rgba(255,255,255,.03)">
+        <tr style="background:rgba(0,0,0,.04)">
           ${hasStok ? `<th style="padding:8px 6px;text-align:left;font-size:11px;color:var(--dim);width:130px">Stok</th>` : ''}
           <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--dim)">Description</th>
           <th style="padding:8px 6px;text-align:center;font-size:11px;color:var(--dim);width:70px">Brand</th>
@@ -2426,6 +2517,7 @@ function renderPersonelCards() {
       <div class="card-label">${p.pozisyon || 'Personel'}</div>
       <div class="card-val" style="font-size:16px">${p.ad}${p.soyad ? ' ' + p.soyad : ''}</div>
       <div class="card-sub">${p.maas > 0 ? fmtTutar(Math.round(p.maas)) + ' ' + p.para_birimi + '/ay' : '—'}</div>
+      ${p.net_alacak > 0 ? `<div class="card-sub" style="color:#22c55e">Alacak: ${fmtTutar(Math.round(p.net_alacak))} ${p.para_birimi}</div>` : ''}
       <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
         <span class="badge ${p.durum === 'aktif' ? 'b-aktif' : 'b-diger'}">${p.durum}</span>
         <span style="display:flex;gap:4px">
@@ -2563,6 +2655,94 @@ async function personelSil(id) {
   } catch(e) { alert(e.message); }
 }
 
+let _topluOdeData = null;
+
+async function openTopluMaasOde() {
+  const [liste, kasalar, bankalar] = await Promise.all([
+    api.invoke('personeller:getir'),
+    api.invoke('kasalar:getir'),
+    api.invoke('banka:hesaplar'),
+  ]);
+  const aktifler = liste.filter(p => p.durum === 'aktif' && p.net_alacak > 0);
+  if (aktifler.length === 0) { alert('Ödeme yapılacak personel bulunamadı (alacakları sıfır).'); return; }
+
+  const bugun = new Date().toISOString().split('T')[0];
+  const donem = bugun.substring(0, 7);
+
+  const gruplar = {};
+  aktifler.forEach(p => {
+    if (!gruplar[p.para_birimi]) gruplar[p.para_birimi] = [];
+    gruplar[p.para_birimi].push(p);
+  });
+
+  let icerik = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+    <div class="fg" style="flex:1;min-width:110px"><label>Dönem</label>
+      <input type="month" id="tmo-donem" value="${donem}"></div>
+    <div class="fg" style="flex:1;min-width:110px"><label>Ödeme Tarihi</label>
+      <input type="date" id="tmo-tarih" value="${bugun}"></div>
+  </div>`;
+
+  Object.entries(gruplar).forEach(([pb, personeller]) => {
+    const toplam = personeller.reduce((s, p) => s + p.net_alacak, 0);
+    const kasaOpts = kasalar.filter(k => k.para_birimi === pb)
+      .map(k => `<option value="kasa:${k.id}">${k.ad} — Bakiye: ${fmtTutar(Math.round(k.bakiye))} ${pb}</option>`).join('');
+    const bankaOpts = bankalar.filter(b => b.para_birimi === pb)
+      .map(b => `<option value="banka:${b.id}">${b.banka_adi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))} ${pb}</option>`).join('');
+    if (!kasaOpts && !bankaOpts) return;
+    icerik += `<div style="margin-bottom:14px;padding:10px;border:1px solid var(--border);border-radius:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <b style="font-size:13px">${pb} Grubu</b>
+        <span style="font-size:13px;color:#22c55e;font-weight:700">Toplam: ${fmtTutar(Math.round(toplam))} ${pb}</span>
+      </div>
+      <div class="fg" style="margin-bottom:8px">
+        <label>Ödeme Kaynağı</label>
+        <select id="tmo-kaynak-${pb}">${kasaOpts}${bankaOpts}</select>
+      </div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <tbody>${personeller.map(p => `<tr>
+          <td style="padding:3px 4px">${p.ad}${p.soyad ? ' ' + p.soyad : ''}</td>
+          <td style="padding:3px 4px;text-align:right;color:#22c55e;font-weight:700">${fmtTutar(Math.round(p.net_alacak))} ${pb}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  });
+
+  _topluOdeData = { aktifler, gruplar };
+  document.getElementById('toplu-ode-icerik').innerHTML = icerik;
+  openModal('m-toplu-maas-ode');
+}
+
+async function saveTopluMaasOde() {
+  if (!_topluOdeData) return;
+  const donem = document.getElementById('tmo-donem').value;
+  const tarih = document.getElementById('tmo-tarih').value;
+  if (!donem || !tarih) { alert('Dönem ve tarih zorunludur.'); return; }
+
+  const hatalar = [];
+  for (const p of _topluOdeData.aktifler) {
+    const pb = p.para_birimi;
+    const kaynakVal = document.getElementById(`tmo-kaynak-${pb}`)?.value;
+    if (!kaynakVal) { hatalar.push(`${p.ad}: kaynak seçilmedi`); continue; }
+    const [odeme_turu, kaynak_id] = kaynakVal.split(':');
+    try {
+      await api.invoke('maas:odeme:ekle', {
+        personel_id: p.id, donem, tarih,
+        brut: Math.round(p.net_alacak), kesinti: 0,
+        net: Math.round(p.net_alacak),
+        para_birimi: pb, odeme_turu,
+        kaynak_id: Number(kaynak_id),
+        aciklama: `Toplu maaş ödemesi — ${donem}`,
+      });
+    } catch (e) { hatalar.push(`${p.ad}: ${e.message}`); }
+  }
+
+  closeModal('m-toplu-maas-ode');
+  _topluOdeData = null;
+  loadPersonel();
+  loadMaasOdemeleri();
+  if (hatalar.length) alert(`Bazı ödemeler başarısız:\n${hatalar.join('\n')}`);
+}
+
 async function openMaasOde() {
   if (!_secilenPersonel) return;
   const p = _secilenPersonel;
@@ -2647,7 +2827,8 @@ async function maasOdemeSil(id) {
 // ── PUANTAJ ─────────────────────────────────────────────────
 let _puantajYil  = new Date().getFullYear();
 let _puantajAy   = new Date().getMonth() + 1;
-let _puantajData = {};
+let _puantajData  = {}; // gun → durum
+let _puantajMesai = {}; // gun → mesai_saat
 
 function openPuantaj() {
   if (!_secilenPersonel) return;
@@ -2662,8 +2843,12 @@ function openPuantaj() {
 async function loadPuantaj() {
   if (!_secilenPersonel) return;
   const rows = await api.invoke('puantaj:getir', _secilenPersonel.id, _puantajYil, _puantajAy);
-  _puantajData = {};
-  rows.forEach(r => { _puantajData[r.gun] = r.durum; });
+  _puantajData  = {};
+  _puantajMesai = {};
+  rows.forEach(r => {
+    _puantajData[r.gun] = r.durum;
+    if (r.mesai_saat > 0) _puantajMesai[r.gun] = r.mesai_saat;
+  });
   renderPuantajGrid();
 }
 
@@ -2672,55 +2857,75 @@ function renderPuantajGrid() {
   document.getElementById('puantaj-ay-label').textContent = `${aylar[_puantajAy - 1]} ${_puantajYil}`;
 
   const gunSayisi = new Date(_puantajYil, _puantajAy, 0).getDate();
+  const cols = Math.ceil(gunSayisi / 3);
   const grid = document.getElementById('puantaj-grid');
   grid.innerHTML = '';
-
-  const basliklar = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
-  basliklar.forEach(b => {
-    const h = document.createElement('div');
-    h.style.cssText = 'text-align:center;font-size:11px;color:var(--text-muted);padding-bottom:2px;font-weight:600';
-    h.textContent = b;
-    grid.appendChild(h);
-  });
-
-  const ilkGun = new Date(_puantajYil, _puantajAy - 1, 1).getDay();
-  const offset = ilkGun === 0 ? 6 : ilkGun - 1;
-  for (let i = 0; i < offset; i++) grid.appendChild(document.createElement('div'));
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  grid.style.gridAutoRows = '72px';
 
   for (let g = 1; g <= gunSayisi; g++) {
     const durum = _puantajData[g] || '';
+    const mesai = _puantajMesai[g] || 0;
     const renkler = {
       X: 'background:rgba(34,197,94,.18);border-color:#22c55e;color:#22c55e',
       G: 'background:rgba(239,68,68,.18);border-color:#ef4444;color:#ef4444',
       'İ': 'background:rgba(96,165,250,.18);border-color:#60a5fa;color:#60a5fa'
     };
     const cell = document.createElement('div');
-    cell.style.cssText = `text-align:center;padding:6px 2px;border-radius:6px;cursor:pointer;
+    cell.style.cssText = `text-align:center;padding:4px 2px;border-radius:6px;cursor:pointer;
       border:1px solid var(--border);font-size:13px;user-select:none;transition:opacity .1s;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
       ${renkler[durum] || 'color:var(--text-muted)'}`;
-    cell.innerHTML = `<div style="font-size:10px;opacity:.55;line-height:1">${g}</div>
-      <div style="font-size:15px;font-weight:700;min-height:20px;line-height:1.3">${durum}</div>`;
+    const mesaiBtn = durum === 'X'
+      ? `<div onclick="event.stopPropagation();gunMesaiGir(${g})" title="Mesai saati gir"
+           style="margin-top:4px;padding:2px 4px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700;
+                  color:#fff;background:${mesai > 0 ? '#d97706' : 'rgba(217,119,6,.35)'};
+                  border:1px solid #d97706;line-height:1.2;transition:background .15s">
+           ${mesai > 0 ? '⏱ ' + mesai + 'h' : '+ Mesai'}
+         </div>`
+      : '<div style="min-height:18px"></div>';
+    cell.innerHTML = `
+      <div style="font-size:10px;opacity:.55;line-height:1">${g}</div>
+      <div style="font-size:15px;font-weight:700;min-height:20px;line-height:1.3">${durum}</div>
+      ${mesaiBtn}`;
     cell.onclick = () => gunDurumDegistir(g);
     grid.appendChild(cell);
   }
 
   const p = _secilenPersonel;
-  const x = Object.values(_puantajData).filter(d => d === 'X').length;
+  const x  = Object.values(_puantajData).filter(d => d === 'X').length;
   const iz = Object.values(_puantajData).filter(d => d === 'İ').length;
   const g2 = Object.values(_puantajData).filter(d => d === 'G').length;
-  const gunluk = p.maas > 0 ? p.maas / 30 : 0;
-  const net = (x + iz) * gunluk;
+  const gunluk  = p.maas > 0 ? p.maas / 30 : 0;
+  const saatlik = gunluk / 9;
+  const mesaiToplam = Object.values(_puantajMesai).reduce((s, v) => s + v, 0);
+  const mesaiUcret  = Math.round(mesaiToplam * saatlik);
+  const net = Math.round((x + iz) * gunluk + mesaiUcret);
 
+  const maasKazanc = Math.round((x + iz) * gunluk);
   document.getElementById('puantaj-ozet').innerHTML = `
-    <span><b style="color:#22c55e">${x}</b> gün çalıştı</span>
-    <span><b style="color:#60a5fa">${iz}</b> gün ücretli izin</span>
-    <span><b style="color:#ef4444">${g2}</b> gün devamsız</span>
-    <span style="margin-left:auto;font-size:14px;font-weight:700">
-      Net: <span style="color:#22c55e">${fmtTutar(Math.round(net))} ${p.para_birimi}</span>
-    </span>
-    <span style="color:var(--text-muted);font-size:11px">
-      Günlük: ${fmtTutar(Math.round(gunluk))} ${p.para_birimi}
-    </span>`;
+    <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px">
+        <span><b style="color:#22c55e">${x}</b> gün çalıştı</span>
+        <span><b style="color:#60a5fa">${iz}</b> gün ücretli izin</span>
+        <span><b style="color:#ef4444">${g2}</b> gün devamsız</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);display:flex;gap:14px;flex-wrap:wrap">
+        <span>Günlük: ${fmtTutar(Math.round(gunluk))} ${p.para_birimi}</span>
+        <span>Saatlik: ${fmtTutar(Math.round(saatlik))} ${p.para_birimi}</span>
+        <span>Maaş kazancı: <b style="color:var(--text)">${fmtTutar(maasKazanc)} ${p.para_birimi}</b></span>
+      </div>
+      ${mesaiToplam > 0 ? `
+      <div style="font-size:12px;color:#d97706;display:flex;gap:14px;flex-wrap:wrap">
+        <span>⏱ Mesai: <b>${mesaiToplam} saat</b></span>
+        <span>Mesai ücreti: <b>${fmtTutar(mesaiUcret)} ${p.para_birimi}</b></span>
+      </div>` : ''}
+    </div>
+    <div style="text-align:right;border-left:2px solid var(--border);padding-left:16px;min-width:140px">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:3px">Toplam Ödeme</div>
+      <div style="font-size:22px;font-weight:800;color:#22c55e;line-height:1">${fmtTutar(net)}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${p.para_birimi}</div>
+    </div>`;
 }
 
 async function gunDurumDegistir(gun) {
@@ -2728,9 +2933,34 @@ async function gunDurumDegistir(gun) {
   const mevcut = _puantajData[gun] || '';
   const yeni = sira[(sira.indexOf(mevcut) + 1) % sira.length];
   await api.invoke('puantaj:guncelle', _secilenPersonel.id, _puantajYil, _puantajAy, gun, yeni);
-  if (yeni === '') delete _puantajData[gun];
-  else _puantajData[gun] = yeni;
+  if (yeni === '') { delete _puantajData[gun]; delete _puantajMesai[gun]; }
+  else { _puantajData[gun] = yeni; if (mevcut === 'X') delete _puantajMesai[gun]; }
   renderPuantajGrid();
+}
+
+let _mesaiGirCallback = null;
+
+function gunMesaiGir(gun) {
+  const mevcut = _puantajMesai[gun] || 0;
+  document.getElementById('mesai-gir-baslik').textContent = `${gun}. Gün — Mesai Girişi`;
+  document.getElementById('mesai-gir-label').textContent = `${gun}. gün toplam çalışma saati:`;
+  document.getElementById('mesai-gir-saat').value = mevcut || '';
+  _mesaiGirCallback = async (saat) => {
+    await api.invoke('puantaj:mesai:guncelle', _secilenPersonel.id, _puantajYil, _puantajAy, gun, saat);
+    if (saat === 0) delete _puantajMesai[gun]; else _puantajMesai[gun] = saat;
+    renderPuantajGrid();
+    loadPersonel();
+  };
+  openModal('m-mesai-gir');
+  setTimeout(() => document.getElementById('mesai-gir-saat').focus(), 80);
+}
+
+async function saveMesaiGir() {
+  const val = document.getElementById('mesai-gir-saat').value;
+  const saat = parseFloat(String(val).replace(',', '.')) || 0;
+  if (saat < 0) return;
+  closeModal('m-mesai-gir');
+  if (_mesaiGirCallback) { await _mesaiGirCallback(saat); _mesaiGirCallback = null; }
 }
 
 function puantajAyDegistir(delta) {
@@ -2738,6 +2968,512 @@ function puantajAyDegistir(delta) {
   if (_puantajAy > 12) { _puantajAy = 1; _puantajYil++; }
   if (_puantajAy < 1)  { _puantajAy = 12; _puantajYil--; }
   loadPuantaj();
+}
+
+async function puantajPdf() {
+  if (!_secilenPersonel) return;
+  const p = _secilenPersonel;
+  const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  const ayAd = AYLAR[_puantajAy - 1];
+  const rows = await api.invoke('puantaj:getir', p.id, _puantajYil, _puantajAy);
+  const data = {}, mesaiData = {};
+  rows.forEach(r => { data[r.gun] = r.durum; if (r.mesai_saat > 0) mesaiData[r.gun] = r.mesai_saat; });
+  const gunSayisi = new Date(_puantajYil, _puantajAy, 0).getDate();
+  const x  = Object.values(data).filter(d => d === 'X').length;
+  const iz = Object.values(data).filter(d => d === 'İ').length;
+  const g  = Object.values(data).filter(d => d === 'G').length;
+  const gunluk  = p.maas > 0 ? p.maas / 30 : 0;
+  const saatlik = gunluk / 9;
+  const mesaiToplam = Object.values(mesaiData).reduce((s, v) => s + v, 0);
+  const mesaiUcret  = Math.round(mesaiToplam * saatlik);
+  const maasKazanc  = Math.round((x + iz) * gunluk);
+  const net = maasKazanc + mesaiUcret;
+  const pdfCols = Math.ceil(gunSayisi / 3);
+  let gunlerHtml = '';
+  for (let d = 1; d <= gunSayisi; d++) {
+    const durum = data[d] || '';
+    const ms = mesaiData[d] || 0;
+    const cls = durum === 'X' ? 'gx' : durum === 'G' ? 'gg' : durum === 'İ' ? 'gi' : '';
+    const mesaiTag = (durum === 'X' && ms > 0) ? `<span class="gm">⏱${ms}h</span>` : '';
+    gunlerHtml += `<div class="gd ${cls}"><span class="gno">${d}</span><span class="gv">${durum}</span>${mesaiTag}</div>`;
+  }
+  const content = `<style>
+h1{font-size:16px;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom:14px}
+.info{display:flex;gap:28px;border:1px solid #ddd;padding:10px 14px;border-radius:6px;margin-bottom:14px}
+.il{display:flex;flex-direction:column;gap:2px}.ilb{font-size:10px;color:#999;text-transform:uppercase}.ilv{font-size:13px;font-weight:700}
+.pgrid{display:grid;grid-template-columns:repeat(${pdfCols},1fr);grid-auto-rows:60px;gap:4px;margin-bottom:14px}
+.gd{text-align:center;padding:4px 2px;border:1px solid #eee;border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.gno{display:block;font-size:9px;color:#aaa}.gv{display:block;font-size:13px;font-weight:700;min-height:18px}
+.gm{display:block;font-size:8px;color:#b45309;font-weight:700;margin-top:1px}
+.gx{background:#d1fae5;border-color:#6ee7b7}.gx .gv{color:#059669}
+.gg{background:#fee2e2;border-color:#fca5a5}.gg .gv{color:#dc2626}
+.gi{background:#dbeafe;border-color:#93c5fd}.gi .gv{color:#2563eb}
+.ozet{border:1px solid #ddd;padding:12px 16px;border-radius:6px}
+.orow{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:8px}
+.oz{display:flex;flex-direction:column}.ozl{font-size:10px;color:#999;text-transform:uppercase}.ozv{font-size:13px;font-weight:700}
+.ototal{border-top:2px solid #d1d5db;margin-top:10px;padding-top:10px;display:flex;align-items:baseline;gap:10px}
+</style>
+<h1>PUANTAJ CETVELİ — ${ayAd.toUpperCase()} ${_puantajYil}</h1>
+<div class="sub">Albrus Company &mdash; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')}</div>
+<div class="info">
+  <div class="il"><span class="ilb">Ad Soyad</span><span class="ilv">${p.ad}${p.soyad?' '+p.soyad:''}</span></div>
+  <div class="il"><span class="ilb">Pozisyon</span><span class="ilv">${p.pozisyon||'—'}</span></div>
+  <div class="il"><span class="ilb">Aylık Maaş</span><span class="ilv">${fmtTutar(Math.round(p.maas))} ${p.para_birimi}</span></div>
+  <div class="il"><span class="ilb">Günlük</span><span class="ilv">${fmtTutar(Math.round(gunluk))} ${p.para_birimi}</span></div>
+  <div class="il"><span class="ilb">Saatlik</span><span class="ilv">${fmtTutar(Math.round(saatlik))} ${p.para_birimi}</span></div>
+</div>
+<div class="pgrid">${gunlerHtml}</div>
+<div class="ozet">
+  <div class="orow">
+    <div class="oz"><span class="ozl">Çalıştı (X)</span><span class="ozv" style="color:#059669">${x} gün</span></div>
+    <div class="oz"><span class="ozl">Ücretli İzin (İ)</span><span class="ozv" style="color:#2563eb">${iz} gün</span></div>
+    <div class="oz"><span class="ozl">Devamsız (G)</span><span class="ozv" style="color:#dc2626">${g} gün</span></div>
+    <div class="oz"><span class="ozl">Maaş Kazancı</span><span class="ozv">${fmtTutar(maasKazanc)} ${p.para_birimi}</span></div>
+    ${mesaiToplam > 0 ? `
+    <div class="oz"><span class="ozl">Mesai Saati</span><span class="ozv" style="color:#b45309">${mesaiToplam} saat</span></div>
+    <div class="oz"><span class="ozl">Mesai Ücreti</span><span class="ozv" style="color:#b45309">+${fmtTutar(mesaiUcret)} ${p.para_birimi}</span></div>` : ''}
+  </div>
+  <div class="ototal">
+    <span style="font-size:12px;color:#666;text-transform:uppercase;letter-spacing:.5px">Toplam Ödeme</span>
+    <span style="font-size:22px;font-weight:800;color:#059669">${fmtTutar(net)} ${p.para_birimi}</span>
+  </div>
+</div>`;
+  await api.invoke('print:pdf', content);
+}
+
+async function topluPuantajPdf() {
+  const bugun = new Date();
+  const y = bugun.getFullYear();
+  const m = bugun.getMonth() + 1;
+  const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  const ayAd = AYLAR[m - 1];
+  const gunSayisi = new Date(y, m, 0).getDate();
+  const liste = await api.invoke('puantaj:toplu:ozet', y, m);
+  let topX = 0, topI = 0, topG = 0, topAlacak = {};
+  let bireyselGridler = '';
+
+  const satirlar = liste.map(p => {
+    topX += p.x_gun; topI += p.i_gun; topG += p.g_gun;
+    const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
+    const pb = p.para_birimi || '';
+    topAlacak[pb] = (topAlacak[pb] || 0) + p.net_kazanc;
+    const durumMap = p.durumMap || {};
+    const mesaiMap = p.mesaiMap || {};
+    const mesaiToplam = Object.values(mesaiMap).reduce((s, v) => s + v, 0);
+
+    let gunCells = '';
+    for (let g = 1; g <= gunSayisi; g++) {
+      const durum = durumMap[g] || '';
+      const mesai = mesaiMap[g] || 0;
+      const hg = new Date(y, m - 1, g).getDay();
+      const haftaSonu = hg === 0 || hg === 6;
+      const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : haftaSonu ? '#fff0f0' : '#f9f9f9';
+      const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#bbb';
+      const mesaiTag = (durum === 'X' && mesai > 0) ? `<div style="font-size:5px;color:#b45309;font-weight:700">⏱${mesai}h</div>` : '';
+      gunCells += `<div style="text-align:center;padding:2px 1px;border:1px solid #e5e7eb;border-radius:2px;background:${bg};color:${color};font-weight:700"><div style="font-size:5px;color:#aaa">${g}</div><div style="font-size:8px;min-height:10px">${durum}</div>${mesaiTag}</div>`;
+    }
+    const ozet = `<b style="color:#065f46">${p.x_gun}X</b> <b style="color:#1e40af">${p.i_gun}İ</b> <b style="color:#991b1b">${p.g_gun}G</b>${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(Math.round(p.net_kazanc))} ${pb}</b>`;
+    bireyselGridler += `<div style="break-inside:avoid;margin-bottom:8px">
+      <div style="font-size:7px;font-weight:700;margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">${adSoyad} &nbsp;<span style="font-weight:400">${ozet}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(${gunSayisi},1fr);gap:2px">${gunCells}</div>
+    </div>`;
+
+    return `<tr>
+      <td>${adSoyad}</td>
+      <td>${p.pozisyon||'—'}</td>
+      <td style="text-align:right">${fmtTutar(Math.round(p.maas))} ${pb}</td>
+      <td style="text-align:center;color:#059669;font-weight:700">${p.x_gun}</td>
+      <td style="text-align:center;color:#2563eb;font-weight:700">${p.i_gun}</td>
+      <td style="text-align:center;color:#dc2626;font-weight:700">${p.g_gun}</td>
+      <td style="text-align:right;font-weight:700;color:#059669">${fmtTutar(Math.round(p.net_kazanc))} ${pb}</td>
+    </tr>`;
+  }).join('');
+
+  const content = `<style>
+@page{size:A4 landscape;margin:8mm}
+body{font-family:Arial,sans-serif;font-size:8px}
+h1{font-size:13px;margin-bottom:4px}
+.sub{color:#555;font-size:9px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;margin-bottom:14px}
+th{background:#f3f4f6;text-align:left;padding:5px 8px;font-size:9px;text-transform:uppercase;border-bottom:2px solid #d1d5db}
+td{padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:8px}
+.tfoot td{background:#f9fafb;font-weight:700;border-top:2px solid #9ca3af}
+h2{font-size:10px;margin:10px 0 6px;border-bottom:1px solid #d1d5db;padding-bottom:3px}
+</style>
+<h1>TOPLU PUANTAJ ÖZETİ — ${ayAd.toUpperCase()} ${y}</h1>
+<div class="sub">Albrus Company &mdash; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')} &mdash; Toplam Personel: ${liste.length}</div>
+<table>
+<thead><tr>
+  <th>Ad Soyad</th><th>Pozisyon</th>
+  <th style="text-align:right">Aylık Maaş</th>
+  <th style="text-align:center">Çalıştı (X)</th>
+  <th style="text-align:center">İzinli (İ)</th>
+  <th style="text-align:center">Devamsız (G)</th>
+  <th style="text-align:right">Net Kazanç</th>
+</tr></thead>
+<tbody>${satirlar}</tbody>
+<tfoot><tr class="tfoot">
+  <td colspan="3">TOPLAM ÖDEME</td>
+  <td style="text-align:center">${topX}</td>
+  <td style="text-align:center">${topI}</td>
+  <td style="text-align:center">${topG}</td>
+  <td style="text-align:right;color:#059669">${Object.entries(topAlacak).map(([pb,t])=>`${fmtTutar(Math.round(t))} ${pb}`).join(' + ') || '—'}</td>
+</tr></tfoot>
+</table>
+<h2>AYLIK PUANTAJ ÇİZELGELERİ</h2>
+${bireyselGridler}`;
+  await api.invoke('print:pdf', content);
+}
+
+// ── TOPLU PUANTAJ GİRİŞİ ────────────────────────────────────
+let _tpYil = new Date().getFullYear();
+let _tpAy  = new Date().getMonth() + 1;
+let _tpData   = {}; // { personel_id: { gun: durum } }
+let _tpMesai  = {}; // { personel_id: { gun: mesai_saat } }
+let _tpPersoneller = [];
+
+async function openTopluPuantaj() {
+  _tpYil = new Date().getFullYear();
+  _tpAy  = new Date().getMonth() + 1;
+  await loadTopluPuantaj();
+  openModal('m-toplu-puantaj');
+}
+
+async function loadTopluPuantaj() {
+  const liste = await api.invoke('puantaj:toplu:ozet', _tpYil, _tpAy);
+  _tpPersoneller = liste;
+  _tpData  = {};
+  _tpMesai = {};
+  liste.forEach(p => {
+    _tpData[p.id]  = Object.assign({}, p.durumMap || {});
+    _tpMesai[p.id] = Object.assign({}, p.mesaiMap || {});
+  });
+  renderTopluPuantajGrid();
+}
+
+function renderTopluPuantajGrid() {
+  const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  const GUN_ADLARI = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+  document.getElementById('tp-ay-label').textContent = `${AYLAR[_tpAy - 1]} ${_tpYil}`;
+
+  const gunSayisi = new Date(_tpYil, _tpAy, 0).getDate();
+  const thStyle = 'padding:2px 1px;text-align:center;font-size:9px;font-weight:600;background:rgba(0,0,0,.05);border:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:2';
+  const thAdStyle = `${thStyle};min-width:80px;max-width:90px;text-align:left;padding-left:6px;position:sticky;left:0;z-index:3`;
+  const thOzetStyle = `${thStyle};min-width:95px;position:sticky;right:0;z-index:3`;
+
+  let thead = `<thead><tr>
+    <th style="${thAdStyle}">Ad Soyad</th>`;
+  for (let g = 1; g <= gunSayisi; g++) {
+    const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
+    const gunAdi = GUN_ADLARI[hg === 0 ? 6 : hg - 1];
+    const haftaSonu = hg === 0 || hg === 6;
+    thead += `<th style="${thStyle};width:22px;min-width:22px;${haftaSonu ? 'background:rgba(239,68,68,.08)' : ''}">${g}<br>${gunAdi}</th>`;
+  }
+  thead += `<th style="${thOzetStyle}">Gün / Alacak / Kesinti</th></tr></thead>`;
+
+  const tdBase = 'border:1px solid var(--border);text-align:center;font-size:11px;font-weight:700;cursor:pointer;height:22px;width:22px;min-width:22px;max-width:22px;transition:opacity .1s;user-select:none;padding:0';
+  const tdAdStyle = 'border:1px solid var(--border);padding:2px 4px;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;max-width:90px;text-overflow:ellipsis;position:sticky;left:0;background:var(--card);z-index:1';
+  const tdOzetStyle = 'border:1px solid var(--border);padding:3px 5px;font-size:10px;white-space:nowrap;position:sticky;right:0;background:var(--card);z-index:1;line-height:1.5';
+
+  const toplamlar = {};
+  let tbody = '<tbody>';
+  _tpPersoneller.forEach(p => {
+    const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
+    tbody += `<tr><td style="${tdAdStyle}" title="${adSoyad}">${adSoyad}</td>`;
+    for (let g = 1; g <= gunSayisi; g++) {
+      const durum = _tpData[p.id]?.[g] || '';
+      const mesai = _tpMesai[p.id]?.[g] || 0;
+      const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
+      const haftaSonu = hg === 0 || hg === 6;
+      const renkBg = durum === 'X' ? 'background:rgba(34,197,94,.2);color:#16a34a'
+                   : durum === 'G' ? 'background:rgba(239,68,68,.2);color:#dc2626'
+                   : durum === 'İ' ? 'background:rgba(96,165,250,.2);color:#2563eb'
+                   : haftaSonu ? 'background:rgba(239,68,68,.06);color:var(--text-muted)'
+                   : 'background:transparent;color:var(--text-muted)';
+      const mesaiRow = durum === 'X'
+        ? `<div onclick="event.stopPropagation();tpGunMesaiGir(${p.id},${g})"
+              style="font-size:8px;font-weight:700;cursor:pointer;border-radius:3px;margin-top:2px;
+                     padding:1px 3px;line-height:1.3;
+                     color:#fff;background:${mesai > 0 ? '#d97706' : 'rgba(217,119,6,.4)'};
+                     border:1px solid #d97706">
+              ${mesai > 0 ? mesai + 'h' : '+M'}
+           </div>`
+        : '';
+      tbody += `<td style="${tdBase};${renkBg}" onclick="tpGunDegistir(${p.id},${g})">${durum || ''}${mesaiRow}</td>`;
+    }
+    const x  = Object.values(_tpData[p.id] || {}).filter(d => d === 'X').length;
+    const iz = Object.values(_tpData[p.id] || {}).filter(d => d === 'İ').length;
+    const gg = Object.values(_tpData[p.id] || {}).filter(d => d === 'G').length;
+    const mesaiToplam = Object.values(_tpMesai[p.id] || {}).reduce((s, v) => s + v, 0);
+    const gunluk  = p.maas > 0 ? p.maas / 30 : 0;
+    const saatlik = gunluk / 9;
+    const alacak  = Math.round((x + iz) * gunluk + mesaiToplam * saatlik);
+    const kesinti = Math.round(gg * gunluk);
+    const pb = p.para_birimi || '';
+    const maasKazancTp = Math.round((x + iz) * gunluk);
+    const mesaiUcretTp = Math.round(mesaiToplam * saatlik);
+    toplamlar[pb] = (toplamlar[pb] || 0) + alacak;
+    tbody += `<td style="${tdOzetStyle};white-space:nowrap">
+      <span style="margin-right:6px"><b style="color:#16a34a">${x}X</b> <b style="color:#2563eb">${iz}İ</b> <b style="color:#dc2626">${gg}G</b></span>
+      <span style="color:var(--text-muted);margin-right:6px">Maaş: <b style="color:#16a34a">+${fmtTutar(maasKazancTp)}</b></span>
+      ${mesaiToplam > 0 ? `<span style="color:#d97706;margin-right:6px">⏱${mesaiToplam}h: <b>+${fmtTutar(mesaiUcretTp)}</b></span>` : ''}
+      ${kesinti > 0 ? `<span style="color:#dc2626;margin-right:6px">-${fmtTutar(kesinti)}</span>` : ''}
+      <b style="color:#16a34a;border-left:1px solid var(--border);padding-left:6px">= ${fmtTutar(alacak)} ${pb}</b>
+    </td></tr>`;
+  });
+  tbody += '</tbody>';
+
+  const toplamStr = Object.entries(toplamlar).map(([pb, t]) => `${fmtTutar(Math.round(t))} ${pb}`).join(' + ');
+  const tfootAdStyle = `${tdAdStyle};background:var(--bg);font-weight:800;font-size:11px`;
+  const tfootOzetStyle = `${tdOzetStyle};background:var(--bg);font-size:12px;font-weight:800;color:#16a34a`;
+  const tfoot = `<tfoot><tr>
+    <td style="${tfootAdStyle}">TOPLAM ÖDEME</td>
+    ${Array(gunSayisi).fill(`<td style="border:1px solid var(--border);background:var(--bg)"></td>`).join('')}
+    <td style="${tfootOzetStyle}">${toplamStr || '—'}</td>
+  </tr></tfoot>`;
+
+  document.getElementById('tp-grid').innerHTML = thead + tbody + tfoot;
+}
+
+async function tpGunDegistir(personelId, gun) {
+  const sira = ['', 'X', 'G', 'İ'];
+  const mevcut = _tpData[personelId]?.[gun] || '';
+  const yeni = sira[(sira.indexOf(mevcut) + 1) % sira.length];
+  await api.invoke('puantaj:guncelle', personelId, _tpYil, _tpAy, gun, yeni);
+  if (!_tpData[personelId]) _tpData[personelId] = {};
+  if (yeni === '') { delete _tpData[personelId][gun]; }
+  else { _tpData[personelId][gun] = yeni; }
+  if (mevcut === 'X' && yeni !== 'X') {
+    if (_tpMesai[personelId]) delete _tpMesai[personelId][gun];
+  }
+  renderTopluPuantajGrid();
+}
+
+function tpGunMesaiGir(personelId, gun) {
+  const mevcut = _tpMesai[personelId]?.[gun] || 0;
+  const p = _tpPersoneller.find(x => x.id === personelId);
+  const adSoyad = p ? `${p.ad}${p.soyad ? ' ' + p.soyad : ''}` : '';
+  document.getElementById('mesai-gir-baslik').textContent = `${adSoyad} — ${gun}. Gün Mesai`;
+  document.getElementById('mesai-gir-label').textContent = `${gun}. gün toplam çalışma saati:`;
+  document.getElementById('mesai-gir-saat').value = mevcut || '';
+  _mesaiGirCallback = async (saat) => {
+    await api.invoke('puantaj:mesai:guncelle', personelId, _tpYil, _tpAy, gun, saat);
+    if (!_tpMesai[personelId]) _tpMesai[personelId] = {};
+    if (saat === 0) delete _tpMesai[personelId][gun]; else _tpMesai[personelId][gun] = saat;
+    renderTopluPuantajGrid();
+  };
+  openModal('m-mesai-gir');
+  setTimeout(() => document.getElementById('mesai-gir-saat').focus(), 80);
+}
+
+function tpAyDegistir(delta) {
+  _tpAy += delta;
+  if (_tpAy > 12) { _tpAy = 1; _tpYil++; }
+  if (_tpAy < 1)  { _tpAy = 12; _tpYil--; }
+  loadTopluPuantaj();
+}
+
+async function tpHepsiniDoldur(durum) {
+  const gunSayisi = new Date(_tpYil, _tpAy, 0).getDate();
+  for (const p of _tpPersoneller) {
+    for (let g = 1; g <= gunSayisi; g++) {
+      const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
+      const haftaSonu = hg === 0 || hg === 6;
+      const hedef = haftaSonu ? '' : durum;
+      const mevcut = _tpData[p.id]?.[g] || '';
+      if (mevcut !== hedef) {
+        await api.invoke('puantaj:guncelle', p.id, _tpYil, _tpAy, g, hedef);
+        if (!_tpData[p.id]) _tpData[p.id] = {};
+        if (hedef === '') delete _tpData[p.id][g];
+        else _tpData[p.id][g] = hedef;
+      }
+    }
+  }
+  renderTopluPuantajGrid();
+}
+
+async function tpSifirla() {
+  if (!confirm('Bu ayın tüm puantaj verileri silinecek. Devam edilsin mi?')) return;
+  const gunSayisi = new Date(_tpYil, _tpAy, 0).getDate();
+  for (const p of _tpPersoneller) {
+    for (let g = 1; g <= gunSayisi; g++) {
+      if (_tpData[p.id]?.[g]) {
+        await api.invoke('puantaj:guncelle', p.id, _tpYil, _tpAy, g, '');
+      }
+    }
+    _tpData[p.id]  = {};
+    _tpMesai[p.id] = {};
+  }
+  renderTopluPuantajGrid();
+}
+
+async function tpPdf() {
+  const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+  const GUN_ADLARI = ['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+  const ayAd = AYLAR[_tpAy - 1];
+  const gunSayisi = new Date(_tpYil, _tpAy, 0).getDate();
+
+  let thGunler = '';
+  for (let g = 1; g <= gunSayisi; g++) {
+    const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
+    const gunAdi = GUN_ADLARI[hg === 0 ? 6 : hg - 1];
+    const haftaSonu = hg === 0 || hg === 6;
+    thGunler += `<th style="text-align:center;${haftaSonu ? 'background:#fff0f0;' : ''}">${g}<br><span style="font-size:7px">${gunAdi}</span></th>`;
+  }
+
+  const cols3 = Math.ceil(gunSayisi / 3);
+
+  let satirlar = '';
+  let topX = 0, topI = 0, topG = 0, topMesai = 0, topAlacak = {};
+  let bireyselGridler = '';
+
+  _tpPersoneller.forEach((p, i) => {
+    const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
+    const pb = p.para_birimi || '';
+    let tdGunler = '';
+    for (let g = 1; g <= gunSayisi; g++) {
+      const durum = _tpData[p.id]?.[g] || '';
+      const mesai = _tpMesai[p.id]?.[g] || 0;
+      const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
+      const haftaSonu = hg === 0 || hg === 6;
+      const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : haftaSonu ? '#fff8f8' : '';
+      const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#aaa';
+      const mesaiStr = (durum === 'X' && mesai > 0) ? `<br><span style="font-size:5px;color:#b45309">+${mesai}h</span>` : '';
+      tdGunler += `<td style="text-align:center;background:${bg};color:${color};font-weight:700">${durum}${mesaiStr}</td>`;
+    }
+    const x  = Object.values(_tpData[p.id] || {}).filter(d => d === 'X').length;
+    const iz = Object.values(_tpData[p.id] || {}).filter(d => d === 'İ').length;
+    const gg = Object.values(_tpData[p.id] || {}).filter(d => d === 'G').length;
+    const mesaiToplam = Object.values(_tpMesai[p.id] || {}).reduce((s, v) => s + v, 0);
+    const gunluk  = p.maas > 0 ? p.maas / 30 : 0;
+    const saatlik = gunluk / 9;
+    const alacak  = Math.round((x + iz) * gunluk + mesaiToplam * saatlik);
+    const kesinti = Math.round(gg * gunluk);
+    topX += x; topI += iz; topG += gg; topMesai += mesaiToplam;
+    topAlacak[pb] = (topAlacak[pb] || 0) + alacak;
+
+    satirlar += `<tr style="${i % 2 === 1 ? 'background:#f9fafb' : ''}">
+      <td style="white-space:nowrap;font-weight:600">${adSoyad}</td>
+      ${tdGunler}
+      <td style="text-align:right;white-space:nowrap"><b style="color:#065f46">${x}X</b> <b style="color:#1e40af">${iz}İ</b> <b style="color:#991b1b">${gg}G</b>${mesaiToplam > 0 ? ` <b style="color:#b45309">${mesaiToplam}h</b>` : ''}</td>
+      <td style="text-align:right;white-space:nowrap;color:#065f46;font-weight:700">+${fmtTutar(alacak)} ${pb}</td>
+      <td style="text-align:right;white-space:nowrap;color:#991b1b">${kesinti > 0 ? '-'+fmtTutar(kesinti)+' '+pb : '—'}</td>
+    </tr>`;
+
+    // Bireysel 3-satır grid
+    let gunCells = '';
+    for (let g = 1; g <= gunSayisi; g++) {
+      const durum = _tpData[p.id]?.[g] || '';
+      const mesai = _tpMesai[p.id]?.[g] || 0;
+      const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
+      const haftaSonu = hg === 0 || hg === 6;
+      const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : haftaSonu ? '#fff0f0' : '#f9f9f9';
+      const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#bbb';
+      const mesaiTag = (durum === 'X' && mesai > 0) ? `<div style="font-size:5px;color:#b45309;font-weight:700">⏱${mesai}h</div>` : '';
+      gunCells += `<div style="text-align:center;padding:2px 1px;border:1px solid #e5e7eb;border-radius:2px;background:${bg};color:${color};font-weight:700">
+        <div style="font-size:5px;color:#aaa">${g}</div>
+        <div style="font-size:8px;min-height:10px">${durum}</div>
+        ${mesaiTag}
+      </div>`;
+    }
+    const ozet = `<b style="color:#065f46">${x}X</b> <b style="color:#1e40af">${iz}İ</b> <b style="color:#991b1b">${gg}G</b>${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(alacak)} ${pb}</b>`;
+    bireyselGridler += `<div style="break-inside:avoid;margin-bottom:8px">
+      <div style="font-size:7px;font-weight:700;margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">
+        ${adSoyad} &nbsp; <span style="font-weight:400">${ozet}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(${gunSayisi},1fr);gap:2px">${gunCells}</div>
+    </div>`;
+  });
+
+  const toplamStr = Object.entries(topAlacak).map(([pb, t]) => `+${fmtTutar(Math.round(t))} ${pb}`).join(' | ');
+
+  const content = `<style>
+@page{size:A4 landscape;margin:8mm}
+body{font-family:Arial,sans-serif;font-size:6px}
+h1{font-size:11px;margin-bottom:2px}
+.sub{color:#555;font-size:7px;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;margin-bottom:14px}
+th,td{border:1px solid #d1d5db;padding:1px 2px;font-size:6px}
+th{background:#f3f4f6;font-weight:700;text-align:left}
+.tfoot td{background:#f0fdf4;font-weight:700;border-top:2px solid #9ca3af}
+h2{font-size:8px;margin:10px 0 6px;border-bottom:1px solid #d1d5db;padding-bottom:3px}
+</style>
+<h1>TOPLU PUANTAJ ÇİZELGESİ — ${ayAd.toUpperCase()} ${_tpYil}</h1>
+<div class="sub">Albrus Company &mdash; Personel: ${_tpPersoneller.length} &mdash; ${new Date().toLocaleDateString('tr-TR')}</div>
+<table>
+<thead><tr>
+  <th style="min-width:60px">Ad Soyad</th>
+  ${thGunler}
+  <th style="text-align:center">Günler</th>
+  <th style="text-align:right">Alacak</th>
+  <th style="text-align:right">Kesinti</th>
+</tr></thead>
+<tbody>${satirlar}</tbody>
+<tfoot><tr class="tfoot">
+  <td><b>TOPLAM</b></td>
+  ${Array(gunSayisi).fill('<td></td>').join('')}
+  <td style="text-align:center"><b style="color:#065f46">${topX}X</b> <b style="color:#1e40af">${topI}İ</b> <b style="color:#991b1b">${topG}G</b>${topMesai > 0 ? ` <b style="color:#b45309">${topMesai}h</b>` : ''}</td>
+  <td style="text-align:right;color:#065f46">${toplamStr}</td>
+  <td></td>
+</tr></tfoot>
+</table>
+<h2>AYLIK PUANTAJ ÇİZELGELERİ</h2>
+${bireyselGridler}`;
+  await api.invoke('print:pdf', content);
+}
+
+// ── PERSONEL KASA ÖDEMESİ ───────────────────────────────────
+async function openPersonelOde() {
+  if (!S.secilenKasa) return;
+  const liste = await api.invoke('personeller:getir');
+  const sel = document.getElementById('po-personel');
+  sel.innerHTML = '<option value="">— Seçiniz —</option>';
+  liste.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.dataset.alacak = p.net_alacak || 0;
+    opt.dataset.pb = p.para_birimi;
+    opt.textContent = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
+    sel.appendChild(opt);
+  });
+  document.getElementById('po-tarih').value = new Date().toISOString().split('T')[0];
+  document.getElementById('po-tutar').value = '';
+  document.getElementById('po-aciklama').value = '';
+  document.getElementById('po-alacak-bilgi').style.display = 'none';
+  document.getElementById('po-kasa-bilgi').textContent =
+    `Kasa: ${S.secilenKasa.ad} — Bakiye: ${fmtTutar(Math.round(S.secilenKasa.bakiye))} ${S.secilenKasa.para_birimi}`;
+  openModal('m-personel-ode');
+}
+
+function onPoPersonelChange() {
+  const sel = document.getElementById('po-personel');
+  const opt = sel.options[sel.selectedIndex];
+  const alacak = parseFloat(opt?.dataset?.alacak || 0);
+  const pb = opt?.dataset?.pb || '';
+  const bilgi = document.getElementById('po-alacak-bilgi');
+  if (opt?.value && alacak > 0) {
+    document.getElementById('po-alacak-tutar').textContent = `${fmtTutar(Math.round(alacak))} ${pb}`;
+    bilgi.style.display = 'block';
+  } else {
+    bilgi.style.display = 'none';
+  }
+}
+
+async function savePersonelOde() {
+  const personel_id = parseInt(document.getElementById('po-personel').value);
+  if (!personel_id) { alert('Personel seçiniz'); return; }
+  const tutar = parseTutar('po-tutar');
+  if (!tutar || tutar <= 0) { alert('Geçerli bir tutar giriniz'); return; }
+  const tarih = document.getElementById('po-tarih').value;
+  if (!tarih) { alert('Tarih giriniz'); return; }
+  const aciklama = document.getElementById('po-aciklama').value;
+
+  await api.invoke('personel:kasa:ode', {
+    personel_id, kasa_id: S.secilenKasa.id, tutar, tarih, aciklama
+  });
+
+  closeModal('m-personel-ode');
+  await Promise.all([loadKasalar(), loadPersonel()]);
 }
 
 // ── ORTAKLAR ────────────────────────────────────────────────
