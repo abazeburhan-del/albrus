@@ -243,6 +243,17 @@ async function initDb() {
     );
   `);
 
+  // Ayarlar (anahtar-değer) + döviz kuru
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ayarlar (
+      anahtar TEXT PRIMARY KEY,
+      deger TEXT
+    );
+  `);
+  if (!getOne("SELECT 1 FROM ayarlar WHERE anahtar = 'usd_iqd_kuru'")) {
+    run("INSERT INTO ayarlar (anahtar, deger) VALUES ('usd_iqd_kuru', '1310')");
+  }
+
   // Migrations
   try { db.run("ALTER TABLE cariler ADD COLUMN vergi_no TEXT DEFAULT ''"); } catch (_) {}
   try { db.run("ALTER TABLE fatura_kalemleri ADD COLUMN birim TEXT DEFAULT 'Adet'"); } catch (_) {}
@@ -591,6 +602,62 @@ ipcMain.handle('projeler:ekle', (_, d) => {
   saveDb();
   return r;
 });
+
+ipcMain.handle('projeler:guncelle', (_, id, d) => {
+  run('UPDATE projeler SET ad=?, aciklama=?, durum=?, baslangic=?, bitis=? WHERE id=?',
+    [d.ad, d.aciklama ?? '', d.durum ?? 'aktif', d.baslangic ?? '', d.bitis ?? '', id]);
+  saveDb();
+  return getOne('SELECT * FROM projeler WHERE id = ?', [id]);
+});
+
+ipcMain.handle('projeler:sil', (_, id) => {
+  const k = getOne('SELECT COUNT(*) as n FROM kasa_hareketleri WHERE proje_id = ?', [id]).n;
+  const b = getOne('SELECT COUNT(*) as n FROM banka_hareketleri WHERE proje_id = ?', [id]).n;
+  if (k + b > 0) throw new Error('Bu projeye bağlı kasa/banka hareketi var, silinemez.');
+  run('DELETE FROM projeler WHERE id = ?', [id]);
+  saveDb();
+  return true;
+});
+
+// Proje bazlı gelir/gider (kasa + banka hareketlerinden), para birimine göre
+ipcMain.handle('proje:ozet', () => {
+  const projeler = getAll('SELECT * FROM projeler ORDER BY id DESC');
+  return projeler.map(p => {
+    const rows = getAll(`
+      SELECT tur, para_birimi, SUM(tutar) as toplam FROM (
+        SELECT kh.tur as tur, k.para_birimi as para_birimi, kh.tutar as tutar
+        FROM kasa_hareketleri kh JOIN kasalar k ON k.id = kh.kasa_id WHERE kh.proje_id = ?
+        UNION ALL
+        SELECT bh.tur as tur, b.para_birimi as para_birimi, bh.tutar as tutar
+        FROM banka_hareketleri bh JOIN banka_hesaplari b ON b.id = bh.hesap_id WHERE bh.proje_id = ?
+      ) GROUP BY tur, para_birimi
+    `, [p.id, p.id]);
+    const gelir = {}, gider = {};
+    rows.forEach(r => {
+      if (isGiris(r.tur)) gelir[r.para_birimi] = (gelir[r.para_birimi] || 0) + r.toplam;
+      else                gider[r.para_birimi] = (gider[r.para_birimi] || 0) + r.toplam;
+    });
+    const kar = {};
+    new Set([...Object.keys(gelir), ...Object.keys(gider)]).forEach(pb => {
+      kar[pb] = (gelir[pb] || 0) - (gider[pb] || 0);
+    });
+    return { ...p, gelir, gider, kar };
+  });
+});
+
+ipcMain.handle('proje:hareketler', (_, proje_id) =>
+  getAll(`
+    SELECT * FROM (
+      SELECT kh.tarih as tarih, kh.tur as tur, kh.tutar as tutar, kh.aciklama as aciklama,
+             k.para_birimi as para_birimi, k.ad as hesap, 'Kasa' as kaynak
+      FROM kasa_hareketleri kh JOIN kasalar k ON k.id = kh.kasa_id WHERE kh.proje_id = ?
+      UNION ALL
+      SELECT bh.tarih as tarih, bh.tur as tur, bh.tutar as tutar, bh.aciklama as aciklama,
+             b.para_birimi as para_birimi, b.banka_adi as hesap, 'Banka' as kaynak
+      FROM banka_hareketleri bh JOIN banka_hesaplari b ON b.id = bh.hesap_id WHERE bh.proje_id = ?
+    ) ORDER BY tarih DESC
+  `, [proje_id, proje_id])
+);
 
 // ════════════════════════════════════════════════════════════
 // FATURA
@@ -1235,6 +1302,58 @@ ipcMain.handle('ortak:hareket:sil', (_, id) => {
 // ════════════════════════════════════════════════════════════
 // YEDEKLEME / GERİ YÜKLEME
 // ════════════════════════════════════════════════════════════
+
+ipcMain.handle('ayar:getir', (_, anahtar) => {
+  const r = getOne('SELECT deger FROM ayarlar WHERE anahtar = ?', [anahtar]);
+  return r ? r.deger : null;
+});
+
+ipcMain.handle('ayar:kaydet', (_, anahtar, deger) => {
+  run('INSERT INTO ayarlar (anahtar, deger) VALUES (?, ?) ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger',
+    [anahtar, String(deger)]);
+  saveDb();
+  return true;
+});
+
+// ── Genel Mali Durum Raporu ──────────────────────────────────
+ipcMain.handle('rapor:mali', () => {
+  const kuruRow = getOne("SELECT deger FROM ayarlar WHERE anahtar = 'usd_iqd_kuru'");
+  const kur = parseFloat(kuruRow?.deger) || 1310;
+
+  const kasalar  = getAll('SELECT * FROM kasalar ORDER BY para_birimi, ad');
+  const bankalar = getAll('SELECT * FROM banka_hesaplari ORDER BY para_birimi, banka_adi');
+
+  // Cari borç/alacak toplamları (para birimine göre)
+  const cariler = getAll('SELECT bakiye_IQD, bakiye_USD FROM cariler');
+  const cari = { borc_IQD: 0, alacak_IQD: 0, borc_USD: 0, alacak_USD: 0 };
+  cariler.forEach(c => {
+    if (c.bakiye_IQD > 0) cari.borc_IQD += c.bakiye_IQD; else cari.alacak_IQD += -c.bakiye_IQD;
+    if (c.bakiye_USD > 0) cari.borc_USD += c.bakiye_USD; else cari.alacak_USD += -c.bakiye_USD;
+  });
+
+  // Aylık gelir/gider (kasa + banka)
+  const ayBas = new Date(); ayBas.setDate(1);
+  const ayBasStr = ayBas.toISOString().split('T')[0];
+  const gelir = {}, gider = {};
+  const ekle = (map, pb, v) => { map[pb] = (map[pb] || 0) + v; };
+  getAll("SELECT kh.tur as tur, k.para_birimi as pb, SUM(kh.tutar) as t FROM kasa_hareketleri kh JOIN kasalar k ON k.id=kh.kasa_id WHERE kh.tarih >= ? GROUP BY kh.tur, k.para_birimi", [ayBasStr])
+    .forEach(r => isGiris(r.tur) ? ekle(gelir, r.pb, r.t) : ekle(gider, r.pb, r.t));
+  getAll("SELECT bh.tur as tur, b.para_birimi as pb, SUM(bh.tutar) as t FROM banka_hareketleri bh JOIN banka_hesaplari b ON b.id=bh.hesap_id WHERE bh.tarih >= ? GROUP BY bh.tur, b.para_birimi", [ayBasStr])
+    .forEach(r => isGiris(r.tur) ? ekle(gelir, r.pb, r.t) : ekle(gider, r.pb, r.t));
+
+  // Stok değeri yok (alış fiyatı tutulmuyor) — sadece adet bilgisi
+  const dusukStok = getAll('SELECT ad, mevcut_miktar, min_miktar, birim FROM stoklar WHERE min_miktar > 0 AND mevcut_miktar <= min_miktar ORDER BY ad');
+
+  const toplam = (k) => k.bakiye;
+  const nakitIQD = kasalar.filter(k=>k.para_birimi==='IQD').reduce((s,k)=>s+toplam(k),0)
+                 + bankalar.filter(b=>b.para_birimi==='IQD').reduce((s,b)=>s+toplam(b),0);
+  const nakitUSD = kasalar.filter(k=>k.para_birimi==='USD').reduce((s,k)=>s+toplam(k),0)
+                 + bankalar.filter(b=>b.para_birimi==='USD').reduce((s,b)=>s+toplam(b),0);
+
+  return { kur, kasalar, bankalar, cari, gelir, gider, dusukStok,
+           nakitIQD, nakitUSD,
+           nakitToplamUSD: nakitUSD + nakitIQD / kur };
+});
 
 ipcMain.handle('db:konum', () => dbPath());
 

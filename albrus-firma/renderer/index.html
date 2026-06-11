@@ -267,7 +267,11 @@
 
   <!-- ── DASHBOARD ── -->
   <div id="pg-dashboard" class="page active">
-    <div class="page-title">Dashboard</div>
+    <div class="sec-header">
+      <div class="page-title" style="margin:0">Dashboard</div>
+      <button class="btn btn-primary" onclick="genelMaliRaporPdf()">GENEL MALİ RAPOR PDF</button>
+    </div>
+    <div id="dash-konsolide" style="margin-bottom:14px;"></div>
     <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">Kasalar</div>
     <div class="card-grid" id="dash-kasalar"></div>
     <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">Banka Hesapları</div>
@@ -354,6 +358,7 @@
         <option value="musteri">Müşteriler</option>
         <option value="tedarikci">Tedarikçiler</option>
       </select>
+      <input type="text" placeholder="🔍 Ara (ad, telefon, adres...)" oninput="filtreTablo(this.value,'cariler-wrap')" style="flex:1;min-width:180px">
     </div>
     <div class="table-wrap" id="cariler-wrap"></div>
   </div>
@@ -388,6 +393,7 @@
         <option value="alis">Alış</option>
         <option value="irsaliye">İrsaliye (Faturasız)</option>
       </select>
+      <input type="text" placeholder="🔍 Ara (no, cari...)" oninput="filtreTablo(this.value,'faturalar-wrap')" style="flex:1;min-width:160px">
       <button class="btn btn-ghost btn-sm" onclick="faturaListeRaporPdf()">Rapor PDF</button>
     </div>
     <div class="table-wrap" id="faturalar-wrap"></div>
@@ -397,7 +403,13 @@
   <div id="pg-stok" class="page">
     <div class="sec-header">
       <div class="page-title" style="margin:0">Stok Tanımları</div>
-      <button class="btn btn-primary" onclick="openStokEkle()">+ Stok Ekle</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="stoklarRaporPdf()">Rapor PDF</button>
+        <button class="btn btn-primary" onclick="openStokEkle()">+ Stok Ekle</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input type="text" placeholder="🔍 Ara (kod, ad, kategori...)" oninput="filtreTablo(this.value,'stok-wrap')" style="flex:1;min-width:200px">
     </div>
     <div class="table-wrap" id="stok-wrap"></div>
   </div>
@@ -446,6 +458,22 @@
   <!-- ── AYARLAR ── -->
   <div id="pg-ayarlar" class="page">
     <div class="page-title">Ayarlar</div>
+
+    <div class="table-wrap" style="margin-bottom:18px;">
+      <div class="table-head"><div class="table-head-title">Döviz Kuru</div></div>
+      <div style="padding:18px;">
+        <div style="font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.6;">
+          Konsolide raporlarda IQD bakiyeleri bu kur ile USD'ye çevrilir. Güncel kuru girip kaydedin.
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:13px;">1 USD =</span>
+          <input id="ayar-kur" type="text" inputmode="decimal" style="width:120px;text-align:right;"
+            placeholder="1310">
+          <span style="font-size:13px;">IQD</span>
+          <button class="btn btn-primary btn-sm" onclick="kurKaydet()">KAYDET</button>
+        </div>
+      </div>
+    </div>
 
     <div class="table-wrap" style="margin-bottom:18px;">
       <div class="table-head"><div class="table-head-title">Veri Yedekleme</div></div>
@@ -729,16 +757,36 @@
 <!-- Proje Ekle -->
 <div class="overlay" id="m-proje-ekle">
   <div class="modal">
-    <div class="modal-title">Yeni Proje</div>
+    <div class="modal-title" id="m-proje-title">Yeni Proje</div>
+    <input type="hidden" id="p-id">
     <div class="fg"><label>Proje Adı</label><input type="text" id="p-ad" placeholder="örn: Erbil Rezidans — Elektrik"></div>
     <div class="row2">
       <div class="fg"><label>Başlangıç</label><input type="text" id="p-bas" placeholder="2026-06-07" maxlength="10" oninput="onTarihInput(this)"></div>
       <div class="fg"><label>Bitiş (tahmini)</label><input type="text" id="p-bit" placeholder="2026-12-31" maxlength="10" oninput="onTarihInput(this)"></div>
     </div>
+    <div class="fg"><label>Durum</label>
+      <select id="p-durum">
+        <option value="aktif">Aktif</option>
+        <option value="tamamlandi">Tamamlandı</option>
+        <option value="iptal">İptal</option>
+      </select>
+    </div>
     <div class="fg"><label>Açıklama</label><textarea id="p-aciklama" rows="2"></textarea></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-proje-ekle')">İptal</button>
       <button class="btn btn-primary" onclick="saveProje()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Proje Hareketleri / Detay -->
+<div class="overlay" id="m-proje-detay">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-title" id="m-proje-detay-title">Proje Detayı</div>
+    <div id="proje-detay-icerik" style="max-height:65vh;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-proje-detay')">Kapat</button>
+      <button class="btn btn-ghost" onclick="projeDetayPdf()">PDF Rapor</button>
     </div>
   </div>
 </div>
@@ -1108,6 +1156,14 @@ function fmtTutar(n) {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
+// Tablo içi canlı arama — eşleşmeyen satırları gizler
+function filtreTablo(q, wrapId) {
+  const t = (q || '').toLowerCase().trim();
+  document.querySelectorAll('#' + wrapId + ' tbody tr').forEach(tr => {
+    tr.style.display = (!t || tr.textContent.toLowerCase().includes(t)) ? '' : 'none';
+  });
+}
+
 function onTutarInput(el) {
   const digits = el.value.replace(/\D/g, '');
   if (!digits) { el.value = ''; return; }
@@ -1174,6 +1230,16 @@ async function loadDashboard() {
       <div class="card-sub">${b.para_birimi} Banka</div>
     </div>
   `).join('') || '<div style="color:var(--dim);font-size:13px;">Banka hesabı yok</div>';
+
+  try {
+    const m = await api.invoke('rapor:mali');
+    document.getElementById('dash-konsolide').innerHTML = `
+      <div class="card" style="background:linear-gradient(135deg,rgba(34,197,94,.10),rgba(34,197,94,.02));border-color:rgba(34,197,94,.25)">
+        <div class="card-label">Toplam Nakit Varlık (Kasa + Banka, USD bazında)</div>
+        <div class="card-val pos">${fmt(Math.round(m.nakitToplamUSD*100)/100, 'USD')}</div>
+        <div class="card-sub">IQD: ${fmt(m.nakitIQD,'IQD')} &nbsp;·&nbsp; USD: ${fmt(m.nakitUSD,'USD')} &nbsp;·&nbsp; Kur: 1$=${m.kur} IQD</div>
+      </div>`;
+  } catch (e) {}
 
   document.getElementById('ay-giris').innerHTML = d.aylikGelir.length
     ? d.aylikGelir.map(r => `<div class="sum-row"><span>${r.para_birimi}</span><span class="amt-pos">${fmt(r.toplam, r.para_birimi)}</span></div>`).join('')
@@ -2103,22 +2169,37 @@ td{padding:5px 8px;border-bottom:1px solid #f0f0f0}
   await api.invoke('print:pdf', content);
 }
 
+function karZararHucre(map) {
+  const keys = Object.keys(map).filter(k => map[k] !== 0);
+  if (!keys.length) return '—';
+  return keys.map(pb => {
+    const v = map[pb];
+    const cls = v >= 0 ? 'amt-pos' : 'amt-neg';
+    return `<span class="${cls}">${fmt(v, pb)}</span>`;
+  }).join('<br>');
+}
+
 async function loadProjeler() {
-  const list = await api.invoke('projeler:getir');
+  const list = await api.invoke('proje:ozet');
   S.projeler = list;
   const el = document.getElementById('projeler-wrap');
   if (!list.length) { el.innerHTML = '<div class="empty">Proje yok</div>'; return; }
   el.innerHTML = `
     <table><thead><tr>
-      <th>Proje Adı</th><th>Durum</th><th>Başlangıç</th><th>Bitiş</th><th>Açıklama</th>
+      <th>Proje Adı</th><th>Durum</th><th>Gelir</th><th>Gider</th><th>Kâr/Zarar</th><th></th>
     </tr></thead><tbody>
       ${list.map(p => `
         <tr>
-          <td>${p.ad}</td>
+          <td><a class="btn-link" onclick="openProjeDetay(${p.id})">${p.ad}</a></td>
           <td><span class="badge b-${p.durum}">${p.durum}</span></td>
-          <td>${fmtDate(p.baslangic)}</td>
-          <td>${fmtDate(p.bitis)}</td>
-          <td>${p.aciklama || '—'}</td>
+          <td>${karZararHucre(p.gelir)}</td>
+          <td>${karZararHucre(p.gider)}</td>
+          <td style="font-weight:700">${karZararHucre(p.kar)}</td>
+          <td style="display:flex;gap:4px;flex-wrap:wrap">
+            <button class="btn-link btn-sm" onclick="openProjeDetay(${p.id})">Detay</button>
+            <button class="btn-link btn-sm" onclick="openProjeDuzenle(${p.id})">Düzenle</button>
+            <button class="btn-del" onclick="delProje(${p.id})">✕</button>
+          </td>
         </tr>
       `).join('')}
     </tbody></table>
@@ -2126,24 +2207,124 @@ async function loadProjeler() {
 }
 
 function openProjeEkle() {
+  document.getElementById('m-proje-title').textContent = 'Yeni Proje';
+  document.getElementById('p-id').value = '';
   document.getElementById('p-ad').value = '';
   document.getElementById('p-aciklama').value = '';
   document.getElementById('p-bas').value = today();
   document.getElementById('p-bit').value = '';
+  document.getElementById('p-durum').value = 'aktif';
+  openModal('m-proje-ekle');
+}
+
+function openProjeDuzenle(id) {
+  const p = (S.projeler || []).find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('m-proje-title').textContent = 'Proje Düzenle';
+  document.getElementById('p-id').value = p.id;
+  document.getElementById('p-ad').value = p.ad;
+  document.getElementById('p-aciklama').value = p.aciklama || '';
+  document.getElementById('p-bas').value = p.baslangic || '';
+  document.getElementById('p-bit').value = p.bitis || '';
+  document.getElementById('p-durum').value = p.durum || 'aktif';
   openModal('m-proje-ekle');
 }
 
 async function saveProje() {
+  const id = document.getElementById('p-id').value;
   const d = {
     ad:        document.getElementById('p-ad').value,
     aciklama:  document.getElementById('p-aciklama').value,
     baslangic: document.getElementById('p-bas').value,
-    bitis:     document.getElementById('p-bit').value
+    bitis:     document.getElementById('p-bit').value,
+    durum:     document.getElementById('p-durum').value
   };
   if (!d.ad) { alert('Proje adı zorunludur.'); return; }
-  await api.invoke('projeler:ekle', d);
+  if (id) await api.invoke('projeler:guncelle', Number(id), d);
+  else    await api.invoke('projeler:ekle', d);
   closeModal('m-proje-ekle');
   loadProjeler();
+}
+
+async function delProje(id) {
+  if (!confirm('Bu projeyi silmek istediğinizden emin misiniz?')) return;
+  try {
+    await api.invoke('projeler:sil', id);
+    loadProjeler();
+  } catch (e) { alert(e.message); }
+}
+
+let _projeDetayAktif = null;
+async function openProjeDetay(id) {
+  const p = (S.projeler || []).find(x => x.id === id);
+  if (!p) return;
+  _projeDetayAktif = p;
+  const har = await api.invoke('proje:hareketler', id);
+  document.getElementById('m-proje-detay-title').textContent = 'Proje: ' + p.ad;
+  const ozet = `
+    <div class="card-grid" style="margin-bottom:14px">
+      <div class="card"><div class="card-label">Gelir</div><div class="card-val pos" style="font-size:18px">${karZararHucre(p.gelir)}</div></div>
+      <div class="card"><div class="card-label">Gider</div><div class="card-val neg" style="font-size:18px">${karZararHucre(p.gider)}</div></div>
+      <div class="card"><div class="card-label">Kâr/Zarar</div><div class="card-val" style="font-size:18px">${karZararHucre(p.kar)}</div></div>
+    </div>`;
+  const tablo = har.length ? `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:rgba(0,0,0,.04)">
+        <th style="padding:8px;text-align:left">Tarih</th><th style="padding:8px;text-align:left">Kaynak</th>
+        <th style="padding:8px;text-align:left">Açıklama</th><th style="padding:8px;text-align:right">Tutar</th>
+      </tr></thead><tbody>
+      ${har.map(h => {
+        const giris = ['giris','tahsilat','bankadan-cekilen','gelen-havale'].includes(h.tur);
+        return `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:7px 8px">${fmtDate(h.tarih)}</td>
+          <td style="padding:7px 8px">${h.kaynak} — ${h.hesap}</td>
+          <td style="padding:7px 8px">${h.aciklama || '—'}</td>
+          <td style="padding:7px 8px;text-align:right" class="${giris?'amt-pos':'amt-neg'}">${giris?'+':'-'}${fmt(h.tutar, h.para_birimi)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>` : '<div class="empty">Bu projeye bağlı hareket yok</div>';
+  document.getElementById('proje-detay-icerik').innerHTML = ozet + tablo;
+  openModal('m-proje-detay');
+}
+
+async function projeDetayPdf() {
+  const p = _projeDetayAktif;
+  if (!p) return;
+  const har = await api.invoke('proje:hareketler', p.id);
+  const bugun = fmtDate(today());
+  const rows = har.length ? har.map(h => {
+    const giris = ['giris','tahsilat','bankadan-cekilen','gelen-havale'].includes(h.tur);
+    return `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${fmtDate(h.tarih)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${h.kaynak} — ${h.hesap}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${h.aciklama || '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:${giris?'#16a34a':'#dc2626'}">${giris?'+':'-'}${fmt(h.tutar,h.para_birimi)}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" style="padding:10px;color:#888">Hareket yok</td></tr>';
+
+  const html = `
+    <div style="padding:30px 36px;font-family:'Segoe UI',sans-serif;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:12px">
+        <div><div style="font-size:22px;font-weight:800">ALBRUS COMPANY</div>
+          <div style="font-size:13px;color:#666">Proje Kâr/Zarar Raporu</div></div>
+        <div style="text-align:right;font-size:12px;color:#666">Tarih: ${bugun}</div>
+      </div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px">${p.ad}</div>
+      <div style="font-size:12px;color:#666;margin-bottom:14px">Durum: ${p.durum} · ${fmtDate(p.baslangic)} — ${fmtDate(p.bitis)}</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px">
+        <tr><td style="padding:6px 8px;border-bottom:1px solid #eee">Toplam Gelir</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#16a34a;font-weight:700">${Object.keys(p.gelir).length?Object.entries(p.gelir).map(([pb,v])=>fmt(v,pb)).join(' · '):'—'}</td></tr>
+        <tr><td style="padding:6px 8px;border-bottom:1px solid #eee">Toplam Gider</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#dc2626;font-weight:700">${Object.keys(p.gider).length?Object.entries(p.gider).map(([pb,v])=>fmt(v,pb)).join(' · '):'—'}</td></tr>
+        <tr><td style="padding:6px 8px;border-bottom:2px solid #111">Kâr / Zarar</td><td style="padding:6px 8px;border-bottom:2px solid #111;text-align:right;font-weight:800">${Object.keys(p.kar).length?Object.entries(p.kar).map(([pb,v])=>fmt(v,pb)).join(' · '):'—'}</td></tr>
+      </table>
+      <h3 style="font-size:14px;border-left:4px solid #111;padding-left:8px;margin:10px 0 8px">Hareketler</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f3f3f3">
+          <th style="padding:6px 8px;text-align:left">Tarih</th><th style="padding:6px 8px;text-align:left">Kaynak</th>
+          <th style="padding:6px 8px;text-align:left">Açıklama</th><th style="padding:6px 8px;text-align:right">Tutar</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  await api.invoke('print:pdf', html);
 }
 
 // ══════════════════════════════════════════════════
@@ -2906,6 +3087,40 @@ async function loadStok() {
       </tbody>
     </table>
   `;
+}
+
+async function stoklarRaporPdf() {
+  const liste = _stoklar && _stoklar.length ? _stoklar : await api.invoke('stoklar:getir');
+  if (!liste.length) { alert('Stok kaydı yok.'); return; }
+  const bugun = fmtDate(today());
+  const rows = liste.map(s => {
+    const kritik = s.min_miktar > 0 && s.mevcut_miktar <= s.min_miktar;
+    return `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.kod || '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.ad}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.kategori || '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.birim}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:${kritik?'#dc2626':'#111'}">${s.mevcut_miktar}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${s.min_miktar}</td>
+    </tr>`;
+  }).join('');
+  const html = `
+    <div style="padding:30px 36px;font-family:'Segoe UI',sans-serif;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:14px">
+        <div><div style="font-size:22px;font-weight:800">ALBRUS COMPANY</div>
+          <div style="font-size:13px;color:#666">Stok Durum Raporu</div></div>
+        <div style="text-align:right;font-size:12px;color:#666">Tarih: ${bugun}<br>Toplam kalem: ${liste.length}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f3f3f3">
+          <th style="padding:7px 8px;text-align:left">Kod</th><th style="padding:7px 8px;text-align:left">Stok Adı</th>
+          <th style="padding:7px 8px;text-align:left">Kategori</th><th style="padding:7px 8px;text-align:left">Birim</th>
+          <th style="padding:7px 8px;text-align:right">Mevcut</th><th style="padding:7px 8px;text-align:right">Min.</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:8px;font-size:11px;color:#dc2626">Kırmızı = kritik seviyede (min. altında veya eşit) stok</div>
+    </div>`;
+  await api.invoke('print:pdf', html);
 }
 
 let _stokHarData = null;
@@ -4404,7 +4619,78 @@ async function loadAyarlar() {
   try {
     const konum = await api.invoke('db:konum');
     document.getElementById('ayar-db-konum').textContent = 'Veritabanı konumu: ' + konum;
+    const kur = await api.invoke('ayar:getir', 'usd_iqd_kuru');
+    document.getElementById('ayar-kur').value = kur || '1310';
   } catch (e) {}
+}
+
+async function kurKaydet() {
+  const v = parseFloat(document.getElementById('ayar-kur').value.replace(',', '.'));
+  if (!v || v <= 0) { alert('Geçerli bir kur girin.'); return; }
+  await api.invoke('ayar:kaydet', 'usd_iqd_kuru', v);
+  alert('Döviz kuru kaydedildi: 1 USD = ' + v + ' IQD');
+}
+
+// ── Genel Mali Rapor PDF ──────────────────────────────────────
+async function genelMaliRaporPdf() {
+  const m = await api.invoke('rapor:mali');
+  const bugun = fmtDate(today());
+  const satir = (etiket, deger, renk) =>
+    `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee">${etiket}</td>
+     <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:600;color:${renk||'#111'}">${deger}</td></tr>`;
+  const para = (n, pb) => {
+    const abs = Math.abs(n||0), s = n<0?'-':'';
+    return pb==='USD' ? s+'$'+abs.toLocaleString('tr-TR',{minimumFractionDigits:2}) : s+abs.toLocaleString('tr-TR')+' IQD';
+  };
+
+  const kasaRows = m.kasalar.map(k => satir('Kasa: '+k.ad, para(k.bakiye,k.para_birimi), k.bakiye>=0?'#16a34a':'#dc2626')).join('');
+  const bankaRows = m.bankalar.map(b => satir('Banka: '+b.banka_adi, para(b.bakiye,b.para_birimi), b.bakiye>=0?'#16a34a':'#dc2626')).join('');
+
+  const gelirRows = Object.entries(m.gelir).map(([pb,t]) => satir('Bu Ay Gelir ('+pb+')', para(t,pb), '#16a34a')).join('') || satir('Bu Ay Gelir','—');
+  const giderRows = Object.entries(m.gider).map(([pb,t]) => satir('Bu Ay Gider ('+pb+')', para(t,pb), '#dc2626')).join('') || satir('Bu Ay Gider','—');
+
+  const cariRows =
+    satir('Cari Alacaklarımız (IQD)', para(m.cari.borc_IQD,'IQD'), '#16a34a') +
+    satir('Cari Borçlarımız (IQD)', para(m.cari.alacak_IQD,'IQD'), '#dc2626') +
+    satir('Cari Alacaklarımız (USD)', para(m.cari.borc_USD,'USD'), '#16a34a') +
+    satir('Cari Borçlarımız (USD)', para(m.cari.alacak_USD,'USD'), '#dc2626');
+
+  const dusukStokRows = m.dusukStok.length
+    ? m.dusukStok.map(s => `<tr><td style="padding:5px 10px;border-bottom:1px solid #eee">${s.ad}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid #eee;text-align:right;color:#dc2626;font-weight:600">${s.mevcut_miktar} ${s.birim}</td>
+        <td style="padding:5px 10px;border-bottom:1px solid #eee;text-align:right;color:#888">min ${s.min_miktar}</td></tr>`).join('')
+    : `<tr><td colspan="3" style="padding:8px 10px;color:#888">Kritik seviyede stok yok</td></tr>`;
+
+  const html = `
+    <div style="padding:30px 36px;font-family:'Segoe UI',sans-serif;color:#111;max-width:760px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:12px;margin-bottom:6px">
+        <div><div style="font-size:26px;font-weight:800;letter-spacing:1px">ALBRUS COMPANY</div>
+          <div style="font-size:13px;color:#666">Genel Mali Durum Raporu</div></div>
+        <div style="text-align:right;font-size:12px;color:#666">Tarih: ${bugun}<br>Kur: 1 USD = ${m.kur} IQD</div>
+      </div>
+
+      <div style="background:#111;color:#fff;text-align:center;padding:14px;border-radius:6px;margin:18px 0">
+        <div style="font-size:12px;opacity:.8">TOPLAM NAKİT VARLIK (USD bazında)</div>
+        <div style="font-size:30px;font-weight:800">${para(Math.round(m.nakitToplamUSD*100)/100,'USD')}</div>
+      </div>
+
+      <h3 style="font-size:14px;border-left:4px solid #111;padding-left:8px;margin:18px 0 8px">Kasa & Banka Bakiyeleri</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">${kasaRows}${bankaRows}</table>
+
+      <h3 style="font-size:14px;border-left:4px solid #111;padding-left:8px;margin:18px 0 8px">Bu Ay Gelir / Gider</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">${gelirRows}${giderRows}</table>
+
+      <h3 style="font-size:14px;border-left:4px solid #111;padding-left:8px;margin:18px 0 8px">Cari Hesap Durumu</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">${cariRows}</table>
+
+      <h3 style="font-size:14px;border-left:4px solid #111;padding-left:8px;margin:18px 0 8px">Kritik Stok</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">${dusukStokRows}</table>
+
+      <div style="margin-top:30px;text-align:center;font-size:11px;color:#999;border-top:1px solid #ddd;padding-top:10px">
+        Bu rapor Albrus Firma Yönetim Programı tarafından ${bugun} tarihinde oluşturulmuştur.
+      </div>
+    </div>`;
+  await api.invoke('print:pdf', html);
 }
 
 async function dbYedekle() {
