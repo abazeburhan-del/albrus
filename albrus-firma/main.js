@@ -267,6 +267,8 @@ async function initDb() {
   try { db.run("ALTER TABLE personel_hareketleri ADD COLUMN gun INTEGER DEFAULT NULL"); } catch (_) {}
   try { db.run("ALTER TABLE puantaj ADD COLUMN mesai_saat REAL DEFAULT 0"); } catch (_) {}
   try { db.run("ALTER TABLE faturalar ADD COLUMN belge_turu TEXT DEFAULT 'fatura'"); } catch (_) {}
+  try { db.run("ALTER TABLE maas_odemeleri ADD COLUMN prim REAL DEFAULT 0"); } catch (_) {}
+  try { db.run("ALTER TABLE maas_odemeleri ADD COLUMN kesinti_neden TEXT DEFAULT ''"); } catch (_) {}
 
   const katSayisi = getOne('SELECT COUNT(*) as n FROM kategoriler').n;
   if (katSayisi === 0) {
@@ -1021,11 +1023,12 @@ ipcMain.handle('maas:odeme:ekle', (_, d) => {
 
   const brut = Number(d.brut) || 0;
   const kesinti = Number(d.kesinti) || 0;
-  const net = Math.max(0, brut - kesinti);
+  const prim = Number(d.prim) || 0;
+  const net = Math.max(0, brut + prim - kesinti);
 
   const odeme = insertAndGet('maas_odemeleri',
-    'INSERT INTO maas_odemeleri (personel_id, donem, tarih, brut, kesinti, net, para_birimi, odeme_turu, kaynak_id, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [d.personel_id, d.donem, d.tarih, brut, kesinti, net,
+    'INSERT INTO maas_odemeleri (personel_id, donem, tarih, brut, kesinti, prim, kesinti_neden, net, para_birimi, odeme_turu, kaynak_id, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [d.personel_id, d.donem, d.tarih, brut, kesinti, prim, d.kesinti_neden ?? '', net,
      d.para_birimi ?? 'USD', d.odeme_turu ?? 'kasa',
      d.kaynak_id ? Number(d.kaynak_id) : null, d.aciklama ?? '']
   );
@@ -1177,6 +1180,48 @@ ipcMain.handle('personel:kasa:ode', (_, d) => {
   run('UPDATE kasalar SET bakiye=? WHERE id=?', [kasa.bakiye - d.tutar, kasa.id]);
   run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, aciklama) VALUES (?,?,?,?,?,?)',
     [personel.id, d.tarih, 'borc', d.tutar, 'kasa_odeme', aciklama]);
+
+  saveDb();
+  return true;
+});
+
+// Personel hesap ekstresi — tüm hareketler (alacak: hak ediş, borç: ödeme/avans)
+ipcMain.handle('personel:ekstre', (_, personel_id) => {
+  const personel = getOne('SELECT * FROM personeller WHERE id = ?', [personel_id]);
+  if (!personel) throw new Error('Personel bulunamadı');
+  const hareketler = getAll(
+    'SELECT tarih, tur, tutar, kaynak, aciklama FROM personel_hareketleri WHERE personel_id = ? ORDER BY tarih ASC, id ASC',
+    [personel_id]);
+  const alacak = hareketler.filter(h => h.tur === 'alacak').reduce((s, h) => s + h.tutar, 0);
+  const borc   = hareketler.filter(h => h.tur === 'borc').reduce((s, h) => s + h.tutar, 0);
+  return { personel, hareketler, alacak, borc, net: alacak - borc };
+});
+
+// Avans — kasa/bankadan düşer, personele borç olarak işlenir (maaştan mahsup edilir)
+ipcMain.handle('personel:avans:ekle', (_, d) => {
+  const personel = getOne('SELECT * FROM personeller WHERE id=?', [d.personel_id]);
+  if (!personel) throw new Error('Personel bulunamadı');
+  if (!d.tutar || d.tutar <= 0) throw new Error('Tutar sıfırdan büyük olmalıdır');
+
+  const adSoyad = `${personel.ad}${personel.soyad ? ' ' + personel.soyad : ''}`;
+  const aciklama = d.aciklama?.trim() || `Avans: ${adSoyad}`;
+
+  if (d.odeme_turu === 'banka' && d.kaynak_id) {
+    const hesap = getOne('SELECT * FROM banka_hesaplari WHERE id=?', [Number(d.kaynak_id)]);
+    if (!hesap) throw new Error('Banka hesabı bulunamadı');
+    run('INSERT INTO banka_hareketleri (hesap_id, tarih, tur, tutar, aciklama) VALUES (?,?,?,?,?)',
+      [hesap.id, d.tarih, 'cikis', d.tutar, aciklama]);
+    run('UPDATE banka_hesaplari SET bakiye=? WHERE id=?', [hesap.bakiye - d.tutar, hesap.id]);
+  } else if (d.kaynak_id) {
+    const kasa = getOne('SELECT * FROM kasalar WHERE id=?', [Number(d.kaynak_id)]);
+    if (!kasa) throw new Error('Kasa bulunamadı');
+    run('INSERT INTO kasa_hareketleri (kasa_id, tarih, tur, tutar, aciklama) VALUES (?,?,?,?,?)',
+      [kasa.id, d.tarih, 'odeme', d.tutar, aciklama]);
+    run('UPDATE kasalar SET bakiye=? WHERE id=?', [kasa.bakiye - d.tutar, kasa.id]);
+  }
+
+  run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, aciklama) VALUES (?,?,?,?,?,?)',
+    [personel.id, d.tarih, 'borc', d.tutar, 'avans', aciklama]);
 
   saveDb();
   return true;

@@ -906,7 +906,19 @@
     </div>
     <div class="row3">
       <div class="fg"><label>Brüt Maaş</label><input type="text" id="maas-brut" inputmode="numeric" oninput="onTutarInput(this);hesaplaNet()" autocomplete="off"></div>
+      <div class="fg"><label>Prim / İkramiye</label><input type="text" id="maas-prim" inputmode="numeric" oninput="onTutarInput(this);hesaplaNet()" placeholder="0" autocomplete="off"></div>
       <div class="fg"><label>Kesintiler</label><input type="text" id="maas-kesinti" inputmode="numeric" oninput="onTutarInput(this);hesaplaNet()" placeholder="0" autocomplete="off"></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>Kesinti Nedeni</label>
+        <select id="maas-kesinti-neden">
+          <option value="">—</option>
+          <option value="Avans Mahsubu">Avans Mahsubu</option>
+          <option value="SGK">SGK</option>
+          <option value="Ceza">Ceza</option>
+          <option value="Diğer">Diğer</option>
+        </select>
+      </div>
       <div class="fg"><label>Net (Ödenecek)</label><input type="text" id="maas-net" readonly style="font-weight:700;color:var(--green)"></div>
     </div>
     <div class="row2">
@@ -928,6 +940,43 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-maas-ode')">İptal</button>
       <button class="btn btn-primary" onclick="saveMaasOdeme()">Öde</button>
+    </div>
+  </div>
+</div>
+
+<!-- Avans -->
+<div class="overlay" id="m-avans">
+  <div class="modal">
+    <div class="modal-title">Avans Öde</div>
+    <input type="hidden" id="avans-personel-id">
+    <div id="m-avans-bilgi" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
+    <div class="row2">
+      <div class="fg"><label>Tutar</label><input type="text" id="avans-tutar" inputmode="numeric" oninput="onTutarInput(this)" autocomplete="off"></div>
+      <div class="fg"><label>Tarih</label><input type="text" id="avans-tarih" placeholder="2026-06-09" maxlength="10" oninput="onTarihInput(this)"></div>
+    </div>
+    <div class="fg"><label>Ödeme Yöntemi</label>
+      <select id="avans-odeme-turu" onchange="onAvansOdemeTuruChange()">
+        <option value="kasa">Kasadan</option>
+        <option value="banka">Bankadan</option>
+      </select>
+    </div>
+    <div class="fg" id="avans-kaynak-wrap"></div>
+    <div class="fg"><label>Açıklama</label><input type="text" id="avans-aciklama" placeholder="(opsiyonel)"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-avans')">İptal</button>
+      <button class="btn btn-primary" onclick="saveAvans()">Öde</button>
+    </div>
+  </div>
+</div>
+
+<!-- Personel Ekstre -->
+<div class="overlay" id="m-personel-ekstre">
+  <div class="modal" style="max-width:760px">
+    <div class="modal-title" id="m-personel-ekstre-title">Personel Hesap Ekstresi</div>
+    <div id="personel-ekstre-icerik" style="max-height:65vh;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-personel-ekstre')">Kapat</button>
+      <button class="btn btn-ghost" onclick="personelEkstrePdf()">PDF Rapor</button>
     </div>
   </div>
 </div>
@@ -3319,9 +3368,11 @@ function renderPersonelCards() {
       <div class="card-val" style="font-size:16px">${p.ad}${p.soyad ? ' ' + p.soyad : ''}</div>
       <div class="card-sub">${p.maas > 0 ? fmtTutar(Math.round(p.maas)) + ' ' + p.para_birimi + '/ay' : '—'}</div>
       ${p.net_alacak > 0 ? `<div class="card-sub" style="color:#22c55e">Alacak: ${fmtTutar(Math.round(p.net_alacak))} ${p.para_birimi}</div>` : ''}
-      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
         <span class="badge ${p.durum === 'aktif' ? 'b-aktif' : 'b-diger'}">${p.durum}</span>
-        <span style="display:flex;gap:4px">
+        <span style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openPersonelEkstre(${p.id})">Ekstre</button>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openAvans(${p.id})">Avans</button>
           <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openPersonelDuzenle(${p.id})">Düzenle</button>
           <button class="btn-del" onclick="event.stopPropagation();personelSil(${p.id})">✕</button>
         </span>
@@ -3380,7 +3431,10 @@ async function loadMaasOdemeleri() {
             <td style="text-align:right;font-weight:700;color:var(--green)">${fmtTutar(Math.round(o.net))}</td>
             <td>${o.para_birimi}</td>
             <td><span class="badge ${o.odeme_turu === 'banka' ? 'b-musteri' : 'b-diger'}">${o.odeme_turu}</span></td>
-            <td><button class="btn-del" onclick="maasOdemeSil(${o.id})">✕</button></td>
+            <td style="display:flex;gap:4px">
+              <button class="btn-link btn-sm" onclick="bordroPdf(${o.id})">Pusula</button>
+              <button class="btn-del" onclick="maasOdemeSil(${o.id})">✕</button>
+            </td>
           </tr>
         `).join('')}
       </tbody>
@@ -3612,10 +3666,21 @@ async function openMaasOde() {
   document.getElementById('maas-donem').value = bugun.substring(0, 7);
   document.getElementById('maas-tarih').value = bugun;
   document.getElementById('maas-brut').value = p.maas > 0 ? fmtTutar(Math.round(p.maas)) : '';
+  document.getElementById('maas-prim').value = '';
   document.getElementById('maas-kesinti').value = '';
+  document.getElementById('maas-kesinti-neden').value = '';
   document.getElementById('maas-para').value = p.para_birimi || 'USD';
   document.getElementById('maas-odeme-turu').value = 'kasa';
   document.getElementById('maas-aciklama').value = '';
+  // Açık avans/borç varsa bilgi olarak göster (avans mahsubunu kolaylaştırmak için)
+  try {
+    const eks = await api.invoke('personel:ekstre', p.id);
+    const acikBorc = (eks.borc || 0) - (eks.alacak || 0);
+    if (acikBorc > 0) {
+      document.getElementById('m-maas-personel-bilgi').innerHTML +=
+        `<div style="margin-top:8px;color:var(--red);font-size:12px">Açık avans/borç: ${fmtTutar(Math.round(acikBorc))} ${p.para_birimi} — kesintiden mahsup edebilirsiniz.</div>`;
+    }
+  } catch (e) {}
   hesaplaNet();
   await onMaasOdemeTuruChange();
   openModal('m-maas-ode');
@@ -3624,8 +3689,9 @@ async function openMaasOde() {
 
 function hesaplaNet() {
   const brut    = parseTutar('maas-brut');
+  const prim    = parseTutar('maas-prim');
   const kesinti = parseTutar('maas-kesinti');
-  const net = Math.max(0, brut - kesinti);
+  const net = Math.max(0, brut + prim - kesinti);
   document.getElementById('maas-net').value = fmtTutar(net);
 }
 
@@ -3658,10 +3724,12 @@ async function saveMaasOdeme() {
   if (!tarih || tarih.length < 10) { alert('Tarih zorunludur.'); return; }
   if (!brut || brut <= 0) { alert('Brüt maaş sıfırdan büyük olmalıdır.'); return; }
   const kesinti = parseTutar('maas-kesinti');
+  const prim    = parseTutar('maas-prim');
   const d = {
     personel_id: _secilenPersonel.id,
-    donem, tarih, brut, kesinti,
-    net:         Math.max(0, brut - kesinti),
+    donem, tarih, brut, kesinti, prim,
+    kesinti_neden: document.getElementById('maas-kesinti-neden').value,
+    net:         Math.max(0, brut + prim - kesinti),
     para_birimi: document.getElementById('maas-para').value,
     odeme_turu:  document.getElementById('maas-odeme-turu').value,
     kaynak_id:   Number(document.getElementById('maas-kaynak-id')?.value) || null,
@@ -3680,6 +3748,192 @@ async function maasOdemeSil(id) {
   await api.invoke('maas:odeme:sil', id);
   loadPersonel();
   loadMaasOdemeleri();
+}
+
+// ── AVANS ───────────────────────────────────────────────────
+async function openAvans(id) {
+  const p = (_personeller || []).find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('avans-personel-id').value = id;
+  document.getElementById('avans-tutar').value = '';
+  document.getElementById('avans-tarih').value = today();
+  document.getElementById('avans-odeme-turu').value = 'kasa';
+  document.getElementById('avans-aciklama').value = '';
+  let bilgi = `<b>${p.ad}${p.soyad ? ' ' + p.soyad : ''}</b>${p.pozisyon ? ' — ' + p.pozisyon : ''}`;
+  try {
+    const eks = await api.invoke('personel:ekstre', id);
+    const acikBorc = (eks.borc || 0) - (eks.alacak || 0);
+    if (acikBorc > 0) bilgi += `<div style="margin-top:6px;color:var(--red);font-size:12px">Mevcut açık avans/borç: ${fmtTutar(Math.round(acikBorc))} ${p.para_birimi}</div>`;
+  } catch (e) {}
+  document.getElementById('m-avans-bilgi').innerHTML = bilgi;
+  await onAvansOdemeTuruChange();
+  openModal('m-avans');
+  setTimeout(() => document.getElementById('avans-tutar').focus(), 80);
+}
+
+async function onAvansOdemeTuruChange() {
+  const tur = document.getElementById('avans-odeme-turu').value;
+  const wrap = document.getElementById('avans-kaynak-wrap');
+  if (tur === 'banka') {
+    const bankalar = await api.invoke('banka:hesaplar');
+    wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);font-weight:500;margin-bottom:5px">Banka Hesabı</label>
+      <select id="avans-kaynak-id" style="width:100%">
+        ${bankalar.map(b => `<option value="${b.id}">${b.banka_adi} (${b.para_birimi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))})</option>`).join('')}
+      </select>`;
+  } else {
+    const kasalar = await api.invoke('kasalar:getir');
+    wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);font-weight:500;margin-bottom:5px">Kasa</label>
+      <select id="avans-kaynak-id" style="width:100%">
+        ${kasalar.map(k => `<option value="${k.id}">${k.ad} (${k.para_birimi} — Bakiye: ${fmtTutar(Math.round(k.bakiye))})</option>`).join('')}
+      </select>`;
+  }
+}
+
+async function saveAvans() {
+  const id = Number(document.getElementById('avans-personel-id').value);
+  const tutar = parseTutar('avans-tutar');
+  const tarih = document.getElementById('avans-tarih').value.trim();
+  if (!tutar || tutar <= 0) { alert('Tutar sıfırdan büyük olmalıdır.'); return; }
+  if (!tarih || tarih.length < 10) { alert('Tarih zorunludur.'); return; }
+  try {
+    await api.invoke('personel:avans:ekle', {
+      personel_id: id, tutar, tarih,
+      odeme_turu: document.getElementById('avans-odeme-turu').value,
+      kaynak_id: Number(document.getElementById('avans-kaynak-id')?.value) || null,
+      aciklama: document.getElementById('avans-aciklama').value.trim(),
+    });
+    closeModal('m-avans');
+    loadPersonel();
+    if (_secilenPersonel) loadMaasOdemeleri();
+  } catch (e) { alert(e.message); }
+}
+
+// ── PERSONEL EKSTRE ─────────────────────────────────────────
+const KAYNAK_ETIKET = {
+  puantaj: 'Çalışma (Puantaj)', mesai: 'Mesai', maas_odeme: 'Maaş Ödemesi',
+  avans: 'Avans', kasa_odeme: 'Kasa Ödemesi'
+};
+let _ekstreAktif = null;
+
+async function openPersonelEkstre(id) {
+  const eks = await api.invoke('personel:ekstre', id);
+  _ekstreAktif = eks;
+  const p = eks.personel;
+  const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
+  document.getElementById('m-personel-ekstre-title').textContent = adSoyad + ' — Hesap Ekstresi';
+  const net = eks.net;
+  const netRenk = net > 0 ? '#22c55e' : net < 0 ? 'var(--red)' : 'var(--dim)';
+  const netEtiket = net > 0 ? 'Personele Kalan Alacak' : net < 0 ? 'Fazla Ödeme' : 'Bakiye Sıfır';
+  const ozet = `
+    <div class="card-grid" style="margin-bottom:14px">
+      <div class="card"><div class="card-label">Toplam Hak Ediş</div><div class="card-val pos" style="font-size:18px">${fmtTutar(Math.round(eks.alacak))} ${p.para_birimi}</div></div>
+      <div class="card"><div class="card-label">Toplam Ödeme/Avans</div><div class="card-val neg" style="font-size:18px">${fmtTutar(Math.round(eks.borc))} ${p.para_birimi}</div></div>
+      <div class="card"><div class="card-label">${netEtiket}</div><div class="card-val" style="font-size:18px;color:${netRenk}">${fmtTutar(Math.round(Math.abs(net)))} ${p.para_birimi}</div></div>
+    </div>`;
+  let bakiye = 0;
+  const tablo = eks.hareketler.length ? `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:rgba(0,0,0,.04)">
+        <th style="padding:8px;text-align:left">Tarih</th><th style="padding:8px;text-align:left">İşlem</th>
+        <th style="padding:8px;text-align:right">Hak Ediş</th><th style="padding:8px;text-align:right">Ödeme</th>
+        <th style="padding:8px;text-align:right">Bakiye</th>
+      </tr></thead><tbody>
+      ${eks.hareketler.map(h => {
+        const al = h.tur === 'alacak' ? h.tutar : 0;
+        const bo = h.tur === 'borc' ? h.tutar : 0;
+        bakiye += al - bo;
+        return `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:7px 8px">${fmtDate(h.tarih)}</td>
+          <td style="padding:7px 8px">${KAYNAK_ETIKET[h.kaynak] || h.kaynak}<div style="font-size:11px;color:var(--dim)">${h.aciklama || ''}</div></td>
+          <td style="padding:7px 8px;text-align:right;color:#22c55e">${al ? fmtTutar(Math.round(al)) : '—'}</td>
+          <td style="padding:7px 8px;text-align:right;color:var(--red)">${bo ? fmtTutar(Math.round(bo)) : '—'}</td>
+          <td style="padding:7px 8px;text-align:right;font-weight:600">${fmtTutar(Math.round(bakiye))}</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>` : '<div class="empty">Henüz hareket yok</div>';
+  document.getElementById('personel-ekstre-icerik').innerHTML = ozet + tablo;
+  openModal('m-personel-ekstre');
+}
+
+async function personelEkstrePdf() {
+  const eks = _ekstreAktif;
+  if (!eks) return;
+  const p = eks.personel;
+  const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
+  const bugun = fmtDate(today());
+  let bakiye = 0;
+  const rows = eks.hareketler.length ? eks.hareketler.map(h => {
+    const al = h.tur === 'alacak' ? h.tutar : 0;
+    const bo = h.tur === 'borc' ? h.tutar : 0;
+    bakiye += al - bo;
+    return `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${fmtDate(h.tarih)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${KAYNAK_ETIKET[h.kaynak] || h.kaynak}${h.aciklama ? ' — ' + h.aciklama : ''}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#16a34a">${al ? fmtTutar(Math.round(al)) : '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#dc2626">${bo ? fmtTutar(Math.round(bo)) : '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${fmtTutar(Math.round(bakiye))}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" style="padding:10px;color:#888">Hareket yok</td></tr>';
+  const net = eks.net;
+  const html = `
+    <div style="padding:30px 36px;font-family:'Segoe UI',sans-serif;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:12px">
+        <div><div style="font-size:22px;font-weight:800">ALBRUS COMPANY</div>
+          <div style="font-size:13px;color:#666">Personel Hesap Ekstresi</div></div>
+        <div style="text-align:right;font-size:12px;color:#666">Tarih: ${bugun}</div>
+      </div>
+      <div style="font-size:16px;font-weight:700">${adSoyad}</div>
+      <div style="font-size:12px;color:#666;margin-bottom:14px">${p.pozisyon || ''} ${p.maas>0?'· Maaş: '+fmtTutar(Math.round(p.maas))+' '+p.para_birimi+'/ay':''}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">
+        <thead><tr style="background:#f3f3f3">
+          <th style="padding:6px 8px;text-align:left">Tarih</th><th style="padding:6px 8px;text-align:left">İşlem</th>
+          <th style="padding:6px 8px;text-align:right">Hak Ediş</th><th style="padding:6px 8px;text-align:right">Ödeme</th>
+          <th style="padding:6px 8px;text-align:right">Bakiye</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table>
+      <table style="width:300px;margin-left:auto;border-collapse:collapse;font-size:13px">
+        <tr><td style="padding:5px 8px">Toplam Hak Ediş</td><td style="padding:5px 8px;text-align:right;color:#16a34a">${fmtTutar(Math.round(eks.alacak))}</td></tr>
+        <tr><td style="padding:5px 8px">Toplam Ödeme/Avans</td><td style="padding:5px 8px;text-align:right;color:#dc2626">${fmtTutar(Math.round(eks.borc))}</td></tr>
+        <tr><td style="padding:6px 8px;border-top:2px solid #111;font-weight:700">${net>=0?'Kalan Alacak':'Fazla Ödeme'}</td><td style="padding:6px 8px;border-top:2px solid #111;text-align:right;font-weight:800">${fmtTutar(Math.round(Math.abs(net)))} ${p.para_birimi}</td></tr>
+      </table>
+    </div>`;
+  await api.invoke('print:pdf', html);
+}
+
+// ── BORDRO / MAAŞ PUSULASI PDF ──────────────────────────────
+async function bordroPdf(odemeId) {
+  const list = await api.invoke('maas:odemeleri:getir', {});
+  const o = list.find(x => x.id === odemeId);
+  if (!o) { alert('Ödeme bulunamadı.'); return; }
+  const adSoyad = `${o.personel_ad}${o.personel_soyad ? ' ' + o.personel_soyad : ''}`;
+  const sat = (et, dv, renk) => `<tr><td style="padding:7px 10px;border-bottom:1px solid #eee">${et}</td>
+    <td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:600;color:${renk||'#111'}">${dv}</td></tr>`;
+  const html = `
+    <div style="padding:34px 40px;font-family:'Segoe UI',sans-serif;color:#111;max-width:640px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:12px;margin-bottom:18px">
+        <div><div style="font-size:24px;font-weight:800">ALBRUS COMPANY</div>
+          <div style="font-size:13px;color:#666">Maaş Pusulası / Bordro</div></div>
+        <div style="text-align:right;font-size:12px;color:#666">Dönem: ${o.donem}<br>Tarih: ${fmtDate(o.tarih)}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
+        <tr><td style="padding:6px 10px;color:#666;width:140px">Personel</td><td style="padding:6px 10px;font-weight:700">${adSoyad}</td></tr>
+        <tr><td style="padding:6px 10px;color:#666">Pozisyon</td><td style="padding:6px 10px">${o.pozisyon || '—'}</td></tr>
+        <tr><td style="padding:6px 10px;color:#666">Ödeme Yöntemi</td><td style="padding:6px 10px">${o.odeme_turu === 'banka' ? 'Banka' : 'Kasa'}</td></tr>
+      </table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px">
+        ${sat('Brüt Maaş', fmtTutar(Math.round(o.brut)) + ' ' + o.para_birimi)}
+        ${o.prim > 0 ? sat('Prim / İkramiye', '+ ' + fmtTutar(Math.round(o.prim)) + ' ' + o.para_birimi, '#16a34a') : ''}
+        ${o.kesinti > 0 ? sat('Kesinti' + (o.kesinti_neden ? ' (' + o.kesinti_neden + ')' : ''), '− ' + fmtTutar(Math.round(o.kesinti)) + ' ' + o.para_birimi, '#dc2626') : ''}
+        <tr><td style="padding:10px;border-top:2px solid #111;font-size:15px;font-weight:700">NET ÖDENEN</td>
+          <td style="padding:10px;border-top:2px solid #111;text-align:right;font-size:18px;font-weight:800">${fmtTutar(Math.round(o.net))} ${o.para_birimi}</td></tr>
+      </table>
+      ${o.aciklama ? `<div style="margin-top:14px;font-size:12px;color:#666">Açıklama: ${o.aciklama}</div>` : ''}
+      <div style="display:flex;justify-content:space-between;margin-top:60px;font-size:12px;color:#666">
+        <div style="text-align:center">_______________________<br>İşveren İmza</div>
+        <div style="text-align:center">_______________________<br>Personel İmza</div>
+      </div>
+    </div>`;
+  await api.invoke('print:pdf', html);
 }
 
 // ── PUANTAJ ─────────────────────────────────────────────────
