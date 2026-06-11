@@ -269,6 +269,10 @@ async function initDb() {
   try { db.run("ALTER TABLE faturalar ADD COLUMN belge_turu TEXT DEFAULT 'fatura'"); } catch (_) {}
   try { db.run("ALTER TABLE maas_odemeleri ADD COLUMN prim REAL DEFAULT 0"); } catch (_) {}
   try { db.run("ALTER TABLE maas_odemeleri ADD COLUMN kesinti_neden TEXT DEFAULT ''"); } catch (_) {}
+  try { db.run("ALTER TABLE stoklar ADD COLUMN barkod TEXT DEFAULT ''"); } catch (_) {}
+  try { db.run("ALTER TABLE stoklar ADD COLUMN alis_fiyat REAL DEFAULT 0"); } catch (_) {}
+  try { db.run("ALTER TABLE stoklar ADD COLUMN satis_fiyat REAL DEFAULT 0"); } catch (_) {}
+  try { db.run("ALTER TABLE stoklar ADD COLUMN para_birimi TEXT DEFAULT 'USD'"); } catch (_) {}
 
   const katSayisi = getOne('SELECT COUNT(*) as n FROM kategoriler').n;
   if (katSayisi === 0) {
@@ -834,18 +838,94 @@ ipcMain.handle('stoklar:getir', () =>
 
 ipcMain.handle('stoklar:ekle', (_, d) => {
   const r = insertAndGet('stoklar',
-    'INSERT INTO stoklar (kod, ad, birim, kategori, mevcut_miktar, min_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [d.kod ?? '', d.ad, d.birim ?? 'Pcs', d.kategori ?? '', d.mevcut_miktar ?? 0, d.min_miktar ?? 0, d.aciklama ?? '']
+    'INSERT INTO stoklar (kod, ad, barkod, birim, kategori, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.kategori ?? '', d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
+     d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '']
   );
+  // Açılış miktarı varsa hareket olarak kaydet
+  if ((d.mevcut_miktar ?? 0) > 0) {
+    run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [r.id, new Date().toISOString().split('T')[0], 'giris', d.mevcut_miktar, 0, d.mevcut_miktar, 'Açılış miktarı']);
+  }
   saveDb();
   return r;
 });
 
 ipcMain.handle('stoklar:guncelle', (_, id, d) => {
-  run('UPDATE stoklar SET kod=?, ad=?, birim=?, kategori=?, mevcut_miktar=?, min_miktar=?, aciklama=? WHERE id=?',
-    [d.kod ?? '', d.ad, d.birim ?? 'Pcs', d.kategori ?? '', d.mevcut_miktar ?? 0, d.min_miktar ?? 0, d.aciklama ?? '', id]);
+  // mevcut_miktar düzenlemesini stok hareketi olarak işle (manuel düzeltme)
+  const eski = getOne('SELECT mevcut_miktar FROM stoklar WHERE id = ?', [id]);
+  run('UPDATE stoklar SET kod=?, ad=?, barkod=?, birim=?, kategori=?, mevcut_miktar=?, min_miktar=?, alis_fiyat=?, satis_fiyat=?, para_birimi=?, aciklama=? WHERE id=?',
+    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.kategori ?? '', d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
+     d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '', id]);
+  if (eski && eski.mevcut_miktar !== (d.mevcut_miktar ?? 0)) {
+    const fark = (d.mevcut_miktar ?? 0) - eski.mevcut_miktar;
+    run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, new Date().toISOString().split('T')[0], fark > 0 ? 'giris' : 'cikis', Math.abs(fark),
+       eski.mevcut_miktar, d.mevcut_miktar ?? 0, 'Kart düzenleme — miktar düzeltmesi']);
+  }
   saveDb();
   return true;
+});
+
+// Manuel stok hareketi: giris / cikis / sayim / fire
+ipcMain.handle('stok:hareket:ekle', (_, d) => {
+  const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [d.stok_id]);
+  if (!stok) throw new Error('Stok bulunamadı');
+  const miktar = Number(d.miktar);
+  if (!miktar || miktar <= 0) throw new Error('Miktar sıfırdan büyük olmalıdır');
+  const onceki = stok.mevcut_miktar;
+  let sonraki, tur, etiket;
+  if (d.tur === 'sayim') {
+    sonraki = miktar;                 // sayımda miktar = yeni fiili stok
+    tur = sonraki >= onceki ? 'giris' : 'cikis';
+    etiket = d.aciklama?.trim() || 'Sayım düzeltmesi';
+  } else if (d.tur === 'fire') {
+    sonraki = onceki - miktar;
+    tur = 'cikis';
+    etiket = d.aciklama?.trim() || 'Fire / Zayi';
+  } else if (d.tur === 'cikis') {
+    sonraki = onceki - miktar;
+    tur = 'cikis';
+    etiket = d.aciklama?.trim() || 'Manuel çıkış';
+  } else {
+    sonraki = onceki + miktar;
+    tur = 'giris';
+    etiket = d.aciklama?.trim() || 'Manuel giriş';
+  }
+  run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [sonraki, stok.id]);
+  run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [stok.id, d.tarih || new Date().toISOString().split('T')[0], tur, Math.abs(sonraki - onceki), onceki, sonraki, etiket]);
+  saveDb();
+  return true;
+});
+
+// Manuel hareket sil (sadece faturasız hareketler tersine alınabilir)
+ipcMain.handle('stok:hareket:sil', (_, id) => {
+  const h = getOne('SELECT * FROM stok_hareketleri WHERE id = ?', [id]);
+  if (!h) return false;
+  if (h.fatura_id) throw new Error('Faturaya bağlı hareket buradan silinemez — faturayı düzenleyin/silin.');
+  const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [h.stok_id]);
+  if (stok) {
+    const geri = h.tur === 'giris' ? stok.mevcut_miktar - h.miktar : stok.mevcut_miktar + h.miktar;
+    run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [geri, stok.id]);
+  }
+  run('DELETE FROM stok_hareketleri WHERE id = ?', [id]);
+  saveDb();
+  return true;
+});
+
+// Stok değeri özeti (para birimine göre toplam maliyet ve satış değeri)
+ipcMain.handle('stok:deger', () => {
+  const stoklar = getAll('SELECT * FROM stoklar');
+  const ozet = {};
+  stoklar.forEach(s => {
+    const pb = s.para_birimi || 'USD';
+    if (!ozet[pb]) ozet[pb] = { maliyet: 0, satis: 0, kalem: 0 };
+    ozet[pb].maliyet += (s.mevcut_miktar || 0) * (s.alis_fiyat || 0);
+    ozet[pb].satis   += (s.mevcut_miktar || 0) * (s.satis_fiyat || 0);
+    ozet[pb].kalem   += 1;
+  });
+  return ozet;
 });
 
 ipcMain.handle('stoklar:sil', (_, id) => {

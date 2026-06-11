@@ -408,8 +408,9 @@
         <button class="btn btn-primary" onclick="openStokEkle()">+ Stok Ekle</button>
       </div>
     </div>
+    <div class="card-grid" id="stok-deger-ozet" style="margin-bottom:14px"></div>
     <div class="filter-bar">
-      <input type="text" placeholder="🔍 Ara (kod, ad, kategori...)" oninput="filtreTablo(this.value,'stok-wrap')" style="flex:1;min-width:200px">
+      <input type="text" placeholder="🔍 Ara (kod, barkod, ad, kategori...)" oninput="filtreTablo(this.value,'stok-wrap')" style="flex:1;min-width:200px">
     </div>
     <div class="table-wrap" id="stok-wrap"></div>
   </div>
@@ -833,14 +834,50 @@
     </div>
     <div class="fg"><label>Stok Adı *</label><input type="text" id="stok-ad" placeholder="Malzeme adı"></div>
     <div class="row2">
+      <div class="fg"><label>Barkod</label><input type="text" id="stok-barkod" placeholder="(opsiyonel)"></div>
       <div class="fg"><label>Kategori</label><input type="text" id="stok-kategori" placeholder="Elektrik, Boru..."></div>
+    </div>
+    <div class="row3">
+      <div class="fg"><label>Alış Fiyatı (maliyet)</label><input type="text" id="stok-alis" inputmode="decimal" placeholder="0"></div>
+      <div class="fg"><label>Satış Fiyatı</label><input type="text" id="stok-satis" inputmode="decimal" placeholder="0"></div>
+      <div class="fg"><label>Para Birimi</label>
+        <select id="stok-para"><option value="USD">USD</option><option value="IQD">IQD</option></select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>Mevcut Miktar</label><input type="text" id="stok-miktar" inputmode="decimal" placeholder="0"></div>
       <div class="fg"><label>Min. Stok</label><input type="text" id="stok-min" inputmode="decimal" placeholder="0"></div>
     </div>
-    <div class="fg"><label>Mevcut Miktar</label><input type="text" id="stok-miktar" inputmode="decimal" placeholder="0"></div>
     <div class="fg"><label>Açıklama</label><input type="text" id="stok-aciklama" placeholder="(opsiyonel)"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-stok')">İptal</button>
       <button class="btn btn-primary" onclick="saveStok()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manuel Stok Hareketi -->
+<div class="overlay" id="m-stok-hareket">
+  <div class="modal">
+    <div class="modal-title">Stok Hareketi (Fatura Olmadan)</div>
+    <input type="hidden" id="sh-stok-id">
+    <div id="m-stok-hareket-bilgi" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
+    <div class="row2">
+      <div class="fg"><label>İşlem Türü</label>
+        <select id="sh-tur" onchange="onStokHareketTurChange()">
+          <option value="giris">Giriş (+)</option>
+          <option value="cikis">Çıkış (−)</option>
+          <option value="sayim">Sayım Düzeltme</option>
+          <option value="fire">Fire / Zayi (−)</option>
+        </select>
+      </div>
+      <div class="fg"><label id="sh-miktar-label">Miktar</label><input type="text" id="sh-miktar" inputmode="decimal" placeholder="0"></div>
+    </div>
+    <div class="fg"><label>Tarih</label><input type="text" id="sh-tarih" placeholder="2026-06-11" maxlength="10" oninput="onTarihInput(this)"></div>
+    <div class="fg"><label>Açıklama</label><input type="text" id="sh-aciklama" placeholder="(opsiyonel)"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-stok-hareket')">İptal</button>
+      <button class="btn btn-primary" onclick="saveStokHareket()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -2516,8 +2553,16 @@ function onStokSec(i) {
   if (!stok) return;
   const acEl = document.getElementById(`fk-aciklama-${i}`);
   const birimEl = document.getElementById(`fk-birim-${i}`);
+  const fiyatEl = document.getElementById(`fk-fiyat-${i}`);
   if (acEl && !acEl.value) acEl.value = stok.ad;
   if (birimEl) birimEl.value = stok.birim || 'Pcs';
+  // Faturanın türüne göre fiyatı otomatik doldur (boşsa)
+  const isAlis = document.getElementById('ft-tur')?.value === 'alis';
+  const fiyat = isAlis ? stok.alis_fiyat : stok.satis_fiyat;
+  if (fiyatEl && fiyat > 0 && (!fiyatEl.value || fiyatEl.value === '0')) {
+    fiyatEl.value = Math.round(fiyat);
+    updateFaturaToplam();
+  }
 }
 
 function faturaParaBirimiSec(pb) {
@@ -3106,6 +3151,19 @@ let _stoklar = [];
 
 async function loadStok() {
   _stoklar = await api.invoke('stoklar:getir');
+  const ozetEl = document.getElementById('stok-deger-ozet');
+  if (ozetEl) {
+    try {
+      const ozet = await api.invoke('stok:deger');
+      const cards = Object.entries(ozet).map(([pb, v]) => `
+        <div class="card">
+          <div class="card-label">Stok Değeri (${pb}) — ${v.kalem} kalem</div>
+          <div class="card-val" style="font-size:18px">${fmt(Math.round(v.maliyet), pb)}</div>
+          <div class="card-sub">Satış değeri: ${fmt(Math.round(v.satis), pb)}</div>
+        </div>`).join('');
+      ozetEl.innerHTML = cards;
+    } catch (e) { ozetEl.innerHTML = ''; }
+  }
   const wrap = document.getElementById('stok-wrap');
   if (!_stoklar.length) {
     wrap.innerHTML = `<div style="padding:32px;text-align:center;color:var(--dim)">Henüz stok tanımı yok — "+ Stok Ekle" ile başlayın.</div>`;
@@ -3114,36 +3172,94 @@ async function loadStok() {
   wrap.innerHTML = `
     <table class="tbl">
       <thead><tr>
-        <th>Kod</th><th>Stok Adı</th><th>Kategori</th><th>Birim</th>
-        <th style="text-align:right">Mevcut</th><th style="text-align:right">Min.</th><th></th>
+        <th>Kod / Barkod</th><th>Stok Adı</th><th>Kategori</th><th>Birim</th>
+        <th style="text-align:right">Mevcut</th><th style="text-align:right">Min.</th>
+        <th style="text-align:right">Alış</th><th style="text-align:right">Satış</th><th style="text-align:right">Değer</th><th></th>
       </tr></thead>
       <tbody>
-        ${_stoklar.map(s => `
+        ${_stoklar.map(s => {
+          const pb = s.para_birimi || 'USD';
+          const deger = (s.mevcut_miktar || 0) * (s.alis_fiyat || 0);
+          return `
           <tr>
-            <td style="color:var(--dim);font-size:12px">${s.kod || '—'}</td>
+            <td style="color:var(--dim);font-size:12px">${s.kod || '—'}${s.barkod ? `<div style="font-size:10px">${s.barkod}</div>` : ''}</td>
             <td><b>${s.ad}</b>${s.aciklama ? `<div style="font-size:11px;color:var(--dim)">${s.aciklama}</div>` : ''}</td>
             <td>${s.kategori || '—'}</td>
             <td>${s.birim}</td>
             <td style="text-align:right;font-weight:700;color:${s.mevcut_miktar <= s.min_miktar && s.min_miktar > 0 ? 'var(--red)' : 'var(--green)'}">${s.mevcut_miktar}</td>
             <td style="text-align:right;color:var(--dim)">${s.min_miktar}</td>
-            <td>
+            <td style="text-align:right;font-size:12px">${s.alis_fiyat ? fmtTutar(Math.round(s.alis_fiyat)) : '—'}</td>
+            <td style="text-align:right;font-size:12px">${s.satis_fiyat ? fmtTutar(Math.round(s.satis_fiyat)) : '—'}</td>
+            <td style="text-align:right;font-size:12px;color:var(--dim)">${deger ? fmt(Math.round(deger), pb) : '—'}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-ghost btn-sm" onclick="openStokHareketEkle(${s.id})">Gir/Çık</button>
               <button class="btn btn-ghost btn-sm" onclick="openStokHareketler(${s.id})">Hareketler</button>
               <button class="btn btn-ghost btn-sm" onclick="openStokDuzenle(${s.id})">Düzenle</button>
               <button class="btn-del" onclick="stokSil(${s.id})">✕</button>
             </td>
-          </tr>
-        `).join('')}
+          </tr>`;
+        }).join('')}
       </tbody>
     </table>
   `;
+}
+
+function openStokHareketEkle(id) {
+  const s = _stoklar.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('sh-stok-id').value = id;
+  document.getElementById('m-stok-hareket-bilgi').innerHTML =
+    `<b>${s.ad}</b> — Mevcut: <b>${s.mevcut_miktar} ${s.birim}</b>`;
+  document.getElementById('sh-tur').value = 'giris';
+  document.getElementById('sh-miktar').value = '';
+  document.getElementById('sh-tarih').value = today();
+  document.getElementById('sh-aciklama').value = '';
+  onStokHareketTurChange();
+  openModal('m-stok-hareket');
+  setTimeout(() => document.getElementById('sh-miktar').focus(), 80);
+}
+
+function onStokHareketTurChange() {
+  const tur = document.getElementById('sh-tur').value;
+  const lbl = document.getElementById('sh-miktar-label');
+  lbl.textContent = tur === 'sayim' ? 'Sayılan Fiili Miktar' : 'Miktar';
+}
+
+async function saveStokHareket() {
+  const d = {
+    stok_id: Number(document.getElementById('sh-stok-id').value),
+    tur:     document.getElementById('sh-tur').value,
+    miktar:  parseFloat(document.getElementById('sh-miktar').value.replace(',', '.')) || 0,
+    tarih:   document.getElementById('sh-tarih').value,
+    aciklama: document.getElementById('sh-aciklama').value.trim(),
+  };
+  if (!d.miktar || d.miktar <= 0) { alert('Miktar sıfırdan büyük olmalıdır.'); return; }
+  try {
+    await api.invoke('stok:hareket:ekle', d);
+    closeModal('m-stok-hareket');
+    loadStok();
+  } catch (e) { alert(e.message); }
+}
+
+async function stokHareketSil(id, stokId) {
+  if (!confirm('Bu manuel stok hareketini silmek istiyor musunuz?\nStok miktarı geri alınır.')) return;
+  try {
+    await api.invoke('stok:hareket:sil', id);
+    await loadStok();
+    openStokHareketler(stokId);
+  } catch (e) { alert(e.message); }
 }
 
 async function stoklarRaporPdf() {
   const liste = _stoklar && _stoklar.length ? _stoklar : await api.invoke('stoklar:getir');
   if (!liste.length) { alert('Stok kaydı yok.'); return; }
   const bugun = fmtDate(today());
+  const degerTop = {};
   const rows = liste.map(s => {
     const kritik = s.min_miktar > 0 && s.mevcut_miktar <= s.min_miktar;
+    const pb = s.para_birimi || 'USD';
+    const deger = (s.mevcut_miktar || 0) * (s.alis_fiyat || 0);
+    degerTop[pb] = (degerTop[pb] || 0) + deger;
     return `<tr>
       <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.kod || '—'}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.ad}</td>
@@ -3151,8 +3267,12 @@ async function stoklarRaporPdf() {
       <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.birim}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:${kritik?'#dc2626':'#111'}">${s.mevcut_miktar}</td>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#888">${s.min_miktar}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${s.alis_fiyat?fmtTutar(Math.round(s.alis_fiyat)):'—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${deger?fmtTutar(Math.round(deger))+' '+pb:'—'}</td>
     </tr>`;
   }).join('');
+  const degerSatir = Object.entries(degerTop).filter(([,v])=>v>0)
+    .map(([pb,v]) => `Toplam stok değeri (${pb}): <b>${fmtTutar(Math.round(v))} ${pb}</b>`).join(' &nbsp;·&nbsp; ');
   const html = `
     <div style="padding:30px 36px;font-family:'Segoe UI',sans-serif;color:#111">
       <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:14px">
@@ -3165,8 +3285,10 @@ async function stoklarRaporPdf() {
           <th style="padding:7px 8px;text-align:left">Kod</th><th style="padding:7px 8px;text-align:left">Stok Adı</th>
           <th style="padding:7px 8px;text-align:left">Kategori</th><th style="padding:7px 8px;text-align:left">Birim</th>
           <th style="padding:7px 8px;text-align:right">Mevcut</th><th style="padding:7px 8px;text-align:right">Min.</th>
+          <th style="padding:7px 8px;text-align:right">Alış</th><th style="padding:7px 8px;text-align:right">Değer</th>
         </tr></thead><tbody>${rows}</tbody>
       </table>
+      ${degerSatir ? `<div style="margin-top:10px;font-size:13px;text-align:right">${degerSatir}</div>` : ''}
       <div style="margin-top:8px;font-size:11px;color:#dc2626">Kırmızı = kritik seviyede (min. altında veya eşit) stok</div>
     </div>`;
   await api.invoke('print:pdf', html);
@@ -3196,6 +3318,7 @@ async function openStokHareketler(id) {
           <th style="text-align:right">Sonra</th>
           <th>Fatura No</th>
           <th>Açıklama</th>
+          <th></th>
         </tr></thead>
         <tbody>
           ${liste.map(h => `
@@ -3209,6 +3332,7 @@ async function openStokHareketler(id) {
               <td style="text-align:right;font-weight:600">${h.sonraki_miktar}</td>
               <td style="font-size:12px;color:var(--dim)">${h.fatura_no || '—'}</td>
               <td style="font-size:12px">${h.aciklama || ''}</td>
+              <td>${h.fatura_id ? '' : `<button class="btn-del" onclick="stokHareketSil(${h.id}, ${s.id})">✕</button>`}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -3286,8 +3410,12 @@ function openStokEkle() {
   document.getElementById('stok-edit-id').value = '';
   document.getElementById('stok-kod').value = '';
   document.getElementById('stok-ad').value = '';
+  document.getElementById('stok-barkod').value = '';
   document.getElementById('stok-kategori').value = '';
   document.getElementById('stok-birim').value = 'Pcs';
+  document.getElementById('stok-alis').value = '';
+  document.getElementById('stok-satis').value = '';
+  document.getElementById('stok-para').value = 'USD';
   document.getElementById('stok-min').value = '';
   document.getElementById('stok-miktar').value = '';
   document.getElementById('stok-aciklama').value = '';
@@ -3302,8 +3430,12 @@ function openStokDuzenle(id) {
   document.getElementById('stok-edit-id').value = s.id;
   document.getElementById('stok-kod').value = s.kod || '';
   document.getElementById('stok-ad').value = s.ad;
+  document.getElementById('stok-barkod').value = s.barkod || '';
   document.getElementById('stok-kategori').value = s.kategori || '';
   document.getElementById('stok-birim').value = s.birim || 'Pcs';
+  document.getElementById('stok-alis').value = s.alis_fiyat || '';
+  document.getElementById('stok-satis').value = s.satis_fiyat || '';
+  document.getElementById('stok-para').value = s.para_birimi || 'USD';
   document.getElementById('stok-min').value = s.min_miktar || '';
   document.getElementById('stok-miktar').value = s.mevcut_miktar || '';
   document.getElementById('stok-aciklama').value = s.aciklama || '';
@@ -3316,8 +3448,12 @@ async function saveStok() {
   const d = {
     kod:           document.getElementById('stok-kod').value.trim(),
     ad,
+    barkod:        document.getElementById('stok-barkod').value.trim(),
     birim:         document.getElementById('stok-birim').value,
     kategori:      document.getElementById('stok-kategori').value.trim(),
+    alis_fiyat:    parseFloat(document.getElementById('stok-alis').value.replace(',', '.')) || 0,
+    satis_fiyat:   parseFloat(document.getElementById('stok-satis').value.replace(',', '.')) || 0,
+    para_birimi:   document.getElementById('stok-para').value,
     min_miktar:    parseFloat(document.getElementById('stok-min').value) || 0,
     mevcut_miktar: parseFloat(document.getElementById('stok-miktar').value) || 0,
     aciklama:      document.getElementById('stok-aciklama').value.trim(),
