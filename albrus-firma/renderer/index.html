@@ -272,6 +272,7 @@
       <button class="btn btn-primary" onclick="genelMaliRaporPdf()">GENEL MALİ RAPOR PDF</button>
     </div>
     <div id="dash-konsolide" style="margin-bottom:14px;"></div>
+    <div id="dash-uyarilar" style="margin-bottom:14px;"></div>
     <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">Kasalar</div>
     <div class="card-grid" id="dash-kasalar"></div>
     <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">Banka Hesapları</div>
@@ -301,6 +302,7 @@
       <div class="page-title" style="margin:0">Kasa</div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="openKasaEkle()">+ Yeni Kasa</button>
+        <button class="btn btn-ghost" onclick="openTransfer('kasa')">Transfer</button>
         <button class="btn btn-ghost" onclick="openKasaRapor()">Rapor PDF</button>
         <button class="btn btn-ghost" onclick="openPersonelOde()" id="btn-personel-ode" disabled>Personel Ödemesi</button>
         <button class="btn btn-primary" onclick="openFis()" id="btn-yeni-fis" disabled>+ Yeni Fiş</button>
@@ -325,6 +327,8 @@
       <div class="page-title" style="margin:0">Banka</div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="openBankaEkle()">+ Yeni Hesap</button>
+        <button class="btn btn-ghost" onclick="openTransfer('banka')">Transfer</button>
+        <button class="btn btn-ghost" onclick="openBankaRapor()">Rapor PDF</button>
         <button class="btn btn-primary" onclick="openBankaFis()" id="btn-banka-fis" disabled>+ Yeni Fiş</button>
       </div>
     </div>
@@ -515,6 +519,38 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-kasa-rapor')">İptal</button>
       <button class="btn btn-primary" onclick="kasaRaporPdf()">PDF Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<!-- Banka Raporu PDF -->
+<div class="overlay" id="m-banka-rapor">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">Banka Raporu PDF</div>
+    <div class="fg"><label>Başlangıç Tarihi</label><input type="text" id="br-bas" maxlength="10" placeholder="2026-01-01" oninput="onTarihInput(this)"></div>
+    <div class="fg"><label>Bitiş Tarihi</label><input type="text" id="br-bit" maxlength="10" placeholder="2026-12-31" oninput="onTarihInput(this)"></div>
+    <div class="fg"><label>Hesap</label><select id="br-hesap"><option value="">Tüm Hesaplar</option></select></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-banka-rapor')">İptal</button>
+      <button class="btn btn-primary" onclick="bankaRaporPdf()">PDF Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hesaplar Arası Transfer -->
+<div class="overlay" id="m-transfer">
+  <div class="modal">
+    <div class="modal-title">Hesaplar Arası Transfer</div>
+    <div class="fg"><label>Kaynak (çıkış)</label><select id="tr-kaynak" onchange="onTransferKaynakChange()"></select></div>
+    <div class="fg"><label>Hedef (giriş)</label><select id="tr-hedef"></select></div>
+    <div class="row2">
+      <div class="fg"><label>Tutar</label><input type="text" id="tr-tutar" inputmode="numeric" oninput="onTutarInput(this)"></div>
+      <div class="fg"><label>Tarih</label><input type="text" id="tr-tarih" maxlength="10" oninput="onTarihInput(this)"></div>
+    </div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Not: Sadece aynı para birimindeki hesaplar arasında transfer yapılır.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-transfer')">İptal</button>
+      <button class="btn btn-primary" onclick="saveTransfer()">Transfer Et</button>
     </div>
   </div>
 </div>
@@ -733,6 +769,14 @@
       <div class="fg"><label>Vergi No (opsiyonel)</label><input type="text" id="c-vergino" placeholder="Vergi / TC No"></div>
       <div class="fg"><label>Adres (opsiyonel)</label><input type="text" id="c-adres" placeholder="Adres"></div>
     </div>
+    <div id="c-acilis-wrap" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+      <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:6px">Açılış Bakiyesi (opsiyonel) — mevcut borç/alacak</label>
+      <div class="row3">
+        <div class="fg"><input type="text" id="c-acilis" inputmode="numeric" oninput="onTutarInput(this)" placeholder="0"></div>
+        <div class="fg"><select id="c-acilis-pb"><option value="USD">USD</option><option value="IQD">IQD</option></select></div>
+        <div class="fg"><select id="c-acilis-yon"><option value="borc">Bize Borçlu</option><option value="alacak">Bizden Alacaklı</option></select></div>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-cari-ekle')">İptal</button>
       <button class="btn btn-primary" onclick="saveCari()">Kaydet</button>
@@ -751,6 +795,67 @@
     <div id="ekstre-tablo"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-ekstre')">Kapat</button>
+      <button class="btn btn-ghost" onclick="cariEkstrePdf()">PDF Rapor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cari Hızlı Tahsilat/Ödeme -->
+<div class="overlay" id="m-cari-tahsilat">
+  <div class="modal">
+    <div class="modal-title">Tahsilat / Ödeme</div>
+    <input type="hidden" id="ct-cari-id">
+    <div id="ct-bilgi" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
+    <div class="row2">
+      <div class="fg"><label>İşlem</label>
+        <select id="ct-islem">
+          <option value="tahsilat">Tahsilat (para girişi)</option>
+          <option value="odeme">Ödeme (para çıkışı)</option>
+        </select>
+      </div>
+      <div class="fg"><label>Para Birimi</label>
+        <select id="ct-pb" onchange="onCariTahsilatChange()"><option value="USD">USD</option><option value="IQD">IQD</option></select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>Tutar</label><input type="text" id="ct-tutar" inputmode="numeric" oninput="onTutarInput(this)"></div>
+      <div class="fg"><label>Tarih</label><input type="text" id="ct-tarih" maxlength="10" oninput="onTarihInput(this)"></div>
+    </div>
+    <div class="fg"><label>Ödeme Yöntemi</label>
+      <select id="ct-odeme-turu" onchange="onCariTahsilatChange()">
+        <option value="kasa">Kasa</option>
+        <option value="banka">Banka</option>
+      </select>
+    </div>
+    <div class="fg" id="ct-kaynak-wrap"></div>
+    <div class="fg"><label>Açıklama</label><input type="text" id="ct-aciklama" placeholder="(opsiyonel)"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-cari-tahsilat')">İptal</button>
+      <button class="btn btn-primary" onclick="saveCariTahsilat()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Faturaya Tahsilat/Ödeme -->
+<div class="overlay" id="m-fatura-tahsilat">
+  <div class="modal">
+    <div class="modal-title" id="m-ft-tahsilat-title">Faturaya Tahsilat</div>
+    <input type="hidden" id="ftt-fatura-id">
+    <div id="ftt-bilgi" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
+    <div class="row2">
+      <div class="fg"><label>Tutar</label><input type="text" id="ftt-tutar" inputmode="numeric" oninput="onTutarInput(this)"></div>
+      <div class="fg"><label>Tarih</label><input type="text" id="ftt-tarih" maxlength="10" oninput="onTarihInput(this)"></div>
+    </div>
+    <div class="fg"><label>Ödeme Yöntemi</label>
+      <select id="ftt-odeme-turu" onchange="onFaturaTahsilatChange()">
+        <option value="kasa">Kasa</option>
+        <option value="banka">Banka</option>
+      </select>
+    </div>
+    <div class="fg" id="ftt-kaynak-wrap"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-fatura-tahsilat')">İptal</button>
+      <button class="btn btn-primary" onclick="saveFaturaTahsilat()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -1318,6 +1423,29 @@ async function loadDashboard() {
   `).join('') || '<div style="color:var(--dim);font-size:13px;">Banka hesabı yok</div>';
 
   try {
+    const u = await api.invoke('dashboard:uyarilar');
+    const kutular = [];
+    if (u.dusukStok.length) {
+      kutular.push(`<div class="card" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.06)">
+        <div class="card-label" style="color:#ef4444">⚠ Kritik Stok (${u.dusukStok.length})</div>
+        <div style="font-size:12px;margin-top:6px;line-height:1.6">${u.dusukStok.slice(0,5).map(s=>`${s.ad}: <b>${s.mevcut_miktar} ${s.birim}</b>`).join('<br>')}${u.dusukStok.length>5?`<br>+${u.dusukStok.length-5} daha…`:''}</div></div>`);
+    }
+    if (u.borclular.length) {
+      kutular.push(`<div class="card" style="border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.06)">
+        <div class="card-label" style="color:#f59e0b">Borçlu Cariler (${u.borclular.length})</div>
+        <div style="font-size:12px;margin-top:6px;line-height:1.6">${u.borclular.slice(0,5).map(c=>`${c.ad}: <b>${c.bakiye_USD>0?fmt(c.bakiye_USD,'USD'):fmt(c.bakiye_IQD,'IQD')}</b>`).join('<br>')}${u.borclular.length>5?`<br>+${u.borclular.length-5} daha…`:''}</div></div>`);
+    }
+    if (u.acikFaturaSayisi) {
+      const ackTop = Object.entries(u.acikToplam).map(([pb,v])=>fmt(Math.round(v),pb)).join(' · ');
+      kutular.push(`<div class="card" style="border-color:rgba(59,130,246,.35);background:rgba(59,130,246,.06)">
+        <div class="card-label" style="color:#3b82f6">Açık Faturalar (${u.acikFaturaSayisi})</div>
+        <div style="font-size:13px;margin-top:6px">Tahsil edilecek/ödenecek kalan:<br><b>${ackTop||'—'}</b></div></div>`);
+    }
+    document.getElementById('dash-uyarilar').innerHTML = kutular.length
+      ? `<div class="card-grid">${kutular.join('')}</div>` : '';
+  } catch (e) { document.getElementById('dash-uyarilar').innerHTML = ''; }
+
+  try {
     const m = await api.invoke('rapor:mali');
     document.getElementById('dash-konsolide').innerHTML = `
       <div class="card" style="background:linear-gradient(135deg,rgba(34,197,94,.10),rgba(34,197,94,.02));border-color:rgba(34,197,94,.25)">
@@ -1588,6 +1716,136 @@ td{padding:4px 6px;border-bottom:1px solid #f0f0f0;font-size:8px}
 <div class="sub">Albrus Company &mdash; Dönem: ${donemText} &mdash; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')}</div>
 ${kasaBolumler}`;
   await api.invoke('print:pdf', content);
+}
+
+async function openBankaRapor() {
+  const hesaplar = await api.invoke('banka:hesaplar');
+  document.getElementById('br-hesap').innerHTML =
+    '<option value="">Tüm Hesaplar</option>' +
+    hesaplar.map(h => `<option value="${h.id}">${h.banka_adi} (${h.para_birimi})</option>`).join('');
+  const t = new Date().toISOString().split('T')[0];
+  document.getElementById('br-bas').value = t.slice(0, 7) + '-01';
+  document.getElementById('br-bit').value = t;
+  openModal('m-banka-rapor');
+}
+
+async function bankaRaporPdf() {
+  const bas = document.getElementById('br-bas').value.trim();
+  const bit = document.getElementById('br-bit').value.trim();
+  const hVal = document.getElementById('br-hesap').value;
+  const hesap_id = hVal ? Number(hVal) : null;
+  const isGiris = t => t === 'giris';
+  const hareketler = await api.invoke('banka:rapor', { bas, bit, hesap_id });
+  if (!hareketler.length) { alert('Seçili tarih aralığında hareket bulunamadı.'); return; }
+
+  const map = {};
+  for (const h of hareketler) {
+    if (!map[h.hesap_id]) map[h.hesap_id] = { ad: h.banka_adi, pb: h.para_birimi, rows: [] };
+    map[h.hesap_id].rows.push(h);
+  }
+  let bolumler = '';
+  for (const k of Object.values(map)) {
+    let topG = 0, topC = 0;
+    const satirlar = k.rows.map(h => {
+      const g = isGiris(h.tur);
+      if (g) topG += h.tutar; else topC += h.tutar;
+      return `<tr>
+        <td>${h.tarih}</td>
+        <td style="text-transform:capitalize">${(h.tur||'').replace(/-/g,' ')}</td>
+        <td>${h.belge_no || '—'}</td>
+        <td>${h.cari_ad || '—'}</td>
+        <td>${h.proje_ad || '—'}</td>
+        <td>${h.aciklama || ''}</td>
+        <td style="text-align:right;color:#059669">${g ? fmtTutar(h.tutar) : ''}</td>
+        <td style="text-align:right;color:#dc2626">${!g ? fmtTutar(h.tutar) : ''}</td>
+      </tr>`;
+    }).join('');
+    const net = topG - topC;
+    bolumler += `
+    <h2>${k.ad} <span style="font-size:9px;color:#666;font-weight:400">(${k.pb})</span></h2>
+    <table>
+      <thead><tr>
+        <th>Tarih</th><th>Tür</th><th>Belge No</th><th>Cari</th><th>Proje</th><th>Açıklama</th>
+        <th style="text-align:right">Giriş</th><th style="text-align:right">Çıkış</th>
+      </tr></thead>
+      <tbody>${satirlar}</tbody>
+      <tfoot>
+        <tr class="tfoot"><td colspan="6">TOPLAM</td>
+          <td style="text-align:right;color:#059669">${fmtTutar(topG)} ${k.pb}</td>
+          <td style="text-align:right;color:#dc2626">${fmtTutar(topC)} ${k.pb}</td></tr>
+        <tr class="tfoot"><td colspan="6">NET DEĞİŞİM</td>
+          <td colspan="2" style="text-align:right;color:${net>=0?'#059669':'#dc2626'}">${net>=0?'+':''}${fmtTutar(net)} ${k.pb}</td></tr>
+      </tfoot>
+    </table>`;
+  }
+  const donemText = (bas || bit) ? `${bas || '—'} / ${bit || '—'}` : 'Tüm Dönem';
+  const content = `<style>
+@page{size:A4 portrait;margin:12mm}
+body{font-family:Arial,sans-serif;font-size:8px}
+h1{font-size:14px;margin-bottom:3px}
+h2{font-size:10px;margin:14px 0 4px;border-bottom:1px solid #d1d5db;padding-bottom:3px}
+.sub{color:#555;font-size:9px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;margin-bottom:4px}
+th{background:#f3f4f6;text-align:left;padding:4px 6px;font-size:7.5px;text-transform:uppercase;border-bottom:2px solid #d1d5db}
+td{padding:4px 6px;border-bottom:1px solid #f0f0f0;font-size:8px}
+.tfoot td{background:#f9fafb;font-weight:700;border-top:2px solid #9ca3af;font-size:8px}
+</style>
+<h1>BANKA RAPORU</h1>
+<div class="sub">Albrus Company &mdash; Dönem: ${donemText} &mdash; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')}</div>
+${bolumler}`;
+  await api.invoke('print:pdf', content);
+}
+
+// ── Hesaplar Arası Transfer ─────────────────────────────────
+let _transferHesaplar = [];
+async function openTransfer(varsayilanTip) {
+  const kasalar  = (await api.invoke('kasalar:getir')).map(k => ({ tip: 'kasa', id: k.id, ad: k.ad, pb: k.para_birimi, bakiye: k.bakiye }));
+  const bankalar = (await api.invoke('banka:hesaplar')).map(b => ({ tip: 'banka', id: b.id, ad: b.banka_adi, pb: b.para_birimi, bakiye: b.bakiye }));
+  _transferHesaplar = [...kasalar, ...bankalar];
+  const opts = _transferHesaplar.map((h, idx) =>
+    `<option value="${idx}">${h.tip === 'kasa' ? 'Kasa' : 'Banka'}: ${h.ad} (${h.pb}) — ${fmtTutar(Math.round(h.bakiye))}</option>`).join('');
+  document.getElementById('tr-kaynak').innerHTML = opts;
+  document.getElementById('tr-hedef').innerHTML = opts;
+  // Varsayılan kaynağı seçili tipe göre ayarla
+  const ilk = _transferHesaplar.findIndex(h => h.tip === varsayilanTip);
+  if (ilk >= 0) document.getElementById('tr-kaynak').value = ilk;
+  document.getElementById('tr-tutar').value = '';
+  document.getElementById('tr-tarih').value = today();
+  onTransferKaynakChange();
+  openModal('m-transfer');
+}
+
+function onTransferKaynakChange() {
+  // Hedef listesini kaynakla aynı para biriminde olanlarla sınırla
+  const ki = Number(document.getElementById('tr-kaynak').value);
+  const kaynak = _transferHesaplar[ki];
+  if (!kaynak) return;
+  const opts = _transferHesaplar
+    .map((h, idx) => ({ h, idx }))
+    .filter(x => x.h.pb === kaynak.pb && !(x.h.tip === kaynak.tip && x.h.id === kaynak.id))
+    .map(x => `<option value="${x.idx}">${x.h.tip === 'kasa' ? 'Kasa' : 'Banka'}: ${x.h.ad} (${x.h.pb}) — ${fmtTutar(Math.round(x.h.bakiye))}</option>`).join('');
+  document.getElementById('tr-hedef').innerHTML = opts || '<option value="">— Aynı para biriminde başka hesap yok —</option>';
+}
+
+async function saveTransfer() {
+  const ki = Number(document.getElementById('tr-kaynak').value);
+  const hi = Number(document.getElementById('tr-hedef').value);
+  const kaynak = _transferHesaplar[ki];
+  const hedef  = _transferHesaplar[hi];
+  const tutar  = parseTutar('tr-tutar');
+  const tarih  = document.getElementById('tr-tarih').value.trim();
+  if (!kaynak || !hedef) { alert('Kaynak/hedef seçin.'); return; }
+  if (!tutar || tutar <= 0) { alert('Tutar sıfırdan büyük olmalıdır.'); return; }
+  try {
+    await api.invoke('hesap:transfer', {
+      kaynak_tip: kaynak.tip, kaynak_id: kaynak.id,
+      hedef_tip: hedef.tip, hedef_id: hedef.id, tutar, tarih
+    });
+    closeModal('m-transfer');
+    loadKasa();
+    loadBanka();
+    alert('Transfer tamamlandı.');
+  } catch (e) { alert(e.message); }
 }
 
 const BANKA_TUR = new Set(['bankaya-yatirilan', 'bankadan-cekilen']);
@@ -2149,7 +2407,8 @@ async function loadCariler() {
           <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.adres || ''}">${c.adres || '—'}</td>
           <td class="${c.bakiye_IQD >= 0 ? 'amt-pos' : 'amt-neg'}">${fmt(c.bakiye_IQD, 'IQD')}</td>
           <td class="${c.bakiye_USD >= 0 ? 'amt-pos' : 'amt-neg'}">${fmt(c.bakiye_USD, 'USD')}</td>
-          <td style="display:flex;gap:6px">
+          <td style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn-link" onclick="openCariTahsilat(${c.id})">Tahsilat/Öde</button>
             <button class="btn-link" onclick="openCariEkle(${JSON.stringify(c).replace(/"/g,'&quot;')})">Düzenle</button>
             <button class="btn-link" onclick="openEkstre(${c.id})">Ekstre</button>
           </td>
@@ -2159,9 +2418,11 @@ async function loadCariler() {
   `;
 }
 
+let _cariEkstreData = null;
 async function openEkstre(cari_id) {
   const cari = S.cariler.find(c => c.id === cari_id);
   const liste = await api.invoke('cari:ekstre', cari_id);
+  _cariEkstreData = { cari, liste };
 
   document.getElementById('ekstre-title').textContent = `${cari.ad} — Ekstre`;
   document.getElementById('ekstre-bakiye-iqd').textContent = fmt(cari.bakiye_IQD, 'IQD');
@@ -2192,6 +2453,101 @@ async function openEkstre(cari_id) {
   openModal('m-ekstre');
 }
 
+async function openCariTahsilat(cari_id) {
+  const c = S.cariler.find(x => x.id === cari_id);
+  if (!c) return;
+  document.getElementById('ct-cari-id').value = cari_id;
+  const bilgi = `<b>${c.ad}</b><div style="margin-top:6px;font-size:12px">Bakiye — IQD: <b style="color:${c.bakiye_IQD>=0?'#22c55e':'#ef4444'}">${fmt(c.bakiye_IQD,'IQD')}</b> · USD: <b style="color:${c.bakiye_USD>=0?'#22c55e':'#ef4444'}">${fmt(c.bakiye_USD,'USD')}</b></div>`;
+  document.getElementById('ct-bilgi').innerHTML = bilgi;
+  document.getElementById('ct-islem').value = c.tur === 'tedarikci' ? 'odeme' : 'tahsilat';
+  document.getElementById('ct-pb').value = 'USD';
+  document.getElementById('ct-tutar').value = '';
+  document.getElementById('ct-tarih').value = today();
+  document.getElementById('ct-odeme-turu').value = 'kasa';
+  document.getElementById('ct-aciklama').value = '';
+  await onCariTahsilatChange();
+  openModal('m-cari-tahsilat');
+  setTimeout(() => document.getElementById('ct-tutar').focus(), 80);
+}
+
+async function onCariTahsilatChange() {
+  const pb = document.getElementById('ct-pb').value;
+  const tur = document.getElementById('ct-odeme-turu').value;
+  const wrap = document.getElementById('ct-kaynak-wrap');
+  if (tur === 'banka') {
+    const bankalar = (await api.invoke('banka:hesaplar')).filter(b => b.para_birimi === pb);
+    wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px">Banka Hesabı (${pb})</label>
+      <select id="ct-kaynak-id" style="width:100%">${bankalar.map(b => `<option value="${b.id}">${b.banka_adi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))}</option>`).join('') || '<option value="">— Bu para biriminde hesap yok —</option>'}</select>`;
+  } else {
+    const kasalar = (await api.invoke('kasalar:getir')).filter(k => k.para_birimi === pb);
+    wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px">Kasa (${pb})</label>
+      <select id="ct-kaynak-id" style="width:100%">${kasalar.map(k => `<option value="${k.id}">${k.ad} — Bakiye: ${fmtTutar(Math.round(k.bakiye))}</option>`).join('') || '<option value="">— Bu para biriminde kasa yok —</option>'}</select>`;
+  }
+}
+
+async function saveCariTahsilat() {
+  const cari_id = Number(document.getElementById('ct-cari-id').value);
+  const islem = document.getElementById('ct-islem').value;
+  const tutar = parseTutar('ct-tutar');
+  const tarih = document.getElementById('ct-tarih').value.trim();
+  const odeme_turu = document.getElementById('ct-odeme-turu').value;
+  const kaynak_id = Number(document.getElementById('ct-kaynak-id')?.value);
+  if (!tutar || tutar <= 0) { alert('Tutar sıfırdan büyük olmalıdır.'); return; }
+  if (!tarih || tarih.length < 10) { alert('Tarih zorunludur.'); return; }
+  if (!kaynak_id) { alert('Kasa/Banka seçin.'); return; }
+  // tahsilat = giriş, ödeme = çıkış
+  const tur = islem === 'tahsilat' ? 'tahsilat' : 'odeme';
+  const payload = { tarih, tutar, cari_id, aciklama: document.getElementById('ct-aciklama').value.trim() };
+  try {
+    if (odeme_turu === 'banka') {
+      await api.invoke('banka:fis:ekle', { ...payload, hesap_id: kaynak_id, tur: islem === 'tahsilat' ? 'giris' : 'cikis' });
+    } else {
+      await api.invoke('kasa:fis:ekle', { ...payload, kasa_id: kaynak_id, tur });
+    }
+    closeModal('m-cari-tahsilat');
+    loadCariler();
+  } catch (e) { alert(e.message); }
+}
+
+async function cariEkstrePdf() {
+  if (!_cariEkstreData) return;
+  const { cari, liste } = _cariEkstreData;
+  const bugun = fmtDate(today());
+  const rows = liste.length ? liste.map(h => `
+    <tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${fmtDate(h.tarih)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${h.tur === 'borc' ? 'Borç' : 'Alacak'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${h.belge_no || '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${h.aciklama || '—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:${h.tur === 'borc' ? '#dc2626' : '#16a34a'}">${h.tur === 'borc' ? '+' : '−'}${fmt(h.tutar, h.para_birimi)}</td>
+    </tr>`).join('') : '<tr><td colspan="5" style="padding:10px;color:#888">Hareket yok</td></tr>';
+  const bakiyeSatir = (lbl, v, pb) => v !== 0
+    ? `<tr><td style="padding:5px 8px">${lbl} (${pb})</td><td style="padding:5px 8px;text-align:right;font-weight:700;color:${v>0?'#dc2626':'#16a34a'}">${fmt(Math.abs(v),pb)} ${v>0?'(borçlu)':'(alacaklı)'}</td></tr>` : '';
+  const html = `
+    <div style="padding:30px 36px;font-family:'Segoe UI',sans-serif;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:12px">
+        <div><div style="font-size:22px;font-weight:800">ALBRUS COMPANY</div>
+          <div style="font-size:13px;color:#666">Cari Hesap Ekstresi</div></div>
+        <div style="text-align:right;font-size:12px;color:#666">Tarih: ${bugun}</div>
+      </div>
+      <div style="font-size:16px;font-weight:700">${cari.ad}</div>
+      <div style="font-size:12px;color:#666;margin-bottom:14px">${cari.telefon || ''} ${cari.adres ? '· ' + cari.adres : ''}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">
+        <thead><tr style="background:#f3f3f3">
+          <th style="padding:6px 8px;text-align:left">Tarih</th><th style="padding:6px 8px;text-align:left">Tür</th>
+          <th style="padding:6px 8px;text-align:left">Belge</th><th style="padding:6px 8px;text-align:left">Açıklama</th>
+          <th style="padding:6px 8px;text-align:right">Tutar</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table>
+      <table style="width:320px;margin-left:auto;border-collapse:collapse;font-size:13px;border-top:2px solid #111">
+        ${bakiyeSatir('Bakiye', cari.bakiye_IQD, 'IQD')}
+        ${bakiyeSatir('Bakiye', cari.bakiye_USD, 'USD')}
+        ${cari.bakiye_IQD===0 && cari.bakiye_USD===0 ? '<tr><td style="padding:5px 8px;color:#888" colspan="2">Bakiye sıfır</td></tr>' : ''}
+      </table>
+    </div>`;
+  await api.invoke('print:pdf', html);
+}
+
 function openCariEkle(cari = null) {
   document.getElementById('m-cari-ekle-title').textContent = cari ? 'Cariyi Düzenle' : 'Yeni Cari';
   document.getElementById('c-id').value      = cari?.id ?? '';
@@ -2200,6 +2556,11 @@ function openCariEkle(cari = null) {
   document.getElementById('c-tel').value     = cari?.telefon ?? '';
   document.getElementById('c-adres').value   = cari?.adres ?? '';
   document.getElementById('c-vergino').value = cari?.vergi_no ?? '';
+  // Açılış bakiyesi yalnızca yeni cari eklerken görünür
+  document.getElementById('c-acilis').value = '';
+  document.getElementById('c-acilis-pb').value = 'USD';
+  document.getElementById('c-acilis-yon').value = 'borc';
+  document.getElementById('c-acilis-wrap').style.display = cari ? 'none' : 'block';
   openModal('m-cari-ekle');
   setTimeout(() => document.getElementById('c-ad').focus(), 80);
 }
@@ -2214,6 +2575,11 @@ async function saveCari() {
     vergi_no: document.getElementById('c-vergino').value
   };
   if (!d.ad) { alert('Ad zorunludur.'); return; }
+  if (!id) {
+    d.acilis     = parseInt((document.getElementById('c-acilis').value || '0').replace(/\D/g, ''), 10) || 0;
+    d.acilis_pb  = document.getElementById('c-acilis-pb').value;
+    d.acilis_yon = document.getElementById('c-acilis-yon').value;
+  }
   try {
     if (id) await api.invoke('cariler:guncelle', { ...d, id: Number(id) });
     else    await api.invoke('cariler:ekle', d);
@@ -2425,10 +2791,20 @@ async function loadFaturalar() {
   el.innerHTML = `
     <table><thead><tr>
       <th>No</th><th>Tür</th><th>Belge</th><th>Tarih</th><th>Cari</th>
-      <th>Toplam</th><th>P.B.</th><th></th>
+      <th>Toplam</th><th>Durum</th><th>P.B.</th><th></th>
     </tr></thead><tbody>
       ${list.map(f => {
         const isIrs = f.belge_turu === 'irsaliye';
+        const grand = Math.max(0, f.toplam - (f.indirim || 0));
+        const odenen = f.odenen || 0;
+        const kalan = Math.max(0, grand - odenen);
+        const odenebilir = !isIrs && f.cari_id;
+        let durumHtml = '—';
+        if (odenebilir) {
+          if (kalan < 0.001)       durumHtml = '<span class="badge b-giris">Ödendi</span>';
+          else if (odenen > 0.001) durumHtml = `<span class="badge b-diger">Kısmi</span><div style="font-size:10px;color:var(--dim)">Kalan: ${fmtTutar(Math.round(kalan))}</div>`;
+          else                     durumHtml = '<span class="badge b-cikis">Açık</span>';
+        }
         return `<tr>
           <td>${f.fatura_no}</td>
           <td><span class="badge ${f.tur === 'satis' ? 'b-giris' : 'b-cikis'}">${f.tur === 'satis' ? '↑ Satış' : '↓ Alış'}</span></td>
@@ -2436,9 +2812,11 @@ async function loadFaturalar() {
           <td>${fmtDate(f.tarih)}</td>
           <td>${f.cari_ad || '—'}</td>
           <td class="${f.tur === 'satis' ? 'amt-pos' : 'amt-neg'}">${fmtTutar(f.toplam)}</td>
+          <td>${durumHtml}</td>
           <td>${f.para_birimi}</td>
           <td style="display:flex;gap:4px;flex-wrap:wrap">
             <button class="btn-link btn-sm" onclick="${isIrs ? `printIrsaliye(${f.id})` : `printFatura(${f.id})`}">PDF</button>
+            ${odenebilir && kalan > 0.001 ? `<button class="btn-link btn-sm" style="color:var(--green)" onclick="openFaturaTahsilat(${f.id})">${f.tur === 'satis' ? 'Tahsilat' : 'Öde'}</button>` : ''}
             ${isIrs ? `<button class="btn-link btn-sm" style="color:var(--primary)" onclick="faturalandir(${f.id})">Faturalandır</button>` : ''}
             <button class="btn-link btn-sm" onclick="openFaturaDuzenle(${f.id})">Düzenle</button>
             <button class="btn-del" onclick="delFatura(${f.id})">✕</button>
@@ -2447,6 +2825,58 @@ async function loadFaturalar() {
       }).join('')}
     </tbody></table>
   `;
+}
+
+let _faturaTahsilatF = null;
+async function openFaturaTahsilat(id) {
+  const f = await api.invoke('fatura:getir', id);
+  if (!f) return;
+  _faturaTahsilatF = f;
+  const grand = Math.max(0, f.toplam - (f.indirim || 0));
+  const kalan = Math.max(0, grand - (f.odenen || 0));
+  const tahsilatMi = f.tur === 'satis';
+  document.getElementById('m-ft-tahsilat-title').textContent = tahsilatMi ? 'Faturaya Tahsilat' : 'Faturaya Ödeme';
+  document.getElementById('ftt-fatura-id').value = id;
+  document.getElementById('ftt-bilgi').innerHTML =
+    `<b>${f.fatura_no}</b> — ${f.cari_ad || ''}<div style="margin-top:6px;font-size:12px">Toplam: ${fmtTutar(Math.round(grand))} ${f.para_birimi} · Ödenen: ${fmtTutar(Math.round(f.odenen||0))} · <b style="color:#ef4444">Kalan: ${fmtTutar(Math.round(kalan))} ${f.para_birimi}</b></div>`;
+  document.getElementById('ftt-tutar').value = fmtTutar(Math.round(kalan));
+  document.getElementById('ftt-tarih').value = today();
+  document.getElementById('ftt-odeme-turu').value = 'kasa';
+  await onFaturaTahsilatChange();
+  openModal('m-fatura-tahsilat');
+  setTimeout(() => document.getElementById('ftt-tutar').focus(), 80);
+}
+
+async function onFaturaTahsilatChange() {
+  const f = _faturaTahsilatF;
+  const pb = f?.para_birimi || 'USD';
+  const tur = document.getElementById('ftt-odeme-turu').value;
+  const wrap = document.getElementById('ftt-kaynak-wrap');
+  if (tur === 'banka') {
+    const list = (await api.invoke('banka:hesaplar')).filter(b => b.para_birimi === pb);
+    wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px">Banka Hesabı (${pb})</label>
+      <select id="ftt-kaynak-id" style="width:100%">${list.map(b => `<option value="${b.id}">${b.banka_adi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))}</option>`).join('') || '<option value="">— Bu para biriminde hesap yok —</option>'}</select>`;
+  } else {
+    const list = (await api.invoke('kasalar:getir')).filter(k => k.para_birimi === pb);
+    wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px">Kasa (${pb})</label>
+      <select id="ftt-kaynak-id" style="width:100%">${list.map(k => `<option value="${k.id}">${k.ad} — Bakiye: ${fmtTutar(Math.round(k.bakiye))}</option>`).join('') || '<option value="">— Bu para biriminde kasa yok —</option>'}</select>`;
+  }
+}
+
+async function saveFaturaTahsilat() {
+  const fatura_id = Number(document.getElementById('ftt-fatura-id').value);
+  const tutar = parseTutar('ftt-tutar');
+  const tarih = document.getElementById('ftt-tarih').value.trim();
+  const odeme_turu = document.getElementById('ftt-odeme-turu').value;
+  const kaynak_id = Number(document.getElementById('ftt-kaynak-id')?.value);
+  if (!tutar || tutar <= 0) { alert('Tutar sıfırdan büyük olmalıdır.'); return; }
+  if (!tarih || tarih.length < 10) { alert('Tarih zorunludur.'); return; }
+  if (!kaynak_id) { alert('Kasa/Banka seçin.'); return; }
+  try {
+    await api.invoke('fatura:tahsilat', { fatura_id, tutar, tarih, odeme_turu, kaynak_id });
+    closeModal('m-fatura-tahsilat');
+    loadFaturalar();
+  } catch (e) { alert(e.message); }
 }
 
 let _faturaKalemler = [];
