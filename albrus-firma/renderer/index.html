@@ -251,6 +251,14 @@
       </svg>
       Ortaklar
     </div>
+
+    <div class="nav-item" data-page="ayarlar" onclick="goPage('ayarlar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      Ayarlar
+    </div>
   </nav>
 </aside>
 
@@ -289,6 +297,7 @@
       <div class="page-title" style="margin:0">Kasa</div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="openKasaEkle()">+ Yeni Kasa</button>
+        <button class="btn btn-ghost" onclick="openKasaRapor()">Rapor PDF</button>
         <button class="btn btn-ghost" onclick="openPersonelOde()" id="btn-personel-ode" disabled>Personel Ödemesi</button>
         <button class="btn btn-primary" onclick="openFis()" id="btn-yeni-fis" disabled>+ Yeni Fiş</button>
       </div>
@@ -334,7 +343,10 @@
   <div id="pg-cariler" class="page">
     <div class="sec-header">
       <div class="page-title" style="margin:0">Cariler</div>
-      <button class="btn btn-primary" onclick="openCariEkle()">+ Yeni Cari</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="openCariRapor()">Rapor PDF</button>
+        <button class="btn btn-primary" onclick="openCariEkle()">+ Yeni Cari</button>
+      </div>
     </div>
     <div class="filter-bar">
       <select id="cf-tur" onchange="loadCariler()">
@@ -350,7 +362,10 @@
   <div id="pg-projeler" class="page">
     <div class="sec-header">
       <div class="page-title" style="margin:0">Projeler</div>
-      <button class="btn btn-primary" onclick="openProjeEkle()">+ Yeni Proje</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="projelerRaporPdf()">Rapor PDF</button>
+        <button class="btn btn-primary" onclick="openProjeEkle()">+ Yeni Proje</button>
+      </div>
     </div>
     <div class="table-wrap" id="projeler-wrap"></div>
   </div>
@@ -359,7 +374,9 @@
   <div id="pg-faturalar" class="page">
     <div class="sec-header">
       <div class="page-title" style="margin:0">Faturalar</div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="openFaturaEkle('alis','irsaliye')">+ Alış (Faturasız)</button>
+        <button class="btn btn-ghost" onclick="openFaturaEkle('satis','irsaliye')">+ Satış (Faturasız)</button>
         <button class="btn btn-ghost" onclick="openFaturaEkle('alis')">+ Alış Faturası</button>
         <button class="btn btn-primary" onclick="openFaturaEkle('satis')">+ Satış Faturası</button>
       </div>
@@ -369,7 +386,9 @@
         <option value="">Tümü</option>
         <option value="satis">Satış</option>
         <option value="alis">Alış</option>
+        <option value="irsaliye">İrsaliye (Faturasız)</option>
       </select>
+      <button class="btn btn-ghost btn-sm" onclick="faturaListeRaporPdf()">Rapor PDF</button>
     </div>
     <div class="table-wrap" id="faturalar-wrap"></div>
   </div>
@@ -402,6 +421,7 @@
         <input type="text" id="po-donem" placeholder="2026-06" maxlength="7" style="width:120px">
         <button class="btn btn-ghost btn-sm" onclick="loadMaasOdemeleri()">Filtrele</button>
         <button class="btn btn-ghost btn-sm" onclick="clearPersonelFiltre()">Temizle</button>
+        <button class="btn btn-ghost btn-sm" onclick="maasOdemeRaporPdf()">Rapor PDF</button>
       </div>
       <div class="table-wrap" id="maas-odeme-tablo"></div>
     </div>
@@ -413,6 +433,7 @@
       <div class="page-title" style="margin:0">Ortaklar</div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="openOrtakEkle()">+ Yeni Ortak</button>
+        <button class="btn btn-ghost" onclick="ortakHareketRaporPdf()">Rapor PDF</button>
         <button class="btn btn-primary" onclick="openOrtakHareket()" id="btn-ortak-hareket" disabled>Hareket Ekle</button>
       </div>
     </div>
@@ -422,9 +443,52 @@
     </div>
   </div>
 
+  <!-- ── AYARLAR ── -->
+  <div id="pg-ayarlar" class="page">
+    <div class="page-title">Ayarlar</div>
+
+    <div class="table-wrap" style="margin-bottom:18px;">
+      <div class="table-head"><div class="table-head-title">Veri Yedekleme</div></div>
+      <div style="padding:18px;">
+        <div style="font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.6;">
+          Tüm verileriniz (kasa, banka, cari, fatura, stok, personel, ortaklar) tek bir veritabanı dosyasında tutulur.
+          Düzenli olarak yedek almanız önerilir. Geri yükleme öncesi mevcut veriniz otomatik olarak yedeklenir.
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="dbYedekle()">YEDEK AL</button>
+          <button class="btn btn-ghost" onclick="dbGeriYukle()">YEDEKTEN GERİ YÜKLE</button>
+        </div>
+        <div id="ayar-db-konum" style="font-size:11px;color:var(--dim);margin-top:16px;word-break:break-all;"></div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-head"><div class="table-head-title">Uygulama Bilgisi</div></div>
+      <div style="padding:18px;font-size:13px;color:var(--dim);line-height:1.8;">
+        <div><b style="color:var(--text);">Albrus</b> — Firma Yönetim Programı</div>
+        <div>Sürüm 1.0.0</div>
+        <div>Para birimleri: IQD + USD</div>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <!-- ══════════ MODALLER ══════════ -->
+
+<!-- Kasa Raporu -->
+<div class="overlay" id="m-kasa-rapor">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">Kasa Raporu PDF</div>
+    <div class="fg"><label>Başlangıç Tarihi</label><input type="text" id="kr-bas" maxlength="10" placeholder="2026-01-01" oninput="onTarihInput(this)"></div>
+    <div class="fg"><label>Bitiş Tarihi</label><input type="text" id="kr-bit" maxlength="10" placeholder="2026-12-31" oninput="onTarihInput(this)"></div>
+    <div class="fg"><label>Kasa</label><select id="kr-kasa"><option value="">Tüm Kasalar</option></select></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-kasa-rapor')">İptal</button>
+      <button class="btn btn-primary" onclick="kasaRaporPdf()">PDF Oluştur</button>
+    </div>
+  </div>
+</div>
 
 <!-- Kasa Fişi -->
 <div class="overlay" id="m-fis">
@@ -592,6 +656,33 @@
   </div>
 </div>
 
+<!-- Cari Rapor -->
+<div class="overlay" id="m-cari-rapor">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-title">Cari Bakiye Raporu PDF</div>
+    <div class="fg">
+      <label>Rapor Türü</label>
+      <select id="cr-tur">
+        <option value="borclu">Borçlu Cariler (Bize borçlu)</option>
+        <option value="alacakli">Alacaklı Cariler (Biz borçluyuz)</option>
+        <option value="tumu">Tüm Cariler</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label>Cari Türü</label>
+      <select id="cr-cari-tur">
+        <option value="">Tümü</option>
+        <option value="musteri">Sadece Müşteriler</option>
+        <option value="tedarikci">Sadece Tedarikçiler</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-cari-rapor')">İptal</button>
+      <button class="btn btn-primary" onclick="cariRaporPdf()">PDF Oluştur</button>
+    </div>
+  </div>
+</div>
+
 <!-- Cari Ekle / Düzenle -->
 <div class="overlay" id="m-cari-ekle">
   <div class="modal">
@@ -648,6 +739,18 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-proje-ekle')">İptal</button>
       <button class="btn btn-primary" onclick="saveProje()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stok Hareketleri -->
+<div class="overlay" id="m-stok-hareketler">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-title" id="m-stok-har-title">Stok Hareketleri</div>
+    <div id="stok-har-icerik" style="max-height:65vh;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-stok-hareketler')">Kapat</button>
+      <button class="btn btn-ghost" onclick="stokHareketlerPdf()">PDF Rapor</button>
     </div>
   </div>
 </div>
@@ -931,6 +1034,7 @@
   <div class="modal modal-wide">
     <div class="modal-title" id="m-fatura-title">Satış Faturası</div>
     <input type="hidden" id="ft-tur">
+    <input type="hidden" id="ft-belge-turu" value="fatura">
     <div class="row2">
       <div class="fg"><label>Fatura No</label><input type="text" id="ft-no"></div>
       <div class="fg"><label>Tarih</label><input type="text" id="ft-tarih" placeholder="2026-06-08" maxlength="10" oninput="onTarihInput(this)"></div>
@@ -1028,7 +1132,8 @@ const pageLoaders = {
   faturalar: loadFaturalar,
   stok:      loadStok,
   personel:  loadPersonel,
-  ortaklar:  loadOrtaklar
+  ortaklar:  loadOrtaklar,
+  ayarlar:   loadAyarlar
 };
 
 function goPage(page) {
@@ -1242,6 +1347,95 @@ function clearKasaFiltre() {
   document.getElementById('kf-bas').value = '';
   document.getElementById('kf-bit').value = '';
   loadKasaHareketler();
+}
+
+async function openKasaRapor() {
+  const kasalar = await api.invoke('kasalar:getir');
+  document.getElementById('kr-kasa').innerHTML =
+    '<option value="">Tüm Kasalar</option>' +
+    kasalar.map(k => `<option value="${k.id}">${k.ad} (${k.para_birimi})</option>`).join('');
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('kr-bas').value = today.slice(0, 7) + '-01';
+  document.getElementById('kr-bit').value = today;
+  openModal('m-kasa-rapor');
+}
+
+async function kasaRaporPdf() {
+  const bas     = document.getElementById('kr-bas').value.trim();
+  const bit     = document.getElementById('kr-bit').value.trim();
+  const kasaVal = document.getElementById('kr-kasa').value;
+  const kasa_id = kasaVal ? Number(kasaVal) : null;
+
+  const CIKIS_TUR = new Set(['odeme', 'nakit-odeme', 'bankaya-yatirilan', 'gider', 'avans-verildi']);
+  const isGiris = t => !CIKIS_TUR.has(t);
+
+  const hareketler = await api.invoke('kasa:rapor', { bas, bit, kasa_id });
+  if (!hareketler.length) { alert('Seçili tarih aralığında hareket bulunamadı.'); return; }
+
+  const kasaMap = {};
+  for (const h of hareketler) {
+    if (!kasaMap[h.kasa_id]) kasaMap[h.kasa_id] = { ad: h.kasa_ad, pb: h.para_birimi, rows: [] };
+    kasaMap[h.kasa_id].rows.push(h);
+  }
+
+  let kasaBolumler = '';
+  for (const k of Object.values(kasaMap)) {
+    let topGiris = 0, topCikis = 0;
+    const satirlar = k.rows.map(h => {
+      const g = isGiris(h.tur);
+      if (g) topGiris += h.tutar; else topCikis += h.tutar;
+      return `<tr>
+        <td>${h.tarih}</td>
+        <td style="text-transform:capitalize">${h.tur.replace(/-/g,' ')}</td>
+        <td>${h.belge_no || '—'}</td>
+        <td>${h.cari_ad || '—'}</td>
+        <td>${h.proje_ad || '—'}</td>
+        <td>${h.aciklama || ''}</td>
+        <td style="text-align:right;color:#059669">${g ? fmtTutar(h.tutar) : ''}</td>
+        <td style="text-align:right;color:#dc2626">${!g ? fmtTutar(h.tutar) : ''}</td>
+      </tr>`;
+    }).join('');
+    const net = topGiris - topCikis;
+    kasaBolumler += `
+    <h2>${k.ad} <span style="font-size:9px;color:#666;font-weight:400">(${k.pb})</span></h2>
+    <table>
+      <thead><tr>
+        <th>Tarih</th><th>Tür</th><th>Belge No</th><th>Cari</th><th>Proje</th><th>Açıklama</th>
+        <th style="text-align:right">Giriş</th><th style="text-align:right">Çıkış</th>
+      </tr></thead>
+      <tbody>${satirlar}</tbody>
+      <tfoot>
+        <tr class="tfoot">
+          <td colspan="6">TOPLAM</td>
+          <td style="text-align:right;color:#059669">${fmtTutar(topGiris)} ${k.pb}</td>
+          <td style="text-align:right;color:#dc2626">${fmtTutar(topCikis)} ${k.pb}</td>
+        </tr>
+        <tr class="tfoot">
+          <td colspan="6">NET DEĞİŞİM</td>
+          <td colspan="2" style="text-align:right;color:${net >= 0 ? '#059669' : '#dc2626'}">
+            ${net >= 0 ? '+' : ''}${fmtTutar(net)} ${k.pb}
+          </td>
+        </tr>
+      </tfoot>
+    </table>`;
+  }
+
+  const donemText = (bas || bit) ? `${bas || '—'} / ${bit || '—'}` : 'Tüm Dönem';
+  const content = `<style>
+@page{size:A4 portrait;margin:12mm}
+body{font-family:Arial,sans-serif;font-size:8px}
+h1{font-size:14px;margin-bottom:3px}
+h2{font-size:10px;margin:14px 0 4px;border-bottom:1px solid #d1d5db;padding-bottom:3px}
+.sub{color:#555;font-size:9px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;margin-bottom:4px}
+th{background:#f3f4f6;text-align:left;padding:4px 6px;font-size:7.5px;text-transform:uppercase;border-bottom:2px solid #d1d5db}
+td{padding:4px 6px;border-bottom:1px solid #f0f0f0;font-size:8px}
+.tfoot td{background:#f9fafb;font-weight:700;border-top:2px solid #9ca3af;font-size:8px}
+</style>
+<h1>KASA RAPORU</h1>
+<div class="sub">Albrus Company &mdash; Dönem: ${donemText} &mdash; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')}</div>
+${kasaBolumler}`;
+  await api.invoke('print:pdf', content);
 }
 
 const BANKA_TUR = new Set(['bankaya-yatirilan', 'bankadan-cekilen']);
@@ -1707,6 +1901,82 @@ async function delBankaHesap(id) {
 // ══════════════════════════════════════════════════
 // CARİLER
 // ══════════════════════════════════════════════════
+function openCariRapor() {
+  openModal('m-cari-rapor');
+}
+
+async function cariRaporPdf() {
+  const rTur    = document.getElementById('cr-tur').value;
+  const cariTur = document.getElementById('cr-cari-tur').value;
+
+  let liste = await api.invoke('cariler:getir', cariTur ? { tur: cariTur } : null);
+
+  if (rTur === 'borclu')    liste = liste.filter(c => c.bakiye_IQD > 0 || c.bakiye_USD > 0);
+  if (rTur === 'alacakli')  liste = liste.filter(c => c.bakiye_IQD < 0 || c.bakiye_USD < 0);
+  liste = liste.filter(c => c.bakiye_IQD !== 0 || c.bakiye_USD !== 0);
+
+  if (!liste.length) { alert('Uygun cari bulunamadı.'); return; }
+
+  liste.sort((a, b) => Math.abs(b.bakiye_IQD) - Math.abs(a.bakiye_IQD));
+
+  let topIQD = 0, topUSD = 0;
+  const satirlar = liste.map((c, i) => {
+    topIQD += c.bakiye_IQD;
+    topUSD += c.bakiye_USD;
+    const turLabel = c.tur === 'musteri' ? 'Müşteri' : c.tur === 'tedarikci' ? 'Tedarikçi' : c.tur;
+    return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+      <td>${i+1}</td>
+      <td><b>${c.ad}</b></td>
+      <td>${turLabel}</td>
+      <td>${c.telefon || '—'}</td>
+      <td style="text-align:right;font-weight:700;color:${c.bakiye_IQD > 0 ? '#059669' : c.bakiye_IQD < 0 ? '#dc2626' : '#888'}">
+        ${c.bakiye_IQD !== 0 ? fmtTutar(Math.abs(c.bakiye_IQD)) + ' IQD' : '—'}
+      </td>
+      <td style="text-align:right;font-weight:700;color:${c.bakiye_USD > 0 ? '#059669' : c.bakiye_USD < 0 ? '#dc2626' : '#888'}">
+        ${c.bakiye_USD !== 0 ? fmtTutar(Math.abs(c.bakiye_USD)) + ' USD' : '—'}
+      </td>
+    </tr>`;
+  }).join('');
+
+  const baslik = rTur === 'borclu' ? 'BORÇLU CARİLER' : rTur === 'alacakli' ? 'ALACAKLI CARİLER' : 'CARİ BAKİYE LİSTESİ';
+  const altBaslik = rTur === 'borclu' ? 'Bize borçlu olanlar' : rTur === 'alacakli' ? 'Bizim borçlu olduğumuz cariler' : 'Tüm cariler';
+  const cariTurLabel = cariTur === 'musteri' ? ' — Sadece Müşteriler' : cariTur === 'tedarikci' ? ' — Sadece Tedarikçiler' : '';
+
+  const content = `<style>
+@page{size:A4 portrait;margin:12mm}
+body{font-family:Arial,sans-serif;font-size:8.5px}
+h1{font-size:14px;margin-bottom:3px}
+.sub{color:#555;font-size:9px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th{background:#1a1a2e;color:#fff;text-align:left;padding:5px 8px;font-size:8px;text-transform:uppercase}
+td{padding:5px 8px;border-bottom:1px solid #efefef}
+.tfoot td{background:#f9fafb;font-weight:700;border-top:2px solid #9ca3af;font-size:9px}
+</style>
+<h1>${baslik}</h1>
+<div class="sub">Albrus Company &mdash; ${altBaslik}${cariTurLabel} &mdash; Toplam: ${liste.length} cari &mdash; ${new Date().toLocaleDateString('tr-TR')}</div>
+<table>
+  <thead><tr>
+    <th style="width:28px">#</th>
+    <th>Cari Adı</th>
+    <th style="width:80px">Tür</th>
+    <th style="width:100px">Telefon</th>
+    <th style="text-align:right;width:130px">IQD Bakiye</th>
+    <th style="text-align:right;width:110px">USD Bakiye</th>
+  </tr></thead>
+  <tbody>${satirlar}</tbody>
+  <tfoot>
+    <tr class="tfoot">
+      <td colspan="4">TOPLAM (${liste.length} cari)</td>
+      <td style="text-align:right;color:${topIQD>=0?'#059669':'#dc2626'}">${fmtTutar(Math.abs(topIQD))} IQD</td>
+      <td style="text-align:right;color:${topUSD>=0?'#059669':'#dc2626'}">${fmtTutar(Math.abs(topUSD))} USD</td>
+    </tr>
+  </tfoot>
+</table>`;
+
+  closeModal('m-cari-rapor');
+  await api.invoke('print:pdf', content);
+}
+
 async function loadCariler() {
   const tur = document.getElementById('cf-tur').value;
   const list = await api.invoke('cariler:getir', tur ? { tur } : null);
@@ -1803,6 +2073,36 @@ async function saveCari() {
 // ══════════════════════════════════════════════════
 // PROJELER
 // ══════════════════════════════════════════════════
+async function projelerRaporPdf() {
+  const list = await api.invoke('projeler:getir');
+  if (!list.length) { alert('Proje yok.'); return; }
+  const DURUM_RENK = { aktif: '#059669', tamamlandi: '#2563eb', beklemede: '#d97706', iptal: '#dc2626' };
+  const satirlar = list.map((p, i) => `
+    <tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+      <td><b>${p.ad}</b></td>
+      <td style="color:${DURUM_RENK[p.durum]||'#555'};font-weight:700;text-transform:capitalize">${p.durum}</td>
+      <td>${fmtDate(p.baslangic)}</td>
+      <td>${fmtDate(p.bitis)}</td>
+      <td>${p.aciklama||'—'}</td>
+    </tr>`).join('');
+  const content = `<style>
+@page{size:A4 portrait;margin:12mm}
+body{font-family:Arial,sans-serif;font-size:9px}
+h1{font-size:13px;margin-bottom:3px}
+.sub{color:#555;font-size:9px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th{background:#1a1a2e;color:#fff;text-align:left;padding:5px 8px;font-size:8px;text-transform:uppercase}
+td{padding:5px 8px;border-bottom:1px solid #f0f0f0}
+</style>
+<h1>PROJELER LİSTESİ</h1>
+<div class="sub">Albrus Company &mdash; Toplam: ${list.length} proje &mdash; ${new Date().toLocaleDateString('tr-TR')}</div>
+<table>
+  <thead><tr><th>Proje Adı</th><th>Durum</th><th>Başlangıç</th><th>Bitiş</th><th>Açıklama</th></tr></thead>
+  <tbody>${satirlar}</tbody>
+</table>`;
+  await api.invoke('print:pdf', content);
+}
+
 async function loadProjeler() {
   const list = await api.invoke('projeler:getir');
   S.projeler = list;
@@ -1857,25 +2157,27 @@ async function loadFaturalar() {
   if (!list.length) { el.innerHTML = '<div class="empty">Fatura bulunamadı</div>'; return; }
   el.innerHTML = `
     <table><thead><tr>
-      <th>Fatura No</th><th>Tür</th><th>Tarih</th><th>Cari</th>
-      <th>Toplam</th><th>Para Birimi</th><th>Durum</th><th></th>
+      <th>No</th><th>Tür</th><th>Belge</th><th>Tarih</th><th>Cari</th>
+      <th>Toplam</th><th>P.B.</th><th></th>
     </tr></thead><tbody>
-      ${list.map(f => `
-        <tr>
+      ${list.map(f => {
+        const isIrs = f.belge_turu === 'irsaliye';
+        return `<tr>
           <td>${f.fatura_no}</td>
           <td><span class="badge ${f.tur === 'satis' ? 'b-giris' : 'b-cikis'}">${f.tur === 'satis' ? '↑ Satış' : '↓ Alış'}</span></td>
+          <td>${isIrs ? '<span class="badge b-diger">İrsaliye</span>' : '<span class="badge b-alacak">Fatura</span>'}</td>
           <td>${fmtDate(f.tarih)}</td>
           <td>${f.cari_ad || '—'}</td>
           <td class="${f.tur === 'satis' ? 'amt-pos' : 'amt-neg'}">${fmtTutar(f.toplam)}</td>
           <td>${f.para_birimi}</td>
-          <td><span class="badge ${f.durum === 'acik' ? 'b-alacak' : 'b-diger'}">${f.durum === 'acik' ? 'Açık' : f.durum}</span></td>
-          <td style="display:flex;gap:4px">
-            <button class="btn-link btn-sm" onclick="printFatura(${f.id})">PDF</button>
+          <td style="display:flex;gap:4px;flex-wrap:wrap">
+            <button class="btn-link btn-sm" onclick="${isIrs ? `printIrsaliye(${f.id})` : `printFatura(${f.id})`}">PDF</button>
+            ${isIrs ? `<button class="btn-link btn-sm" style="color:var(--primary)" onclick="faturalandir(${f.id})">Faturalandır</button>` : ''}
             <button class="btn-link btn-sm" onclick="openFaturaDuzenle(${f.id})">Düzenle</button>
             <button class="btn-del" onclick="delFatura(${f.id})">✕</button>
           </td>
-        </tr>
-      `).join('')}
+        </tr>`;
+      }).join('')}
     </tbody></table>
   `;
 }
@@ -2030,9 +2332,12 @@ function faturaKalemSil(i) {
   renderFaturaKalemler();
 }
 
-async function openFaturaEkle(tur) {
+async function openFaturaEkle(tur, belge_turu = 'fatura') {
   document.getElementById('ft-tur').value = tur;
-  document.getElementById('m-fatura-title').textContent = tur === 'satis' ? 'Satış Faturası' : 'Alış Faturası';
+  document.getElementById('ft-belge-turu').value = belge_turu;
+  const irsaliye = belge_turu === 'irsaliye';
+  const turLabel = tur === 'satis' ? 'Satış' : 'Alış';
+  document.getElementById('m-fatura-title').textContent = irsaliye ? `${turLabel} (Faturasız İrsaliye)` : `${turLabel} Faturası`;
   document.getElementById('ft-tarih').value = today();
   document.getElementById('ft-aciklama').value = '';
   document.getElementById('ft-indirim').value = '';
@@ -2100,6 +2405,7 @@ async function saveFatura() {
     para_birimi: document.getElementById('ft-pb').value,
     indirim:     parseInt(document.getElementById('ft-indirim').value.replace(/\D/g, '') || '0', 10),
     aciklama:    document.getElementById('ft-aciklama').value,
+    belge_turu:  document.getElementById('ft-belge-turu').value || 'fatura',
     kalemler
   };
   if (!data.tarih) { alert('Tarih zorunludur.'); return; }
@@ -2110,6 +2416,59 @@ async function saveFatura() {
       await api.invoke('fatura:ekle', data);
     }
     closeModal('m-fatura');
+    loadFaturalar();
+  } catch (e) { alert('Hata: ' + e.message); }
+}
+
+async function faturaListeRaporPdf() {
+  const tur = document.getElementById('ft-filtre-tur').value;
+  const list = await api.invoke('faturalar:getir', tur ? { tur } : null);
+  if (!list.length) { alert('Gösterilecek fatura yok.'); return; }
+  let topSatis = {}, topAlis = {};
+  const satirlar = list.map((f, i) => {
+    const pb = f.para_birimi;
+    if (f.tur === 'satis') topSatis[pb] = (topSatis[pb]||0) + f.toplam;
+    else topAlis[pb] = (topAlis[pb]||0) + f.toplam;
+    const isIrs = f.belge_turu === 'irsaliye';
+    return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+      <td>${f.fatura_no}</td>
+      <td style="color:${f.tur==='satis'?'#059669':'#dc2626'};font-weight:700">${f.tur==='satis'?'↑ Satış':'↓ Alış'}</td>
+      <td>${isIrs?'İrsaliye':'Fatura'}</td>
+      <td>${fmtDate(f.tarih)}</td>
+      <td>${f.cari_ad||'—'}</td>
+      <td style="text-align:right;font-weight:700;color:${f.tur==='satis'?'#059669':'#dc2626'}">${fmtTutar(f.toplam)}</td>
+      <td>${pb}</td>
+    </tr>`;
+  }).join('');
+  const turLabel = tur==='satis'?'Satış Faturaları':tur==='alis'?'Alış Faturaları':tur==='irsaliye'?'İrsaliyeler':'Tüm Faturalar & İrsaliyeler';
+  const content = `<style>
+@page{size:A4 portrait;margin:12mm}
+body{font-family:Arial,sans-serif;font-size:8.5px}
+h1{font-size:13px;margin-bottom:3px}
+.sub{color:#555;font-size:9px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th{background:#1a1a2e;color:#fff;text-align:left;padding:4px 7px;font-size:8px;text-transform:uppercase}
+td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
+.tfoot td{background:#f9fafb;font-weight:700;border-top:2px solid #9ca3af}
+</style>
+<h1>${turLabel.toUpperCase()}</h1>
+<div class="sub">Albrus Company &mdash; Toplam: ${list.length} kayıt &mdash; ${new Date().toLocaleDateString('tr-TR')}</div>
+<table>
+  <thead><tr><th>No</th><th>Tür</th><th>Belge</th><th>Tarih</th><th>Cari</th>
+    <th style="text-align:right">Toplam</th><th>P.B.</th></tr></thead>
+  <tbody>${satirlar}</tbody>
+  <tfoot>
+    ${Object.entries(topSatis).map(([pb,t])=>`<tr class="tfoot"><td colspan="5">Toplam Satış (${pb})</td><td style="text-align:right;color:#059669" colspan="2">${fmtTutar(t)} ${pb}</td></tr>`).join('')}
+    ${Object.entries(topAlis).map(([pb,t])=>`<tr class="tfoot"><td colspan="5">Toplam Alış (${pb})</td><td style="text-align:right;color:#dc2626" colspan="2">${fmtTutar(t)} ${pb}</td></tr>`).join('')}
+  </tfoot>
+</table>`;
+  await api.invoke('print:pdf', content);
+}
+
+async function faturalandir(id) {
+  if (!confirm('Bu irsaliyeyi faturaya çevirmek istiyor musunuz?\nCari hesabına borç/alacak kaydı oluşturulacak.')) return;
+  try {
+    await api.invoke('fatura:faturalandir', id);
     loadFaturalar();
   } catch (e) { alert('Hata: ' + e.message); }
 }
@@ -2148,8 +2507,8 @@ async function printFatura(id) {
     ? `<img src="${_logoDataUri}" style="height:110px;width:auto;display:block;border:none;outline:none">`
     : `<svg width="56" height="80" viewBox="0 0 56 80" xmlns="http://www.w3.org/2000/svg"><text x="28" y="50" font-family="Arial Black" font-weight="900" font-size="24" fill="#000" text-anchor="middle">A</text></svg>`;
 
-  const cellStyle = 'padding:6px 9px;font-size:12px';
-  const thStyle   = 'padding:4px 7px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.3px';
+  const cellStyle = 'padding:4px 7px;font-size:10px';
+  const thStyle   = 'padding:3px 6px;text-align:center;font-size:8.5px;font-weight:700;letter-spacing:.3px';
 
   document.getElementById('print-area').innerHTML = `
     <div style="font-family:'Times New Roman',Times,serif;color:#000;padding:22px 26px;max-width:760px;margin:0 auto;border:1px solid #000;min-height:1050px;display:flex;flex-direction:column;position:relative;overflow:hidden">
@@ -2165,22 +2524,22 @@ async function printFatura(id) {
                 <tr>
                   <td style="vertical-align:middle;padding-right:12px;border:none">${logoSvg}</td>
                   <td style="vertical-align:middle;text-align:center;border:none">
-                    <div style="font-family:'Times New Roman',Times,serif;font-size:58px;font-weight:900;letter-spacing:1px;line-height:1;color:#000">ALBRUS</div>
-                    <div style="font-family:'Times New Roman',Times,serif;font-size:28px;font-weight:700;letter-spacing:2px;color:#000;margin-top:3px">COMPANY</div>
+                    <div style="font-family:'Times New Roman',Times,serif;font-size:50px;font-weight:900;letter-spacing:1px;line-height:1;color:#000">ALBRUS</div>
+                    <div style="font-family:'Times New Roman',Times,serif;font-size:24px;font-weight:700;letter-spacing:2px;color:#000;margin-top:3px">COMPANY</div>
                   </td>
                 </tr>
               </table>
             </td>
             <!-- Sağ: İletişim + Tarih -->
             <td style="width:58%;vertical-align:top;text-align:right">
-              <div style="font-family:Arial,sans-serif;font-size:10.5px;line-height:1.85;color:#444;margin-bottom:8px">
+              <div style="font-family:Arial,sans-serif;font-size:9px;line-height:1.85;color:#444;margin-bottom:8px">
                 <div><b style="color:#000">Address :</b> Justice Tower 23, Floor No: 27 Erbil / IRAQ</div>
                 <div><b style="color:#000">Mobile &nbsp;:</b> +964 750 321 0101 &nbsp; · &nbsp; +964 750 424 1497</div>
                 <div><b style="color:#000">Web &nbsp;&nbsp;&nbsp;&nbsp;:</b> www.albrustech.com</div>
                 <div><b style="color:#000">E-mail &nbsp;:</b> burhan.arslan@albrustech.com</div>
                 <div style="padding-left:62px">kamuran.ebiri@albrustech.com</div>
               </div>
-              <div style="font-family:Arial,sans-serif;font-size:10.5px;line-height:1.85;color:#444;text-align:right">
+              <div style="font-family:Arial,sans-serif;font-size:9px;line-height:1.85;color:#444;text-align:right">
                 <div><b style="color:#000">Date &nbsp;&nbsp;:</b> ${fmtDate(f.tarih)}</div>
                 <div><b style="color:#000">Serial :</b> ${f.fatura_no}</div>
               </div>
@@ -2189,28 +2548,28 @@ async function printFatura(id) {
         </table>
 
         <!-- INVOICE bandı -->
-        <div style="background:#1a1a2e;color:#fff;text-align:center;padding:7px 0;font-family:Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:6px">
+        <div style="background:#1a1a2e;color:#fff;text-align:center;padding:7px 0;font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:6px">
           I N V O I C E
         </div>
       </div>
 
       <!-- ── BILL TO ── -->
-      <table style="width:100%;border-collapse:collapse;border:1.5px solid #555;margin-bottom:10px;font-size:12px">
+      <table style="width:100%;border-collapse:collapse;border:1.5px solid #555;margin-bottom:10px;font-size:10px">
         <tr style="border-bottom:1px solid #aaa">
-          <td style="padding:5px 10px;font-weight:700;width:90px;color:#333">BILL TO</td>
-          <td style="padding:5px 10px">: ${f.cari_ad || '&nbsp;'}</td>
+          <td style="padding:4px 8px;font-weight:700;width:90px;color:#333">BILL TO</td>
+          <td style="padding:4px 8px">: ${f.cari_ad || '&nbsp;'}</td>
         </tr>
         <tr style="border-bottom:1px solid #aaa">
-          <td style="padding:5px 10px;font-weight:700;color:#333">ADDRESS</td>
-          <td style="padding:5px 10px">: ${f.cari_adres || '&nbsp;'}</td>
+          <td style="padding:4px 8px;font-weight:700;color:#333">ADDRESS</td>
+          <td style="padding:4px 8px">: ${f.cari_adres || '&nbsp;'}</td>
         </tr>
         <tr style="border-bottom:1px solid #aaa">
-          <td style="padding:5px 10px;font-weight:700;color:#333">ATTN</td>
-          <td style="padding:5px 10px">: TAX NUMBER &nbsp; ${f.cari_vergi_no || '&nbsp;'}</td>
+          <td style="padding:4px 8px;font-weight:700;color:#333">ATTN</td>
+          <td style="padding:4px 8px">: TAX NUMBER &nbsp; ${f.cari_vergi_no || '&nbsp;'}</td>
         </tr>
         <tr>
-          <td style="padding:5px 10px;font-weight:700;color:#333">TEL</td>
-          <td style="padding:5px 10px">: ${f.cari_tel || '&nbsp;'}</td>
+          <td style="padding:4px 8px;font-weight:700;color:#333">TEL</td>
+          <td style="padding:4px 8px">: ${f.cari_tel || '&nbsp;'}</td>
         </tr>
       </table>
 
@@ -2233,10 +2592,10 @@ async function printFatura(id) {
               <td style="${cellStyle};text-align:center">${i+1}</td>
               <td style="${cellStyle}">${k.aciklama}</td>
               <td style="${cellStyle};text-align:center">${k.marka || ''}</td>
-              <td style="${cellStyle};text-align:right;padding-right:14px">${k.miktar}</td>
+              <td style="${cellStyle};text-align:right;padding-right:12px">${k.miktar}</td>
               <td style="${cellStyle};text-align:center">${k.birim || 'Pcs'}</td>
-              <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:11px">${pb} ${fmtTutar(k.birim_fiyat)}.00</td>
-              <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:11px">${pb} ${fmtTutar(k.toplam)}.00</td>
+              <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(k.birim_fiyat)}.00</td>
+              <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(k.toplam)}.00</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2245,27 +2604,27 @@ async function printFatura(id) {
       <!-- ── FOOTER ── -->
       <div style="flex:1"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:10px;margin-top:auto">
-        <div style="font-size:12px;max-width:340px">
-          <div style="font-size:10px;color:#666;margin-bottom:2px">Total (by Text)</div>
+        <div style="font-size:10px;max-width:340px">
+          <div style="font-size:8.5px;color:#666;margin-bottom:2px">Total (by Text)</div>
           <div style="font-style:italic;font-weight:600">${numToWords(grandTotal)} ${pb}</div>
-          ${f.aciklama ? `<div style="margin-top:8px;font-size:11px;color:#555"><b>Note:</b> ${f.aciklama}</div>` : ''}
+          ${f.aciklama ? `<div style="margin-top:8px;font-size:9px;color:#555"><b>Note:</b> ${f.aciklama}</div>` : ''}
         </div>
-        <table style="font-size:12.5px;min-width:260px">
+        <table style="font-size:10.5px;min-width:260px">
           <tr>
             <td style="padding:3px 14px 3px 0;color:#444">TOTAL</td>
-            <td style="text-align:right;padding:3px 0;font-weight:600;font-family:'Times New Roman',serif;font-size:11px">${pb} ${fmtTutar(f.toplam)}.00</td>
+            <td style="text-align:right;padding:3px 0;font-weight:600;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(f.toplam)}.00</td>
           </tr>
           <tr>
             <td style="padding:3px 14px 3px 0;color:#444">DISCOUNT</td>
-            <td style="text-align:right;padding:3px 0;font-family:'Times New Roman',serif;font-size:11px">${indirim ? pb+' '+fmtTutar(indirim)+'.00' : '—'}</td>
+            <td style="text-align:right;padding:3px 0;font-family:'Times New Roman',serif;font-size:9.5px">${indirim ? pb+' '+fmtTutar(indirim)+'.00' : '—'}</td>
           </tr>
           <tr>
             <td style="padding:3px 14px 3px 0;color:#444">SUBTOTAL</td>
-            <td style="text-align:right;padding:3px 0;font-weight:600;font-family:'Times New Roman',serif;font-size:11px">${pb} ${fmtTutar(grandTotal)}.00</td>
+            <td style="text-align:right;padding:3px 0;font-weight:600;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(grandTotal)}.00</td>
           </tr>
           <tr style="border-top:1px solid #000">
-            <td style="padding:5px 14px 3px 0;font-weight:800;font-size:13px">GRAND TOTAL</td>
-            <td style="text-align:right;padding:5px 0;font-weight:800;font-size:12px;font-family:'Times New Roman',serif">${pb} ${fmtTutar(grandTotal)}.00</td>
+            <td style="padding:5px 14px 3px 0;font-weight:800;font-size:11px">GRAND TOTAL</td>
+            <td style="text-align:right;padding:5px 0;font-weight:800;font-size:10.5px;font-family:'Times New Roman',serif">${pb} ${fmtTutar(grandTotal)}.00</td>
           </tr>
         </table>
       </div>
@@ -2282,36 +2641,153 @@ async function printFatura(id) {
   } catch (e) { alert('PDF hatası: ' + e.message); }
 }
 
+async function printIrsaliye(id) {
+  const f = await api.invoke('fatura:getir', id);
+  if (!f) return;
+  const pb = f.para_birimi;
+  const isSatis = f.tur === 'satis';
+  const cellStyle = 'padding:4px 7px;font-size:10px';
+  const thStyle   = 'padding:3px 6px;text-align:center;font-size:8.5px;font-weight:700;letter-spacing:.3px';
+
+  const satirlar = f.kalemler.map((k, i) => `
+    <tr style="background:${i%2===0?'#fff':'#f7f7f7'}">
+      <td style="${cellStyle};text-align:center">${i+1}</td>
+      <td style="${cellStyle}">${k.aciklama}</td>
+      <td style="${cellStyle};text-align:center">${k.marka||''}</td>
+      <td style="${cellStyle};text-align:right;padding-right:12px">${k.miktar}</td>
+      <td style="${cellStyle};text-align:center">${k.birim||'Pcs'}</td>
+      <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(k.birim_fiyat)}.00</td>
+      <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(k.toplam)}.00</td>
+    </tr>`).join('');
+
+  const logoSvg = _logoDataUri
+    ? `<img src="${_logoDataUri}" style="height:90px;width:auto;display:block">`
+    : `<svg width="50" height="70" viewBox="0 0 56 80" xmlns="http://www.w3.org/2000/svg"><text x="28" y="50" font-family="Arial Black" font-weight="900" font-size="24" fill="#000" text-anchor="middle">A</text></svg>`;
+
+  document.getElementById('print-area').innerHTML = `
+    <div style="font-family:'Times New Roman',Times,serif;color:#000;padding:22px 26px;max-width:760px;margin:0 auto;border:1px solid #000;min-height:1050px;display:flex;flex-direction:column;position:relative;overflow:hidden">
+
+      <div style="margin-bottom:12px">
+        ${isSatis ? `
+        <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+          <tr>
+            <td style="width:42%;vertical-align:middle;padding-right:16px">
+              <table style="border-collapse:collapse">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:12px;border:none">${logoSvg}</td>
+                  <td style="vertical-align:middle;text-align:center;border:none">
+                    <div style="font-family:'Times New Roman',Times,serif;font-size:50px;font-weight:900;letter-spacing:1px;line-height:1;color:#000">ALBRUS</div>
+                    <div style="font-family:'Times New Roman',Times,serif;font-size:24px;font-weight:700;letter-spacing:2px;color:#000;margin-top:3px">COMPANY</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td style="width:58%;vertical-align:top;text-align:right">
+              <div style="font-family:Arial,sans-serif;font-size:9px;line-height:1.85;color:#444;margin-bottom:8px">
+                <div><b style="color:#000">Address :</b> Justice Tower 23, Floor No: 27 Erbil / IRAQ</div>
+                <div><b style="color:#000">Mobile &nbsp;:</b> +964 750 321 0101 &nbsp;·&nbsp; +964 750 424 1497</div>
+                <div><b style="color:#000">Web &nbsp;&nbsp;&nbsp;&nbsp;:</b> www.albrustech.com</div>
+                <div><b style="color:#000">E-mail &nbsp;:</b> burhan.arslan@albrustech.com</div>
+              </div>
+              <div style="font-family:Arial,sans-serif;font-size:9px;line-height:1.85;color:#444;text-align:right">
+                <div><b style="color:#000">Date &nbsp;&nbsp;:</b> ${fmtDate(f.tarih)}</div>
+                <div><b style="color:#000">Ref No :</b> ${f.fatura_no}</div>
+              </div>
+            </td>
+          </tr>
+        </table>` : `
+        <div style="text-align:right;font-family:Arial,sans-serif;font-size:9px;line-height:1.85;color:#444;margin-bottom:10px">
+          <div><b style="color:#000">Date &nbsp;&nbsp;:</b> ${fmtDate(f.tarih)}</div>
+          <div><b style="color:#000">Ref No :</b> ${f.fatura_no}</div>
+        </div>`}
+        <div style="background:#374151;color:#fff;text-align:center;padding:7px 0;font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:5px">
+          ${isSatis ? 'D E L I V E R Y &nbsp; N O T E' : 'R E C E I P T &nbsp; N O T E'}
+        </div>
+        <div style="text-align:center;font-family:Arial,sans-serif;font-size:8px;color:#888;margin-top:3px;letter-spacing:1px">
+          ${isSatis ? 'SATIŞ İRSALİYESİ' : 'ALIŞ İRSALİYESİ'} — FATURA DEĞİLDİR
+        </div>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;border:1.5px solid #555;margin-bottom:10px;font-size:10px">
+        <tr style="border-bottom:1px solid #aaa">
+          <td style="padding:4px 8px;font-weight:700;width:130px;color:#333">${isSatis ? 'DELIVERED TO' : 'RECEIVED FROM'}</td>
+          <td style="padding:4px 8px">: ${f.cari_ad||'—'}</td>
+        </tr>
+        ${f.cari_adres?`<tr style="border-bottom:1px solid #aaa"><td style="padding:4px 8px;font-weight:700;color:#333">ADDRESS</td><td style="padding:4px 8px">: ${f.cari_adres}</td></tr>`:''}
+        ${f.cari_tel?`<tr><td style="padding:4px 8px;font-weight:700;color:#333">TEL</td><td style="padding:4px 8px">: ${f.cari_tel}</td></tr>`:''}
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;margin-bottom:14px">
+        <thead>
+          <tr style="background:#374151;color:#fff">
+            <th style="${thStyle};text-align:center;width:38px">S.NO</th>
+            <th style="${thStyle};text-align:left">DESCRIPTION</th>
+            <th style="${thStyle};width:65px">BRAND</th>
+            <th style="${thStyle};text-align:right;width:60px">QTY</th>
+            <th style="${thStyle};width:48px">UNIT</th>
+            <th style="${thStyle};text-align:right;width:115px">UNIT PRICE</th>
+            <th style="${thStyle};text-align:right;width:115px">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>${satirlar}</tbody>
+      </table>
+
+      <div style="flex:1"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:10px;margin-top:auto">
+        <div style="font-size:9px;color:#555;max-width:340px">
+          ${f.aciklama?`<b>Note:</b> ${f.aciklama}`:''}
+          <div style="margin-top:16px;border-top:1px solid #999;padding-top:6px;color:#777;font-size:8px">Bu belge fatura değildir. Faturalandırma işlemi yapılmamıştır.</div>
+        </div>
+        <table style="font-size:10.5px;min-width:220px">
+          <tr style="border-top:1px solid #000">
+            <td style="padding:5px 14px 3px 0;font-weight:800;font-size:11px">TOPLAM</td>
+            <td style="text-align:right;padding:5px 0;font-weight:800;font-size:10.5px;font-family:'Times New Roman',serif">${pb} ${fmtTutar(f.toplam)}.00</td>
+          </tr>
+        </table>
+      </div>
+
+      ${isSatis && _logoDataUri ? `
+      <div style="position:absolute;top:61%;left:50%;transform:translate(-50%,-50%);opacity:0.04;pointer-events:none;z-index:0;overflow:hidden;height:490px">
+        <img src="${_logoDataUri}" style="width:820px;height:auto;display:block;filter:grayscale(100%)">
+      </div>` : ''}
+
+    </div>
+  `;
+  try {
+    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+  } catch (e) { alert('PDF hatası: ' + e.message); }
+}
+
 async function printFaturaAlis(f) {
   const pb = f.para_birimi;
   const indirim = f.indirim ?? 0;
   const grandTotal = Math.max(0, f.toplam - indirim);
-  const cellStyle = 'padding:6px 9px;font-size:12px';
-  const thStyle   = 'padding:4px 7px;text-align:center;font-size:10px;font-weight:700;letter-spacing:.3px';
+  const cellStyle = 'padding:4px 7px;font-size:10px';
+  const thStyle   = 'padding:3px 6px;text-align:center;font-size:8.5px;font-weight:700;letter-spacing:.3px';
 
   document.getElementById('print-area').innerHTML = `
     <div style="font-family:'Times New Roman',Times,serif;color:#000;padding:22px 26px;max-width:760px;margin:0 auto;border:1px solid #000;min-height:1050px;display:flex;flex-direction:column">
 
       <!-- HEADER -->
       <div style="margin-bottom:12px">
-        <div style="text-align:right;font-family:Arial,sans-serif;font-size:10.5px;line-height:1.85;color:#444;margin-bottom:10px">
+        <div style="text-align:right;font-family:Arial,sans-serif;font-size:9px;line-height:1.85;color:#444;margin-bottom:10px">
           <div><b style="color:#000">Date &nbsp;&nbsp;:</b> ${fmtDate(f.tarih)}</div>
           <div><b style="color:#000">Serial :</b> ${f.fatura_no}</div>
         </div>
-        <div style="background:#1a1a2e;color:#fff;text-align:center;padding:7px 0;font-family:Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:6px">
+        <div style="background:#1a1a2e;color:#fff;text-align:center;padding:7px 0;font-family:Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:6px">
           P U R C H A S E &nbsp; I N V O I C E
         </div>
       </div>
 
       <!-- PURCHASED FROM -->
-      <table style="width:100%;border-collapse:collapse;border:1.5px solid #555;margin-bottom:10px;font-size:12px">
+      <table style="width:100%;border-collapse:collapse;border:1.5px solid #555;margin-bottom:10px;font-size:10px">
         <tr style="border-bottom:1px solid #aaa">
-          <td style="padding:5px 10px;font-weight:700;width:130px;color:#333">PURCHASED FROM</td>
-          <td style="padding:5px 10px">: ${f.cari_ad || '—'}</td>
+          <td style="padding:4px 8px;font-weight:700;width:130px;color:#333">PURCHASED FROM</td>
+          <td style="padding:4px 8px">: ${f.cari_ad || '—'}</td>
         </tr>
-        ${f.cari_adres    ? `<tr style="border-bottom:1px solid #aaa"><td style="padding:5px 10px;font-weight:700;color:#333">ADDRESS</td><td style="padding:5px 10px">: ${f.cari_adres}</td></tr>` : ''}
-        ${f.cari_tel      ? `<tr style="border-bottom:1px solid #aaa"><td style="padding:5px 10px;font-weight:700;color:#333">TEL</td><td style="padding:5px 10px">: ${f.cari_tel}</td></tr>` : ''}
-        ${f.cari_vergi_no ? `<tr><td style="padding:5px 10px;font-weight:700;color:#333">TAX NO</td><td style="padding:5px 10px">: ${f.cari_vergi_no}</td></tr>` : ''}
+        ${f.cari_adres    ? `<tr style="border-bottom:1px solid #aaa"><td style="padding:4px 8px;font-weight:700;color:#333">ADDRESS</td><td style="padding:4px 8px">: ${f.cari_adres}</td></tr>` : ''}
+        ${f.cari_tel      ? `<tr style="border-bottom:1px solid #aaa"><td style="padding:4px 8px;font-weight:700;color:#333">TEL</td><td style="padding:4px 8px">: ${f.cari_tel}</td></tr>` : ''}
+        ${f.cari_vergi_no ? `<tr><td style="padding:4px 8px;font-weight:700;color:#333">TAX NO</td><td style="padding:4px 8px">: ${f.cari_vergi_no}</td></tr>` : ''}
       </table>
 
       <!-- ITEMS TABLE -->
@@ -2333,10 +2809,10 @@ async function printFaturaAlis(f) {
               <td style="${cellStyle};text-align:center">${i+1}</td>
               <td style="${cellStyle}">${k.aciklama}</td>
               <td style="${cellStyle};text-align:center">${k.marka || ''}</td>
-              <td style="${cellStyle};text-align:right;padding-right:14px">${k.miktar}</td>
+              <td style="${cellStyle};text-align:right;padding-right:12px">${k.miktar}</td>
               <td style="${cellStyle};text-align:center">${k.birim || 'Pcs'}</td>
-              <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:11px">${pb} ${fmtTutar(k.birim_fiyat)}.00</td>
-              <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:11px">${pb} ${fmtTutar(k.toplam)}.00</td>
+              <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(k.birim_fiyat)}.00</td>
+              <td style="${cellStyle};text-align:right;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(k.toplam)}.00</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2345,27 +2821,27 @@ async function printFaturaAlis(f) {
       <!-- FOOTER -->
       <div style="flex:1"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-end;padding-top:10px;margin-top:auto">
-        <div style="font-size:12px;max-width:340px">
-          <div style="font-size:10px;color:#666;margin-bottom:2px">Total (by Text)</div>
+        <div style="font-size:10px;max-width:340px">
+          <div style="font-size:8.5px;color:#666;margin-bottom:2px">Total (by Text)</div>
           <div style="font-style:italic;font-weight:600">${numToWords(grandTotal)} ${pb}</div>
-          ${f.aciklama ? `<div style="margin-top:8px;font-size:11px;color:#555"><b>Note:</b> ${f.aciklama}</div>` : ''}
+          ${f.aciklama ? `<div style="margin-top:8px;font-size:9px;color:#555"><b>Note:</b> ${f.aciklama}</div>` : ''}
         </div>
-        <table style="font-size:12.5px;min-width:260px">
+        <table style="font-size:10.5px;min-width:260px">
           <tr>
             <td style="padding:3px 14px 3px 0;color:#444">TOTAL</td>
-            <td style="text-align:right;padding:3px 0;font-weight:600;font-family:'Times New Roman',serif;font-size:11px">${pb} ${fmtTutar(f.toplam)}.00</td>
+            <td style="text-align:right;padding:3px 0;font-weight:600;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(f.toplam)}.00</td>
           </tr>
           <tr>
             <td style="padding:3px 14px 3px 0;color:#444">DISCOUNT</td>
-            <td style="text-align:right;padding:3px 0;font-family:'Times New Roman',serif;font-size:11px">${indirim ? pb+' '+fmtTutar(indirim)+'.00' : '—'}</td>
+            <td style="text-align:right;padding:3px 0;font-family:'Times New Roman',serif;font-size:9.5px">${indirim ? pb+' '+fmtTutar(indirim)+'.00' : '—'}</td>
           </tr>
           <tr>
             <td style="padding:3px 14px 3px 0;color:#444">SUBTOTAL</td>
-            <td style="text-align:right;padding:3px 0;font-weight:600;font-family:'Times New Roman',serif;font-size:11px">${pb} ${fmtTutar(grandTotal)}.00</td>
+            <td style="text-align:right;padding:3px 0;font-weight:600;font-family:'Times New Roman',serif;font-size:9.5px">${pb} ${fmtTutar(grandTotal)}.00</td>
           </tr>
           <tr style="border-top:1px solid #000">
-            <td style="padding:5px 14px 3px 0;font-weight:800;font-size:13px">GRAND TOTAL</td>
-            <td style="text-align:right;padding:5px 0;font-weight:800;font-size:12px;font-family:'Times New Roman',serif">${pb} ${fmtTutar(grandTotal)}.00</td>
+            <td style="padding:5px 14px 3px 0;font-weight:800;font-size:11px">GRAND TOTAL</td>
+            <td style="text-align:right;padding:5px 0;font-weight:800;font-size:10.5px;font-family:'Times New Roman',serif">${pb} ${fmtTutar(grandTotal)}.00</td>
           </tr>
         </table>
       </div>
@@ -2421,6 +2897,7 @@ async function loadStok() {
             <td style="text-align:right;font-weight:700;color:${s.mevcut_miktar <= s.min_miktar && s.min_miktar > 0 ? 'var(--red)' : 'var(--green)'}">${s.mevcut_miktar}</td>
             <td style="text-align:right;color:var(--dim)">${s.min_miktar}</td>
             <td>
+              <button class="btn btn-ghost btn-sm" onclick="openStokHareketler(${s.id})">Hareketler</button>
               <button class="btn btn-ghost btn-sm" onclick="openStokDuzenle(${s.id})">Düzenle</button>
               <button class="btn-del" onclick="stokSil(${s.id})">✕</button>
             </td>
@@ -2429,6 +2906,115 @@ async function loadStok() {
       </tbody>
     </table>
   `;
+}
+
+let _stokHarData = null;
+
+async function openStokHareketler(id) {
+  const s = _stoklar.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('m-stok-har-title').textContent = `${s.ad} — Stok Hareketleri`;
+  const liste = await api.invoke('stok:hareketler', id);
+  _stokHarData = { stok: s, liste };
+  const el = document.getElementById('stok-har-icerik');
+  if (!liste.length) {
+    el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--dim)">Henüz hareket yok.</div>`;
+  } else {
+    el.innerHTML = `
+      <div style="padding:8px 0;font-size:12px;color:var(--dim)">
+        Mevcut Miktar: <b style="color:var(--text)">${s.mevcut_miktar} ${s.birim}</b>
+      </div>
+      <table class="tbl">
+        <thead><tr>
+          <th>Tarih</th><th>Tür</th>
+          <th style="text-align:right">Miktar</th>
+          <th style="text-align:right">Önce</th>
+          <th style="text-align:right">Sonra</th>
+          <th>Fatura No</th>
+          <th>Açıklama</th>
+        </tr></thead>
+        <tbody>
+          ${liste.map(h => `
+            <tr>
+              <td>${h.tarih}</td>
+              <td><span class="badge ${h.tur === 'giris' ? 'b-giris' : 'b-cikis'}">${h.tur === 'giris' ? '↑ Giriş' : '↓ Çıkış'}</span></td>
+              <td style="text-align:right;font-weight:700;color:${h.tur === 'giris' ? 'var(--green)' : 'var(--red)'}">
+                ${h.tur === 'giris' ? '+' : '-'}${h.miktar} ${s.birim}
+              </td>
+              <td style="text-align:right;color:var(--dim)">${h.onceki_miktar}</td>
+              <td style="text-align:right;font-weight:600">${h.sonraki_miktar}</td>
+              <td style="font-size:12px;color:var(--dim)">${h.fatura_no || '—'}</td>
+              <td style="font-size:12px">${h.aciklama || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+  openModal('m-stok-hareketler');
+}
+
+async function stokHareketlerPdf() {
+  if (!_stokHarData) return;
+  const { stok: s, liste } = _stokHarData;
+  if (!liste.length) { alert('Hareket yok.'); return; }
+
+  let topGiris = 0, topCikis = 0;
+  const satirlar = liste.map(h => {
+    const g = h.tur === 'giris';
+    if (g) topGiris += h.miktar; else topCikis += h.miktar;
+    return `<tr>
+      <td>${h.tarih}</td>
+      <td style="color:${g ? '#059669' : '#dc2626'};font-weight:700">${g ? '↑ Giriş' : '↓ Çıkış'}</td>
+      <td style="text-align:right;font-weight:700;color:${g ? '#059669' : '#dc2626'}">${g ? '+' : '-'}${h.miktar} ${s.birim}</td>
+      <td style="text-align:right">${h.onceki_miktar}</td>
+      <td style="text-align:right;font-weight:600">${h.sonraki_miktar}</td>
+      <td>${h.fatura_no || '—'}</td>
+      <td>${h.aciklama || ''}</td>
+    </tr>`;
+  }).join('');
+
+  const content = `<style>
+@page{size:A4 portrait;margin:12mm}
+body{font-family:Arial,sans-serif;font-size:8.5px}
+h1{font-size:13px;margin-bottom:3px}
+.sub{color:#555;font-size:9px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th{background:#f3f4f6;text-align:left;padding:4px 7px;font-size:8px;text-transform:uppercase;border-bottom:2px solid #d1d5db}
+td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
+.tfoot td{background:#f9fafb;font-weight:700;border-top:2px solid #9ca3af}
+</style>
+<h1>STOK HAREKETLERİ — ${s.ad.toUpperCase()}</h1>
+<div class="sub">
+  Kod: ${s.kod || '—'} &nbsp;|&nbsp; Birim: ${s.birim} &nbsp;|&nbsp; Kategori: ${s.kategori || '—'}
+  &nbsp;|&nbsp; Mevcut Miktar: <b>${s.mevcut_miktar} ${s.birim}</b>
+  &nbsp;|&nbsp; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')}
+</div>
+<table>
+  <thead><tr>
+    <th>Tarih</th><th>Tür</th>
+    <th style="text-align:right">Miktar</th>
+    <th style="text-align:right">Önceki</th>
+    <th style="text-align:right">Sonraki</th>
+    <th>Fatura No</th><th>Açıklama</th>
+  </tr></thead>
+  <tbody>${satirlar}</tbody>
+  <tfoot>
+    <tr class="tfoot">
+      <td colspan="2">TOPLAM</td>
+      <td style="text-align:right;color:#059669">+${topGiris} ${s.birim}</td>
+      <td colspan="2" style="text-align:right;color:#dc2626">-${topCikis} ${s.birim}</td>
+      <td colspan="2"></td>
+    </tr>
+    <tr class="tfoot">
+      <td colspan="2">NET</td>
+      <td colspan="5" style="color:${topGiris-topCikis>=0?'#059669':'#dc2626'};font-weight:700">
+        ${topGiris-topCikis>=0?'+':''}${topGiris-topCikis} ${s.birim}
+      </td>
+    </tr>
+  </tfoot>
+</table>`;
+  await api.invoke('print:pdf', content);
 }
 
 function openStokEkle() {
@@ -2584,6 +3170,63 @@ async function loadMaasOdemeleri() {
         `).join('')}
       </tbody>
     </table>`;
+}
+
+async function maasOdemeRaporPdf() {
+  const filter = {};
+  if (_secilenPersonel) filter.personel_id = _secilenPersonel.id;
+  const donemVal = document.getElementById('po-donem')?.value;
+  if (donemVal) filter.donem = donemVal;
+  const list = await api.invoke('maas:odemeleri:getir', filter);
+  if (!list.length) { alert('Gösterilecek ödeme yok.'); return; }
+
+  let topIQD = 0, topUSD = 0;
+  const satirlar = list.map((o, i) => {
+    if (o.para_birimi === 'USD') topUSD += o.net; else topIQD += o.net;
+    return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+      <td>${o.donem}</td>
+      <td><b>${o.personel_ad}${o.personel_soyad?' '+o.personel_soyad:''}</b>
+        ${o.pozisyon?`<div style="font-size:7px;color:#888">${o.pozisyon}</div>`:''}
+      </td>
+      <td>${fmtDate(o.tarih)}</td>
+      <td style="text-align:right">${fmtTutar(Math.round(o.brut))}</td>
+      <td style="text-align:right;color:#dc2626">${o.kesinti>0?'−'+fmtTutar(Math.round(o.kesinti)):'—'}</td>
+      <td style="text-align:right;font-weight:700;color:#059669">${fmtTutar(Math.round(o.net))}</td>
+      <td>${o.para_birimi}</td>
+      <td>${o.odeme_turu}</td>
+    </tr>`;
+  }).join('');
+  const baslik = _secilenPersonel
+    ? `${_secilenPersonel.ad}${_secilenPersonel.soyad?' '+_secilenPersonel.soyad:''} — Maaş Ödemeleri`
+    : 'TÜM MAAŞ ÖDEMELERİ';
+  const donemLabel = donemVal ? `Dönem: ${donemVal}` : 'Tüm Dönemler';
+
+  const content = `<style>
+@page{size:A4 portrait;margin:12mm}
+body{font-family:Arial,sans-serif;font-size:8.5px}
+h1{font-size:13px;margin-bottom:3px}
+.sub{color:#555;font-size:9px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th{background:#1a1a2e;color:#fff;text-align:left;padding:4px 7px;font-size:8px;text-transform:uppercase}
+td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
+.tfoot td{background:#f9fafb;font-weight:700;border-top:2px solid #9ca3af}
+</style>
+<h1>${baslik}</h1>
+<div class="sub">Albrus Company &mdash; ${donemLabel} &mdash; Toplam: ${list.length} ödeme &mdash; ${new Date().toLocaleDateString('tr-TR')}</div>
+<table>
+  <thead><tr>
+    <th>Dönem</th><th>Personel</th><th>Tarih</th>
+    <th style="text-align:right">Brüt</th><th style="text-align:right">Kesinti</th>
+    <th style="text-align:right">Net</th><th>P.B.</th><th>Yöntem</th>
+  </tr></thead>
+  <tbody>${satirlar}</tbody>
+  <tfoot><tr class="tfoot">
+    <td colspan="5">TOPLAM NET ÖDEME</td>
+    <td style="text-align:right;color:#059669">${topIQD>0?fmtTutar(Math.round(topIQD))+' IQD':''}</td>
+    <td colspan="2" style="text-align:right;color:#059669">${topUSD>0?fmtTutar(Math.round(topUSD))+' USD':''}</td>
+  </tr></tfoot>
+</table>`;
+  await api.invoke('print:pdf', content);
 }
 
 function clearPersonelFiltre() {
@@ -3531,6 +4174,54 @@ function secOrtak(id) {
   document.getElementById('btn-ortak-hareket').disabled = !_secilenOrtak;
 }
 
+async function ortakHareketRaporPdf() {
+  const filter = {};
+  if (_secilenOrtak) filter.ortak_id = _secilenOrtak.id;
+  const list = await api.invoke('ortak:hareketler:getir', filter);
+  if (!list.length) { alert('Gösterilecek hareket yok.'); return; }
+  const TUR_LABEL = { sermaye_girisi: '↑ Sermaye Girişi', cekim: '↓ Çekim', kar_dagilimi: '↓ Kâr Dağılımı' };
+  let topGiris = {}, topCikis = {};
+  const satirlar = list.map((h, i) => {
+    const pb = h.para_birimi;
+    const isGiris = h.tur === 'sermaye_girisi';
+    if (isGiris) topGiris[pb] = (topGiris[pb]||0) + h.tutar;
+    else         topCikis[pb] = (topCikis[pb]||0) + h.tutar;
+    return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
+      <td>${fmtDate(h.tarih)}</td>
+      <td style="color:${isGiris?'#059669':'#dc2626'}">${TUR_LABEL[h.tur]||h.tur}</td>
+      <td><b>${h.ortak_ad}${h.ortak_soyad?' '+h.ortak_soyad:''}</b></td>
+      <td style="text-align:right;font-weight:700;color:${isGiris?'#059669':'#dc2626'}">${isGiris?'+':'−'}${fmtTutar(Math.round(h.tutar))}</td>
+      <td>${pb}</td><td>${h.odeme_turu}</td><td style="font-size:7px;color:#888">${h.belge_no||''}</td>
+    </tr>`;
+  }).join('');
+  const baslik = _secilenOrtak
+    ? `${_secilenOrtak.ad}${_secilenOrtak.soyad?' '+_secilenOrtak.soyad:''} — Ortak Hareketleri`
+    : 'TÜM ORTAK HAREKETLERİ';
+  const content = `<style>
+@page{size:A4 portrait;margin:12mm}
+body{font-family:Arial,sans-serif;font-size:8.5px}
+h1{font-size:13px;margin-bottom:3px}
+.sub{color:#555;font-size:9px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th{background:#1a1a2e;color:#fff;text-align:left;padding:4px 7px;font-size:8px;text-transform:uppercase}
+td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
+.tfoot td{background:#f9fafb;font-weight:700;border-top:2px solid #9ca3af}
+</style>
+<h1>${baslik}</h1>
+<div class="sub">Albrus Company &mdash; Toplam: ${list.length} hareket &mdash; ${new Date().toLocaleDateString('tr-TR')}</div>
+<table>
+  <thead><tr><th>Tarih</th><th>Tür</th><th>Ortak</th>
+    <th style="text-align:right">Tutar</th><th>P.B.</th><th>Yöntem</th><th>Belge</th>
+  </tr></thead>
+  <tbody>${satirlar}</tbody>
+  <tfoot>
+    ${Object.entries(topGiris).map(([pb,t])=>`<tr class="tfoot"><td colspan="3">Toplam Giriş (${pb})</td><td style="text-align:right;color:#059669" colspan="4">${fmtTutar(Math.round(t))} ${pb}</td></tr>`).join('')}
+    ${Object.entries(topCikis).map(([pb,t])=>`<tr class="tfoot"><td colspan="3">Toplam Çıkış (${pb})</td><td style="text-align:right;color:#dc2626" colspan="4">${fmtTutar(Math.round(t))} ${pb}</td></tr>`).join('')}
+  </tfoot>
+</table>`;
+  await api.invoke('print:pdf', content);
+}
+
 async function loadOrtakHareketleri() {
   const filter = {};
   if (_secilenOrtak) filter.ortak_id = _secilenOrtak.id;
@@ -3704,6 +4395,36 @@ async function ortakHareketSil(id) {
   await api.invoke('ortak:hareket:sil', id);
   loadOrtaklar();
   loadOrtakHareketleri();
+}
+
+// ══════════════════════════════════════════════════
+// AYARLAR — Yedekleme / Geri Yükleme
+// ══════════════════════════════════════════════════
+async function loadAyarlar() {
+  try {
+    const konum = await api.invoke('db:konum');
+    document.getElementById('ayar-db-konum').textContent = 'Veritabanı konumu: ' + konum;
+  } catch (e) {}
+}
+
+async function dbYedekle() {
+  try {
+    const r = await api.invoke('db:yedekle');
+    if (r?.iptal) return;
+    if (r?.ok) alert('Yedek başarıyla kaydedildi:\n' + r.path);
+  } catch (e) { alert('Yedekleme hatası: ' + e.message); }
+}
+
+async function dbGeriYukle() {
+  if (!confirm('DİKKAT: Geri yükleme mevcut tüm verilerinizin yerine seçtiğiniz yedeği koyar.\n(Mevcut veriniz otomatik olarak ayrıca yedeklenir.)\n\nDevam edilsin mi?')) return;
+  try {
+    const r = await api.invoke('db:geri-yukle');
+    if (r?.iptal) return;
+    if (r?.ok) {
+      alert('Geri yükleme tamamlandı.\nÖnceki verileriniz şuraya yedeklendi:\n' + r.otomatikYedek + '\n\nUygulama yenileniyor.');
+      location.reload();
+    }
+  } catch (e) { alert('Geri yükleme hatası: ' + e.message); }
 }
 </script>
 </body>

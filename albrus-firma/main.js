@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -255,6 +255,7 @@ async function initDb() {
   try { db.run("ALTER TABLE personel_hareketleri ADD COLUMN ay INTEGER DEFAULT NULL"); } catch (_) {}
   try { db.run("ALTER TABLE personel_hareketleri ADD COLUMN gun INTEGER DEFAULT NULL"); } catch (_) {}
   try { db.run("ALTER TABLE puantaj ADD COLUMN mesai_saat REAL DEFAULT 0"); } catch (_) {}
+  try { db.run("ALTER TABLE faturalar ADD COLUMN belge_turu TEXT DEFAULT 'fatura'"); } catch (_) {}
 
   const katSayisi = getOne('SELECT COUNT(*) as n FROM kategoriler').n;
   if (katSayisi === 0) {
@@ -349,6 +350,25 @@ ipcMain.handle('kasa:hareketler', (_, kasa_id) =>
     ORDER BY kh.tarih DESC, kh.id DESC
   `, [kasa_id])
 );
+
+ipcMain.handle('kasa:rapor', (_, { bas, bit, kasa_id }) => {
+  const where = [];
+  const params = [];
+  if (bas)     { where.push('kh.tarih >= ?'); params.push(bas); }
+  if (bit)     { where.push('kh.tarih <= ?'); params.push(bit); }
+  if (kasa_id) { where.push('kh.kasa_id = ?'); params.push(kasa_id); }
+  const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  return getAll(`
+    SELECT kh.*, k.ad as kasa_ad, k.para_birimi,
+           c.ad as cari_ad, p.ad as proje_ad
+    FROM kasa_hareketleri kh
+    JOIN kasalar k ON k.id = kh.kasa_id
+    LEFT JOIN cariler c ON c.id = kh.cari_id
+    LEFT JOIN projeler p ON p.id = kh.proje_id
+    ${whereStr}
+    ORDER BY kh.kasa_id ASC, kh.tarih ASC, kh.id ASC
+  `, params);
+});
 
 const BANKA_TRANSFER_TUR = new Set(['bankaya-yatirilan', 'bankadan-cekilen']);
 
@@ -578,9 +598,13 @@ ipcMain.handle('projeler:ekle', (_, d) => {
 
 ipcMain.handle('sonraki:fatura:no', (_, tur) => {
   const prefix = tur === 'satis' ? 'SAT' : 'AL';
-  const row = getOne('SELECT COUNT(*) as n FROM faturalar WHERE tur = ?', [tur]);
-  const next = (row?.n ?? 0) + 1;
-  return prefix + '-' + String(next).padStart(4, '0');
+  const rows = getAll('SELECT fatura_no FROM faturalar WHERE tur = ?', [tur]);
+  let max = 0;
+  for (const r of rows) {
+    const m = /(\d+)\s*$/.exec(r.fatura_no || '');
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return prefix + '-' + String(max + 1).padStart(4, '0');
 });
 
 ipcMain.handle('faturalar:getir', (_, f) => {
@@ -591,7 +615,9 @@ ipcMain.handle('faturalar:getir', (_, f) => {
   `;
   const params = [];
   const conds = [];
-  if (f?.tur)     { conds.push('f.tur = ?');     params.push(f.tur); }
+  if (f?.tur === 'irsaliye') { conds.push("f.belge_turu = 'irsaliye'"); }
+  else if (f?.tur)           { conds.push('f.tur = ?'); params.push(f.tur); conds.push("(f.belge_turu IS NULL OR f.belge_turu = 'fatura')"); }
+  else                       { /* tümü */ }
   if (f?.cari_id) { conds.push('f.cari_id = ?'); params.push(f.cari_id); }
   if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
   sql += ' ORDER BY f.tarih DESC, f.id DESC';
@@ -616,29 +642,32 @@ ipcMain.handle('fatura:ekle', (_, d) => {
   const indirim = Math.abs(d.indirim ?? 0);
   const grandToplam = Math.max(0, toplam - indirim);
 
+  const belge_turu = d.belge_turu === 'irsaliye' ? 'irsaliye' : 'fatura';
+
   const fatura = insertAndGet('faturalar',
-    'INSERT INTO faturalar (fatura_no, tur, tarih, cari_id, para_birimi, toplam, indirim, aciklama, durum) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO faturalar (fatura_no, tur, tarih, cari_id, para_birimi, toplam, indirim, aciklama, durum, belge_turu) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [d.fatura_no, d.tur, d.tarih,
      d.cari_id ? Number(d.cari_id) : null,
-     d.para_birimi, toplam, indirim, d.aciklama ?? '', 'acik']
+     d.para_birimi, toplam, indirim, d.aciklama ?? '', 'acik', belge_turu]
   );
 
   for (const k of d.kalemler) {
     const kt = Math.round(k.miktar * k.birim_fiyat);
     run('INSERT INTO fatura_kalemleri (fatura_id, aciklama, birim, marka, miktar, birim_fiyat, toplam, stok_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [fatura.id, k.aciklama, k.birim ?? 'Adet', k.marka ?? '', k.miktar, k.birim_fiyat, kt, k.stok_id ?? null]);
-    if (d.tur === 'alis' && k.stok_id) {
+    if (k.stok_id) {
       const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [k.stok_id]);
       if (stok) {
-        const yeni = stok.mevcut_miktar + k.miktar;
+        const isGiris = d.tur === 'alis';
+        const yeni = isGiris ? stok.mevcut_miktar + k.miktar : stok.mevcut_miktar - k.miktar;
         run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [yeni, k.stok_id]);
         run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, fatura_id, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-          [k.stok_id, d.tarih, 'giris', k.miktar, stok.mevcut_miktar, yeni, fatura.id, d.fatura_no]);
+          [k.stok_id, d.tarih, isGiris ? 'giris' : 'cikis', k.miktar, stok.mevcut_miktar, yeni, fatura.id, d.fatura_no]);
       }
     }
   }
 
-  if (fatura.cari_id) {
+  if (fatura.cari_id && belge_turu !== 'irsaliye') {
     const cariTur = d.tur === 'satis' ? 'borc' : 'alacak';
     run('INSERT INTO cari_hareketleri (cari_id, tarih, tur, tutar, para_birimi, aciklama, belge_no, kaynak) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [fatura.cari_id, fatura.tarih, cariTur, grandToplam, fatura.para_birimi, fatura.aciklama, fatura.fatura_no, 'fatura']);
@@ -655,9 +684,10 @@ ipcMain.handle('fatura:ekle', (_, d) => {
 ipcMain.handle('fatura:guncelle', (_, id, d) => {
   const eski = getOne('SELECT * FROM faturalar WHERE id = ?', [id]);
   if (!eski) throw new Error('Fatura bulunamadı.');
+  const belge_turu = eski.belge_turu ?? 'fatura';
 
-  // Eski cari etkisini geri al
-  if (eski.cari_id) {
+  // Eski cari etkisini geri al (yalnızca fatura ise — irsaliye cariye işlememişti)
+  if (eski.cari_id && belge_turu !== 'irsaliye') {
     const eskiGrand = Math.max(0, eski.toplam - (eski.indirim ?? 0));
     const eskiCariTur = eski.tur === 'satis' ? 'borc' : 'alacak';
     const alan = eski.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
@@ -665,6 +695,23 @@ ipcMain.handle('fatura:guncelle', (_, id, d) => {
     const geriDelta = eskiCariTur === 'borc' ? -eskiGrand : eskiGrand;
     run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + geriDelta, eski.cari_id]);
     run('DELETE FROM cari_hareketleri WHERE belge_no = ? AND kaynak = ?', [eski.fatura_no, 'fatura']);
+  }
+
+  // Eski stok etkisini geri al
+  if (eski.tur === 'alis' || eski.tur === 'satis') {
+    const eskiKalemler = getAll('SELECT * FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
+    for (const k of eskiKalemler) {
+      if (k.stok_id) {
+        const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [k.stok_id]);
+        if (stok) {
+          const geri = eski.tur === 'alis'
+            ? stok.mevcut_miktar - k.miktar
+            : stok.mevcut_miktar + k.miktar;
+          run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [geri, k.stok_id]);
+        }
+      }
+    }
+    run('DELETE FROM stok_hareketleri WHERE fatura_id = ?', [id]);
   }
 
   const yeniToplam = d.kalemler.reduce((s, k) => s + Math.round(k.miktar * k.birim_fiyat), 0);
@@ -681,9 +728,20 @@ ipcMain.handle('fatura:guncelle', (_, id, d) => {
     const kt = Math.round(k.miktar * k.birim_fiyat);
     run('INSERT INTO fatura_kalemleri (fatura_id, aciklama, birim, marka, miktar, birim_fiyat, toplam, stok_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [id, k.aciklama, k.birim ?? 'Adet', k.marka ?? '', k.miktar, k.birim_fiyat, kt, k.stok_id ?? null]);
+    // Yeni stok etkisini uygula
+    if (k.stok_id && (d.tur === 'alis' || d.tur === 'satis')) {
+      const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [k.stok_id]);
+      if (stok) {
+        const giris = d.tur === 'alis';
+        const yeni = giris ? stok.mevcut_miktar + k.miktar : stok.mevcut_miktar - k.miktar;
+        run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [yeni, k.stok_id]);
+        run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, fatura_id, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [k.stok_id, d.tarih, giris ? 'giris' : 'cikis', k.miktar, stok.mevcut_miktar, yeni, id, d.fatura_no]);
+      }
+    }
   }
 
-  if (d.cari_id) {
+  if (d.cari_id && belge_turu !== 'irsaliye') {
     const cariTur = d.tur === 'satis' ? 'borc' : 'alacak';
     run('INSERT INTO cari_hareketleri (cari_id, tarih, tur, tutar, para_birimi, aciklama, belge_no, kaynak) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [Number(d.cari_id), d.tarih, cariTur, yeniGrand, d.para_birimi, d.aciklama, d.fatura_no, 'fatura']);
@@ -729,7 +787,13 @@ ipcMain.handle('stoklar:sil', (_, id) => {
 });
 
 ipcMain.handle('stok:hareketler', (_, stokId) =>
-  getAll('SELECT * FROM stok_hareketleri WHERE stok_id = ? ORDER BY tarih DESC, id DESC', [stokId])
+  getAll(`
+    SELECT sh.*, f.fatura_no
+    FROM stok_hareketleri sh
+    LEFT JOIN faturalar f ON f.id = sh.fatura_id
+    WHERE sh.stok_id = ?
+    ORDER BY sh.tarih DESC, sh.id DESC
+  `, [stokId])
 );
 
 ipcMain.handle('fatura:sil', (_, id) => {
@@ -746,12 +810,17 @@ ipcMain.handle('fatura:sil', (_, id) => {
     run("DELETE FROM cari_hareketleri WHERE belge_no=? AND kaynak='fatura'", [fatura.fatura_no]);
   }
 
-  if (fatura.tur === 'alis') {
+  if (fatura.tur === 'alis' || fatura.tur === 'satis') {
     const kalemler = getAll('SELECT * FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
     for (const k of kalemler) {
       if (k.stok_id) {
         const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [k.stok_id]);
-        if (stok) run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [stok.mevcut_miktar - k.miktar, k.stok_id]);
+        if (stok) {
+          const geri = fatura.tur === 'alis'
+            ? stok.mevcut_miktar - k.miktar
+            : stok.mevcut_miktar + k.miktar;
+          run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [geri, k.stok_id]);
+        }
       }
     }
     run('DELETE FROM stok_hareketleri WHERE fatura_id = ?', [id]);
@@ -759,6 +828,27 @@ ipcMain.handle('fatura:sil', (_, id) => {
 
   run('DELETE FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
   run('DELETE FROM faturalar WHERE id = ?', [id]);
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('fatura:faturalandir', (_, id) => {
+  const f = getOne('SELECT * FROM faturalar WHERE id = ?', [id]);
+  if (!f) throw new Error('Belge bulunamadı.');
+  if (f.belge_turu !== 'irsaliye') throw new Error('Zaten faturalandırılmış.');
+  if (!f.cari_id) throw new Error('Cari seçilmeden faturalandırılamaz — önce düzenleyin.');
+
+  run("UPDATE faturalar SET belge_turu = 'fatura' WHERE id = ?", [id]);
+
+  const grandToplam = Math.max(0, f.toplam - (f.indirim ?? 0));
+  const cariTur = f.tur === 'satis' ? 'borc' : 'alacak';
+  const alan = f.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
+  run('INSERT INTO cari_hareketleri (cari_id, tarih, tur, tutar, para_birimi, aciklama, belge_no, kaynak) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [f.cari_id, f.tarih, cariTur, grandToplam, f.para_birimi, f.aciklama, f.fatura_no, 'fatura']);
+  const cari = getOne('SELECT * FROM cariler WHERE id = ?', [f.cari_id]);
+  const delta = cariTur === 'borc' ? grandToplam : -grandToplam;
+  run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, f.cari_id]);
+
   saveDb();
   return true;
 });
@@ -1143,6 +1233,58 @@ ipcMain.handle('ortak:hareket:sil', (_, id) => {
 });
 
 // ════════════════════════════════════════════════════════════
+// YEDEKLEME / GERİ YÜKLEME
+// ════════════════════════════════════════════════════════════
+
+ipcMain.handle('db:konum', () => dbPath());
+
+ipcMain.handle('db:yedekle', async () => {
+  saveDb();
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Veritabanı Yedeği Kaydet',
+    defaultPath: `albrus-yedek-${stamp}.db`,
+    filters: [{ name: 'Albrus Yedek', extensions: ['db'] }]
+  });
+  if (canceled || !filePath) return { ok: false, iptal: true };
+  fs.copyFileSync(dbPath(), filePath);
+  return { ok: true, path: filePath };
+});
+
+ipcMain.handle('db:geri-yukle', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Yedek Dosyası Seç',
+    properties: ['openFile'],
+    filters: [{ name: 'Albrus Yedek', extensions: ['db'] }]
+  });
+  if (canceled || !filePaths?.length) return { ok: false, iptal: true };
+  const src = filePaths[0];
+
+  // Seçilen dosyayı doğrula — geçerli bir Albrus veritabanı mı?
+  let testDb;
+  try {
+    const buf = fs.readFileSync(src);
+    testDb = new SQL.Database(buf);
+    testDb.exec('SELECT COUNT(*) FROM kasalar');
+    testDb.exec('SELECT COUNT(*) FROM faturalar');
+  } catch (e) {
+    if (testDb) testDb.free();
+    throw new Error('Seçilen dosya geçerli bir Albrus yedeği değil.');
+  }
+
+  // Mevcut veritabanını geri yükleme öncesi otomatik yedekle
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const autoBak = path.join(app.getPath('userData'), `albrus-onceki-${stamp}.db`);
+  if (fs.existsSync(dbPath())) fs.copyFileSync(dbPath(), autoBak);
+
+  // Belleği ve dosyayı değiştir
+  db.close();
+  db = testDb;
+  saveDb();
+  return { ok: true, otomatikYedek: autoBak };
+});
+
+// ════════════════════════════════════════════════════════════
 // DASHBOARD
 // ════════════════════════════════════════════════════════════
 
@@ -1160,6 +1302,15 @@ ipcMain.handle('dashboard:ozet', () => {
   );
   const gelirMap = {}, giderMap = {};
   ayHar.forEach(r => {
+    if (isGiris(r.tur)) gelirMap[r.para_birimi] = (gelirMap[r.para_birimi] || 0) + r.toplam;
+    else                giderMap[r.para_birimi] = (giderMap[r.para_birimi] || 0) + r.toplam;
+  });
+
+  const ayHarBanka = getAll(
+    "SELECT bh.tur, b.para_birimi, SUM(bh.tutar) as toplam FROM banka_hareketleri bh JOIN banka_hesaplari b ON b.id = bh.hesap_id WHERE bh.tarih >= ? GROUP BY bh.tur, b.para_birimi",
+    [ayBasStr]
+  );
+  ayHarBanka.forEach(r => {
     if (isGiris(r.tur)) gelirMap[r.para_birimi] = (gelirMap[r.para_birimi] || 0) + r.toplam;
     else                giderMap[r.para_birimi] = (giderMap[r.para_birimi] || 0) + r.toplam;
   });
