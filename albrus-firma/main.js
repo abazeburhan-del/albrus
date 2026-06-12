@@ -274,6 +274,29 @@ async function initDb() {
   try { db.run("ALTER TABLE stoklar ADD COLUMN satis_fiyat REAL DEFAULT 0"); } catch (_) {}
   try { db.run("ALTER TABLE stoklar ADD COLUMN para_birimi TEXT DEFAULT 'USD'"); } catch (_) {}
   try { db.run("ALTER TABLE faturalar ADD COLUMN odenen REAL DEFAULT 0"); } catch (_) {}
+  try { db.run("ALTER TABLE faturalar ADD COLUMN vade TEXT DEFAULT ''"); } catch (_) {}
+  try { db.run("ALTER TABLE kasa_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
+  try { db.run("ALTER TABLE banka_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
+
+  // Çek / Senet
+  db.run(`
+    CREATE TABLE IF NOT EXISTS cek_senet (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tip TEXT NOT NULL DEFAULT 'cek',
+      yon TEXT NOT NULL DEFAULT 'alinan',
+      cari_id INTEGER,
+      tutar REAL NOT NULL DEFAULT 0,
+      para_birimi TEXT NOT NULL DEFAULT 'USD',
+      vade TEXT DEFAULT '',
+      tarih TEXT DEFAULT '',
+      banka TEXT DEFAULT '',
+      cek_no TEXT DEFAULT '',
+      durum TEXT DEFAULT 'portfoy',
+      hesap_tip TEXT DEFAULT '',
+      hesap_id INTEGER,
+      aciklama TEXT DEFAULT ''
+    );
+  `);
 
   const katSayisi = getOne('SELECT COUNT(*) as n FROM kategoriler').n;
   if (katSayisi === 0) {
@@ -397,10 +420,10 @@ ipcMain.handle('kasa:fis:ekle', (_, d) => {
   if (!d.tutar || d.tutar <= 0) throw new Error('Tutar sıfırdan büyük olmalıdır');
 
   const fis = insertAndGet('kasa_hareketleri',
-    'INSERT INTO kasa_hareketleri (kasa_id, tarih, tur, tutar, aciklama, belge_no, cari_id, proje_id, ortak_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO kasa_hareketleri (kasa_id, tarih, tur, tutar, aciklama, belge_no, cari_id, proje_id, ortak_id, kategori_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [Number(d.kasa_id), d.tarih, d.tur, Number(d.tutar), d.aciklama ?? '', d.belge_no ?? '',
      d.cari_id ? Number(d.cari_id) : null, d.proje_id ? Number(d.proje_id) : null,
-     d.ortak_id ? Number(d.ortak_id) : null]
+     d.ortak_id ? Number(d.ortak_id) : null, d.kategori_id ? Number(d.kategori_id) : null]
   );
 
   const yeniBakiye = kasa.bakiye + (isGiris(d.tur) ? fis.tutar : -fis.tutar);
@@ -578,10 +601,10 @@ ipcMain.handle('banka:fis:ekle', (_, d) => {
   if (!hesap) throw new Error('Banka hesabı bulunamadı');
   if (!d.tutar || d.tutar <= 0) throw new Error('Tutar sıfırdan büyük olmalıdır');
   const fis = insertAndGet('banka_hareketleri',
-    'INSERT INTO banka_hareketleri (hesap_id, tarih, tur, tutar, aciklama, belge_no, cari_id, proje_id, ortak_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO banka_hareketleri (hesap_id, tarih, tur, tutar, aciklama, belge_no, cari_id, proje_id, ortak_id, kategori_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [Number(d.hesap_id), d.tarih, d.tur, Number(d.tutar), d.aciklama ?? '', d.belge_no ?? '',
      d.cari_id ? Number(d.cari_id) : null, d.proje_id ? Number(d.proje_id) : null,
-     d.ortak_id ? Number(d.ortak_id) : null]
+     d.ortak_id ? Number(d.ortak_id) : null, d.kategori_id ? Number(d.kategori_id) : null]
   );
   const yeniBakiye = hesap.bakiye + (isGiris(d.tur) ? fis.tutar : -fis.tutar);
   run('UPDATE banka_hesaplari SET bakiye = ? WHERE id = ?', [yeniBakiye, hesap.id]);
@@ -757,10 +780,13 @@ ipcMain.handle('faturalar:getir', (_, f) => {
   `;
   const params = [];
   const conds = [];
-  if (f?.tur === 'irsaliye') { conds.push("f.belge_turu = 'irsaliye'"); }
-  else if (f?.tur)           { conds.push('f.tur = ?'); params.push(f.tur); conds.push("(f.belge_turu IS NULL OR f.belge_turu = 'fatura')"); }
-  else                       { /* tümü */ }
+  if (f?.tur === 'irsaliye')   { conds.push("f.belge_turu = 'irsaliye'"); }
+  else if (f?.tur === 'teklif'){ conds.push("f.belge_turu = 'teklif'"); }
+  else if (f?.tur)             { conds.push('f.tur = ?'); params.push(f.tur); conds.push("(f.belge_turu IS NULL OR f.belge_turu = 'fatura')"); }
+  else                         { conds.push("(f.belge_turu IS NULL OR f.belge_turu != 'teklif')"); }
   if (f?.cari_id) { conds.push('f.cari_id = ?'); params.push(f.cari_id); }
+  if (f?.bas)     { conds.push('f.tarih >= ?'); params.push(f.bas); }
+  if (f?.bit)     { conds.push('f.tarih <= ?'); params.push(f.bit); }
   if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
   sql += ' ORDER BY f.tarih DESC, f.id DESC';
   return getAll(sql, params);
@@ -784,20 +810,22 @@ ipcMain.handle('fatura:ekle', (_, d) => {
   const indirim = Math.abs(d.indirim ?? 0);
   const grandToplam = Math.max(0, toplam - indirim);
 
-  const belge_turu = d.belge_turu === 'irsaliye' ? 'irsaliye' : 'fatura';
+  const belge_turu = ['irsaliye', 'teklif'].includes(d.belge_turu) ? d.belge_turu : 'fatura';
+  const stokEtkiler = belge_turu !== 'teklif';   // teklif stoğa dokunmaz
+  const cariEtkiler = belge_turu === 'fatura';   // sadece fatura cariye işler
 
   const fatura = insertAndGet('faturalar',
-    'INSERT INTO faturalar (fatura_no, tur, tarih, cari_id, para_birimi, toplam, indirim, aciklama, durum, belge_turu) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO faturalar (fatura_no, tur, tarih, cari_id, para_birimi, toplam, indirim, aciklama, durum, belge_turu, vade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [d.fatura_no, d.tur, d.tarih,
      d.cari_id ? Number(d.cari_id) : null,
-     d.para_birimi, toplam, indirim, d.aciklama ?? '', 'acik', belge_turu]
+     d.para_birimi, toplam, indirim, d.aciklama ?? '', 'acik', belge_turu, d.vade ?? '']
   );
 
   for (const k of d.kalemler) {
     const kt = Math.round(k.miktar * k.birim_fiyat);
     run('INSERT INTO fatura_kalemleri (fatura_id, aciklama, birim, marka, miktar, birim_fiyat, toplam, stok_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [fatura.id, k.aciklama, k.birim ?? 'Adet', k.marka ?? '', k.miktar, k.birim_fiyat, kt, k.stok_id ?? null]);
-    if (k.stok_id) {
+    if (k.stok_id && stokEtkiler) {
       const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [k.stok_id]);
       if (stok) {
         const isGiris = d.tur === 'alis';
@@ -809,7 +837,7 @@ ipcMain.handle('fatura:ekle', (_, d) => {
     }
   }
 
-  if (fatura.cari_id && belge_turu !== 'irsaliye') {
+  if (fatura.cari_id && cariEtkiler) {
     const cariTur = d.tur === 'satis' ? 'borc' : 'alacak';
     run('INSERT INTO cari_hareketleri (cari_id, tarih, tur, tutar, para_birimi, aciklama, belge_no, kaynak) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [fatura.cari_id, fatura.tarih, cariTur, grandToplam, fatura.para_birimi, fatura.aciklama, fatura.fatura_no, 'fatura']);
@@ -860,10 +888,10 @@ ipcMain.handle('fatura:guncelle', (_, id, d) => {
   const yeniIndirim = Math.abs(d.indirim ?? 0);
   const yeniGrand = Math.max(0, yeniToplam - yeniIndirim);
 
-  run('UPDATE faturalar SET fatura_no=?, tur=?, tarih=?, cari_id=?, para_birimi=?, toplam=?, indirim=?, aciklama=? WHERE id=?',
+  run('UPDATE faturalar SET fatura_no=?, tur=?, tarih=?, cari_id=?, para_birimi=?, toplam=?, indirim=?, aciklama=?, vade=? WHERE id=?',
     [d.fatura_no, d.tur, d.tarih,
      d.cari_id ? Number(d.cari_id) : null,
-     d.para_birimi, yeniToplam, yeniIndirim, d.aciklama ?? '', id]);
+     d.para_birimi, yeniToplam, yeniIndirim, d.aciklama ?? '', d.vade ?? '', id]);
 
   run('DELETE FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
   for (const k of d.kalemler) {
@@ -1069,6 +1097,97 @@ ipcMain.handle('fatura:faturalandir', (_, id) => {
 
   saveDb();
   return true;
+});
+
+// Teklifi faturaya (veya irsaliyeye) dönüştür — stok + cari etkisini uygular
+ipcMain.handle('fatura:teklif:donustur', (_, id, hedef) => {
+  const f = getOne('SELECT * FROM faturalar WHERE id = ?', [id]);
+  if (!f) throw new Error('Belge bulunamadı.');
+  if (f.belge_turu !== 'teklif') throw new Error('Bu belge teklif değil.');
+  const yeniTur = hedef === 'irsaliye' ? 'irsaliye' : 'fatura';
+
+  run('UPDATE faturalar SET belge_turu = ? WHERE id = ?', [yeniTur, id]);
+
+  // Stok etkisi (her iki hedefte de uygulanır)
+  const kalemler = getAll('SELECT * FROM fatura_kalemleri WHERE fatura_id = ?', [id]);
+  for (const k of kalemler) {
+    if (k.stok_id) {
+      const stok = getOne('SELECT * FROM stoklar WHERE id = ?', [k.stok_id]);
+      if (stok) {
+        const giris = f.tur === 'alis';
+        const yeni = giris ? stok.mevcut_miktar + k.miktar : stok.mevcut_miktar - k.miktar;
+        run('UPDATE stoklar SET mevcut_miktar = ? WHERE id = ?', [yeni, k.stok_id]);
+        run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, fatura_id, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [k.stok_id, f.tarih, giris ? 'giris' : 'cikis', k.miktar, stok.mevcut_miktar, yeni, id, f.fatura_no]);
+      }
+    }
+  }
+
+  // Cari etkisi (sadece fatura hedefinde)
+  if (yeniTur === 'fatura' && f.cari_id) {
+    const grandToplam = Math.max(0, f.toplam - (f.indirim ?? 0));
+    const cariTur = f.tur === 'satis' ? 'borc' : 'alacak';
+    const alan = f.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
+    run('INSERT INTO cari_hareketleri (cari_id, tarih, tur, tutar, para_birimi, aciklama, belge_no, kaynak) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [f.cari_id, f.tarih, cariTur, grandToplam, f.para_birimi, f.aciklama, f.fatura_no, 'fatura']);
+    const cari = getOne('SELECT * FROM cariler WHERE id = ?', [f.cari_id]);
+    const delta = cariTur === 'borc' ? grandToplam : -grandToplam;
+    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, f.cari_id]);
+  }
+
+  saveDb();
+  return true;
+});
+
+// Vade/yaşlandırma raporu — açık (ödenmemiş) faturalar, vade gününe göre kovalar
+ipcMain.handle('rapor:yaslandirma', () => {
+  const bugun = new Date(); bugun.setHours(0,0,0,0);
+  const faturalar = getAll(`
+    SELECT f.*, c.ad as cari_ad FROM faturalar f LEFT JOIN cariler c ON c.id = f.cari_id
+    WHERE (f.belge_turu IS NULL OR f.belge_turu = 'fatura') AND f.cari_id IS NOT NULL
+      AND (COALESCE(f.odenen,0) < (f.toplam - COALESCE(f.indirim,0)) - 0.001)
+    ORDER BY f.vade ASC, f.tarih ASC`);
+  return faturalar.map(f => {
+    const kalan = Math.max(0, f.toplam - (f.indirim || 0) - (f.odenen || 0));
+    let gecikme = null;
+    const vadeStr = f.vade || '';
+    if (vadeStr) {
+      const v = new Date(vadeStr); v.setHours(0,0,0,0);
+      gecikme = Math.round((bugun - v) / 86400000); // pozitif = gün gecikmiş
+    }
+    let kova = 'vadesiz';
+    if (gecikme !== null) {
+      if (gecikme < 0)        kova = 'gelecek';
+      else if (gecikme <= 30) kova = '0-30';
+      else if (gecikme <= 60) kova = '30-60';
+      else                    kova = '60+';
+    }
+    return { id: f.id, fatura_no: f.fatura_no, tur: f.tur, cari_ad: f.cari_ad,
+             para_birimi: f.para_birimi, tarih: f.tarih, vade: vadeStr, kalan, gecikme, kova };
+  });
+});
+
+// Kategori bazlı gelir/gider raporu (kasa + banka hareketleri)
+ipcMain.handle('rapor:kategori', (_, { bas, bit }) => {
+  const where = [], params = [];
+  if (bas) { where.push('h.tarih >= ?'); params.push(bas); }
+  if (bit) { where.push('h.tarih <= ?'); params.push(bit); }
+  const ws = where.length ? 'AND ' + where.join(' AND ') : '';
+  const rows = getAll(`
+    SELECT k.ad as kategori, k.tur as kat_tur, h.tur as hareket_tur, h.pb as para_birimi, SUM(h.tutar) as toplam, COUNT(*) as adet
+    FROM (
+      SELECT kh.kategori_id as kategori_id, kh.tur as tur, kh.tutar as tutar, ka.para_birimi as pb, kh.tarih as tarih
+      FROM kasa_hareketleri kh JOIN kasalar ka ON ka.id = kh.kasa_id WHERE kh.kategori_id IS NOT NULL
+      UNION ALL
+      SELECT bh.kategori_id as kategori_id, bh.tur as tur, bh.tutar as tutar, b.para_birimi as pb, bh.tarih as tarih
+      FROM banka_hareketleri bh JOIN banka_hesaplari b ON b.id = bh.hesap_id WHERE bh.kategori_id IS NOT NULL
+    ) h
+    JOIN kategoriler k ON k.id = h.kategori_id
+    WHERE 1=1 ${ws}
+    GROUP BY k.id, h.pb
+    ORDER BY k.tur, k.ad
+  `, params);
+  return rows;
 });
 
 // Faturaya tahsilat/ödeme — kasa/banka fişi oluşturur, cari bakiyesini günceller, fatura durumunu işler
@@ -1646,6 +1765,103 @@ ipcMain.handle('db:geri-yukle', async () => {
   db = testDb;
   saveDb();
   return { ok: true, otomatikYedek: autoBak };
+});
+
+// ════════════════════════════════════════════════════════════
+// ÇEK / SENET
+// ════════════════════════════════════════════════════════════
+
+ipcMain.handle('cek:getir', (_, f) => {
+  const conds = [], params = [];
+  if (f?.yon)   { conds.push('cs.yon = ?');   params.push(f.yon); }
+  if (f?.durum) { conds.push('cs.durum = ?'); params.push(f.durum); }
+  const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+  return getAll(`
+    SELECT cs.*, c.ad as cari_ad
+    FROM cek_senet cs
+    LEFT JOIN cariler c ON c.id = cs.cari_id
+    ${where}
+    ORDER BY cs.vade ASC, cs.id DESC
+  `, params);
+});
+
+ipcMain.handle('cek:ekle', (_, d) => {
+  const r = insertAndGet('cek_senet',
+    `INSERT INTO cek_senet (tip, yon, cari_id, tutar, para_birimi, vade, tarih, banka, cek_no, durum, aciklama)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'portfoy', ?)`,
+    [d.tip || 'cek', d.yon || 'alinan', d.cari_id ? Number(d.cari_id) : null,
+     Number(d.tutar) || 0, d.para_birimi || 'USD', d.vade || '', d.tarih || '',
+     d.banka || '', d.cek_no || '', d.aciklama || '']);
+  saveDb();
+  return r;
+});
+
+ipcMain.handle('cek:sil', (_, id) => {
+  const cs = getOne('SELECT * FROM cek_senet WHERE id = ?', [id]);
+  if (!cs) return false;
+  // Tahsil/ödeme yapılmışsa önce hesap hareketini geri al
+  if ((cs.durum === 'tahsil' || cs.durum === 'odendi') && cs.hesap_id) cekHareketGeriAl(cs);
+  run('DELETE FROM cek_senet WHERE id = ?', [id]);
+  saveDb();
+  return true;
+});
+
+function cekHareketGeriAl(cs) {
+  const belge = `CEK-${cs.id}`;
+  if (cs.hesap_tip === 'banka') {
+    const h = getOne('SELECT * FROM banka_hareketleri WHERE belge_no = ? ORDER BY id DESC LIMIT 1', [belge]);
+    if (h) {
+      const hesap = getOne('SELECT * FROM banka_hesaplari WHERE id = ?', [h.hesap_id]);
+      if (hesap) run('UPDATE banka_hesaplari SET bakiye = ? WHERE id = ?', [hesap.bakiye + (h.tur === 'giris' ? -h.tutar : h.tutar), hesap.id]);
+      run('DELETE FROM banka_hareketleri WHERE id = ?', [h.id]);
+    }
+  } else {
+    const h = getOne('SELECT * FROM kasa_hareketleri WHERE belge_no = ? ORDER BY id DESC LIMIT 1', [belge]);
+    if (h) {
+      const kasa = getOne('SELECT * FROM kasalar WHERE id = ?', [h.kasa_id]);
+      if (kasa) run('UPDATE kasalar SET bakiye = ? WHERE id = ?', [kasa.bakiye + (isGiris(h.tur) ? -h.tutar : h.tutar), kasa.id]);
+      run('DELETE FROM kasa_hareketleri WHERE id = ?', [h.id]);
+    }
+  }
+}
+
+// Çek/Senet durum değiştir. tahsil/odendi → kasa/banka hareketi; geri alınırsa hareket iptal
+ipcMain.handle('cek:durum', (_, d) => {
+  const cs = getOne('SELECT * FROM cek_senet WHERE id = ?', [d.id]);
+  if (!cs) throw new Error('Kayıt bulunamadı.');
+  const yeni = d.durum;
+  const paraliEski = (cs.durum === 'tahsil' || cs.durum === 'odendi') && cs.hesap_id;
+  const paraliYeni = (yeni === 'tahsil' || yeni === 'odendi');
+
+  // Eski para hareketini geri al
+  if (paraliEski) cekHareketGeriAl(cs);
+
+  if (paraliYeni) {
+    if (!d.hesap_id) throw new Error('Tahsil/ödeme için kasa veya banka seçin.');
+    const belge = `CEK-${cs.id}`;
+    const tarih = d.tarih || new Date().toISOString().split('T')[0];
+    const giris = cs.yon === 'alinan'; // alınan çek tahsil → giriş, verilen çek ödendi → çıkış
+    const ack = `${cs.tip === 'senet' ? 'Senet' : 'Çek'} ${giris ? 'tahsili' : 'ödemesi'} — ${cs.cek_no || ''}`.trim();
+    if (d.hesap_tip === 'banka') {
+      const hesap = getOne('SELECT * FROM banka_hesaplari WHERE id = ?', [Number(d.hesap_id)]);
+      if (!hesap) throw new Error('Banka hesabı bulunamadı.');
+      run('INSERT INTO banka_hareketleri (hesap_id, tarih, tur, tutar, aciklama, belge_no, cari_id) VALUES (?,?,?,?,?,?,?)',
+        [hesap.id, tarih, giris ? 'giris' : 'cikis', cs.tutar, ack, belge, cs.cari_id]);
+      run('UPDATE banka_hesaplari SET bakiye = ? WHERE id = ?', [hesap.bakiye + (giris ? cs.tutar : -cs.tutar), hesap.id]);
+    } else {
+      const kasa = getOne('SELECT * FROM kasalar WHERE id = ?', [Number(d.hesap_id)]);
+      if (!kasa) throw new Error('Kasa bulunamadı.');
+      run('INSERT INTO kasa_hareketleri (kasa_id, tarih, tur, tutar, aciklama, belge_no, cari_id) VALUES (?,?,?,?,?,?,?)',
+        [kasa.id, tarih, giris ? 'tahsilat' : 'odeme', cs.tutar, ack, belge, cs.cari_id]);
+      run('UPDATE kasalar SET bakiye = ? WHERE id = ?', [kasa.bakiye + (giris ? cs.tutar : -cs.tutar), kasa.id]);
+    }
+    run('UPDATE cek_senet SET durum = ?, hesap_tip = ?, hesap_id = ? WHERE id = ?',
+      [yeni, d.hesap_tip || 'kasa', Number(d.hesap_id), cs.id]);
+  } else {
+    run('UPDATE cek_senet SET durum = ?, hesap_tip = ?, hesap_id = NULL WHERE id = ?', [yeni, '', cs.id]);
+  }
+  saveDb();
+  return true;
 });
 
 // ════════════════════════════════════════════════════════════
