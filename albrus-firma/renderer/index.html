@@ -270,6 +270,14 @@
       Çek / Senet
     </div>
 
+    <div class="nav-item" data-page="hakedis" onclick="goPage('hakedis')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 2h6l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>
+        <path d="M9 7h6M9 11h6M9 15h4"/>
+      </svg>
+      Hakediş
+    </div>
+
     <div class="nav-item" data-page="ayarlar" onclick="goPage('ayarlar')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="3"/>
@@ -515,6 +523,29 @@
       <input type="text" placeholder="🔍 Ara" oninput="filtreTablo(this.value,'cek-wrap')" style="flex:1;min-width:140px">
     </div>
     <div class="table-wrap" id="cek-wrap"></div>
+  </div>
+
+  <!-- ── HAKEDİŞ ── -->
+  <div id="pg-hakedis" class="page">
+    <div class="sec-header">
+      <div class="page-title" style="margin:0">Hakediş</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="hk-proje" onchange="loadHakedisProje()" style="min-width:200px"></select>
+        <button class="btn btn-ghost" onclick="openPozEkle()">+ Poz (Keşif)</button>
+        <button class="btn btn-primary" onclick="openHakedisEkle()">+ Yeni Hakediş</button>
+      </div>
+    </div>
+    <div id="hk-bos" class="empty" style="display:none">Önce bir proje seçin. Proje yoksa Projeler bölümünden ekleyin.</div>
+
+    <div class="table-wrap" style="margin-bottom:18px">
+      <div class="table-head"><div class="table-head-title">Poz / Keşif Listesi (BOQ)</div></div>
+      <div id="hk-pozlar-wrap"></div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-head"><div class="table-head-title">Hakedişler</div></div>
+      <div id="hk-liste-wrap"></div>
+    </div>
   </div>
 
   <!-- ── AYARLAR ── -->
@@ -1144,6 +1175,74 @@
   </div>
 </div>
 
+<!-- Hakediş Poz Ekle/Düzenle -->
+<div class="overlay" id="m-poz">
+  <div class="modal">
+    <div class="modal-title" id="m-poz-title">Poz Ekle</div>
+    <input type="hidden" id="poz-id">
+    <div class="row2">
+      <div class="fg"><label>Grup (örn: A. Paratoner Sistemi)</label><input type="text" id="poz-grup" placeholder="(opsiyonel)"></div>
+      <div class="fg"><label>Poz No</label><input type="text" id="poz-no" placeholder="1.1"></div>
+    </div>
+    <div class="fg"><label>İş Tanımı / Activity</label><input type="text" id="poz-tanim"></div>
+    <div class="row3">
+      <div class="fg"><label>Birim</label><input type="text" id="poz-birim" placeholder="m, pcs, m²…"></div>
+      <div class="fg"><label>Keşif Miktarı</label><input type="text" id="poz-kesif" inputmode="decimal" placeholder="0"></div>
+      <div class="fg"><label>—</label><div style="font-size:11px;color:var(--dim);padding-top:10px">A × B = Keşif Tutarı</div></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>Birim Fiyat — İşçilik</label><input type="text" id="poz-bf-isc" inputmode="decimal" placeholder="0"></div>
+      <div class="fg"><label>Birim Fiyat — Malzeme</label><input type="text" id="poz-bf-mlz" inputmode="decimal" placeholder="0"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-poz')">İptal</button>
+      <button class="btn btn-primary" onclick="savePoz()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Yeni Hakediş Başlık -->
+<div class="overlay" id="m-hakedis-ekle">
+  <div class="modal">
+    <div class="modal-title">Yeni Hakediş</div>
+    <div class="row2">
+      <div class="fg"><label>Tarih</label><input type="text" id="hke-tarih" maxlength="10" oninput="onTarihInput(this)"></div>
+      <div class="fg"><label>Para Birimi</label><select id="hke-pb"><option value="USD">USD</option><option value="IQD">IQD</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>Taşeron / Subcontractor</label><input type="text" id="hke-taseron"></div>
+      <div class="fg"><label>İşveren / Employer</label><input type="text" id="hke-isveren"></div>
+    </div>
+    <div class="fg"><label>İş Tanımı / Scope</label><input type="text" id="hke-istanimi"></div>
+    <div class="row2">
+      <div class="fg"><label>İş Yeri / Location</label><input type="text" id="hke-isyeri"></div>
+      <div class="fg"><label>Sözleşme No</label><input type="text" id="hke-sozno"></div>
+    </div>
+    <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Hakediş no otomatik verilir (önceki + 1). Metraj ve kesintiler kaydettikten sonra girilir.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-hakedis-ekle')">İptal</button>
+      <button class="btn btn-primary" onclick="saveHakedisEkle()">Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hakediş Editör -->
+<div class="overlay" id="m-hakedis">
+  <div class="modal" style="max-width:1100px;width:96vw">
+    <div class="modal-title" id="m-hakedis-title">Hakediş</div>
+    <input type="hidden" id="hk-edit-id">
+    <div style="max-height:74vh;overflow-y:auto">
+      <div id="hk-edit-icerik"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-hakedis')">Kapat</button>
+      <button class="btn btn-ghost" onclick="hakedisPdf()">PDF</button>
+      <button class="btn btn-ghost" onclick="hakedisExcel()">Excel</button>
+      <button class="btn btn-primary" onclick="saveHakedis()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
 <!-- Personel Ekle/Düzenle Modal -->
 <div class="overlay" id="m-personel">
   <div class="modal">
@@ -1552,6 +1651,7 @@ const pageLoaders = {
   personel:  loadPersonel,
   ortaklar:  loadOrtaklar,
   cek:       loadCek,
+  hakedis:   loadHakedis,
   ayarlar:   loadAyarlar
 };
 
@@ -5667,6 +5767,422 @@ async function ortakHareketSil(id) {
   await api.invoke('ortak:hareket:sil', id);
   loadOrtaklar();
   loadOrtakHareketleri();
+}
+
+// ══════════════════════════════════════════════════
+// HAKEDİŞ
+// ══════════════════════════════════════════════════
+let _hkProjeId = null;
+let _hkPozlar = [];
+let _hkEditCalc = null;
+const num = (v) => parseFloat(String(v ?? '').replace(/\./g,'').replace(',','.')) || 0;
+const num2 = (v) => parseFloat(String(v ?? '').replace(',','.')) || 0; // ondalık serbest
+function hkFmt(n, pb) { return fmt(Math.round((n||0)*100)/100, pb || (_hkEditCalc?.hakedis?.para_birimi) || 'USD'); }
+
+async function loadHakedis() {
+  const projeler = await api.invoke('projeler:getir');
+  const sel = document.getElementById('hk-proje');
+  const onceki = _hkProjeId;
+  sel.innerHTML = projeler.length
+    ? projeler.map(p => `<option value="${p.id}">${p.ad}</option>`).join('')
+    : '<option value="">— Proje yok —</option>';
+  if (!projeler.length) {
+    _hkProjeId = null;
+    document.getElementById('hk-bos').style.display = 'block';
+    document.getElementById('hk-pozlar-wrap').innerHTML = '';
+    document.getElementById('hk-liste-wrap').innerHTML = '';
+    return;
+  }
+  document.getElementById('hk-bos').style.display = 'none';
+  _hkProjeId = (onceki && projeler.some(p=>p.id===onceki)) ? onceki : projeler[0].id;
+  sel.value = _hkProjeId;
+  await loadHakedisProje();
+}
+
+async function loadHakedisProje() {
+  _hkProjeId = Number(document.getElementById('hk-proje').value);
+  if (!_hkProjeId) return;
+  _hkPozlar = await api.invoke('hakedis:pozlar:getir', _hkProjeId);
+  const pw = document.getElementById('hk-pozlar-wrap');
+  if (!_hkPozlar.length) {
+    pw.innerHTML = '<div class="empty">Poz yok — "+ Poz (Keşif)" ile iş kalemlerini ekleyin.</div>';
+  } else {
+    pw.innerHTML = `
+      <table><thead><tr>
+        <th>Grup</th><th>Poz</th><th>Tanım</th><th>Birim</th>
+        <th style="text-align:right">Keşif</th><th style="text-align:right">BF İşçilik</th><th style="text-align:right">BF Malzeme</th><th></th>
+      </tr></thead><tbody>
+        ${_hkPozlar.map(p => `<tr>
+          <td style="font-size:11px;color:var(--dim)">${p.grup||'—'}</td>
+          <td>${p.poz_no||'—'}</td>
+          <td>${p.tanim}</td>
+          <td>${p.birim}</td>
+          <td style="text-align:right">${p.kesif_miktar}</td>
+          <td style="text-align:right">${fmtTutar(Math.round(p.bf_iscilik))}</td>
+          <td style="text-align:right">${fmtTutar(Math.round(p.bf_malzeme))}</td>
+          <td style="display:flex;gap:4px"><button class="btn-link btn-sm" onclick="openPozDuzenle(${p.id})">Düzenle</button><button class="btn-del" onclick="pozSil(${p.id})">✕</button></td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  }
+
+  const list = await api.invoke('hakedisler:getir', _hkProjeId);
+  const lw = document.getElementById('hk-liste-wrap');
+  if (!list.length) { lw.innerHTML = '<div class="empty">Bu projede hakediş yok — "+ Yeni Hakediş" ile başlayın.</div>'; return; }
+  lw.innerHTML = `
+    <table><thead><tr>
+      <th>No</th><th>Tarih</th><th>Taşeron</th><th style="text-align:right">Bu Dönem İşçilik</th><th style="text-align:right">Bu Dönem Malzeme</th><th style="text-align:right">Net (Bu Hakediş)</th><th>Durum</th><th></th>
+    </tr></thead><tbody>
+      ${list.map(h => `<tr>
+        <td><b>${h.hakedis_no}</b></td>
+        <td>${fmtDate(h.tarih)}</td>
+        <td>${h.taseron||'—'}</td>
+        <td style="text-align:right">${hkFmt(h.ozet?.iscBu, h.para_birimi)}</td>
+        <td style="text-align:right">${hkFmt(h.ozet?.mlzBu, h.para_birimi)}</td>
+        <td style="text-align:right;font-weight:700">${hkFmt(h.ozet?.netToplamBu, h.para_birimi)}</td>
+        <td><span class="badge ${h.durum==='onayli'?'b-giris':'b-diger'}">${h.durum==='onayli'?'Onaylı':'Taslak'}</span></td>
+        <td style="display:flex;gap:4px"><button class="btn-link btn-sm" onclick="openHakedis(${h.id})">Aç / Düzenle</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+// — Poz CRUD —
+function openPozEkle() {
+  if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
+  document.getElementById('m-poz-title').textContent = 'Poz Ekle';
+  ['poz-id','poz-grup','poz-no','poz-tanim','poz-birim','poz-kesif','poz-bf-isc','poz-bf-mlz'].forEach(id=>document.getElementById(id).value='');
+  openModal('m-poz');
+  setTimeout(()=>document.getElementById('poz-tanim').focus(),80);
+}
+function openPozDuzenle(id) {
+  const p = _hkPozlar.find(x=>x.id===id); if (!p) return;
+  document.getElementById('m-poz-title').textContent = 'Poz Düzenle';
+  document.getElementById('poz-id').value = p.id;
+  document.getElementById('poz-grup').value = p.grup||'';
+  document.getElementById('poz-no').value = p.poz_no||'';
+  document.getElementById('poz-tanim').value = p.tanim;
+  document.getElementById('poz-birim').value = p.birim;
+  document.getElementById('poz-kesif').value = p.kesif_miktar;
+  document.getElementById('poz-bf-isc').value = p.bf_iscilik;
+  document.getElementById('poz-bf-mlz').value = p.bf_malzeme;
+  openModal('m-poz');
+}
+async function savePoz() {
+  const tanim = document.getElementById('poz-tanim').value.trim();
+  if (!tanim) { alert('İş tanımı zorunludur.'); return; }
+  const d = {
+    proje_id: _hkProjeId,
+    grup: document.getElementById('poz-grup').value.trim(),
+    poz_no: document.getElementById('poz-no').value.trim(),
+    tanim,
+    birim: document.getElementById('poz-birim').value.trim() || 'Adet',
+    kesif_miktar: num2(document.getElementById('poz-kesif').value),
+    bf_iscilik: num2(document.getElementById('poz-bf-isc').value),
+    bf_malzeme: num2(document.getElementById('poz-bf-mlz').value),
+  };
+  const id = document.getElementById('poz-id').value;
+  if (id) await api.invoke('hakedis:poz:guncelle', Number(id), d);
+  else    await api.invoke('hakedis:poz:ekle', d);
+  closeModal('m-poz');
+  loadHakedisProje();
+}
+async function pozSil(id) {
+  if (!confirm('Bu pozu silmek istiyor musunuz? İlgili hakediş satırları da silinir.')) return;
+  await api.invoke('hakedis:poz:sil', id);
+  loadHakedisProje();
+}
+
+// — Hakediş başlık —
+function openHakedisEkle() {
+  if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
+  if (!_hkPozlar.length) { alert('Önce poz/keşif listesi ekleyin.'); return; }
+  document.getElementById('hke-tarih').value = today();
+  document.getElementById('hke-pb').value = 'USD';
+  ['hke-taseron','hke-isveren','hke-istanimi','hke-isyeri','hke-sozno'].forEach(id=>document.getElementById(id).value='');
+  openModal('m-hakedis-ekle');
+}
+async function saveHakedisEkle() {
+  const d = {
+    proje_id: _hkProjeId,
+    tarih: document.getElementById('hke-tarih').value.trim(),
+    para_birimi: document.getElementById('hke-pb').value,
+    taseron: document.getElementById('hke-taseron').value.trim(),
+    isveren: document.getElementById('hke-isveren').value.trim(),
+    is_tanimi: document.getElementById('hke-istanimi').value.trim(),
+    is_yeri: document.getElementById('hke-isyeri').value.trim(),
+    sozlesme_no: document.getElementById('hke-sozno').value.trim(),
+  };
+  const r = await api.invoke('hakedis:ekle', d);
+  closeModal('m-hakedis-ekle');
+  await loadHakedisProje();
+  openHakedis(r.id);
+}
+async function hakedisSil(id) {
+  if (!confirm('Bu hakedişi silmek istiyor musunuz?')) return;
+  await api.invoke('hakedis:sil', id);
+  loadHakedisProje();
+}
+
+// — Hakediş editör —
+async function openHakedis(id) {
+  const calc = await api.invoke('hakedis:getir', id);
+  if (!calc) return;
+  _hkEditCalc = calc;
+  const h = calc.hakedis;
+  document.getElementById('hk-edit-id').value = id;
+  document.getElementById('m-hakedis-title').textContent = `Hakediş No ${h.hakedis_no}`;
+  renderHakedisEditor(calc);
+  openModal('m-hakedis');
+}
+
+function renderHakedisEditor(calc) {
+  const h = calc.hakedis;
+  const pb = h.para_birimi;
+  const inp = (id,val,w=90) => `<input id="${id}" value="${val??''}" inputmode="decimal" style="width:${w}px;text-align:right;padding:4px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text)">`;
+  const rows = calc.rows.map((r,i) => `
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:4px 6px;font-size:11px;color:var(--dim)">${r.poz.poz_no||''}</td>
+      <td style="padding:4px 6px;font-size:12px">${r.poz.tanim}<div style="font-size:10px;color:var(--dim)">${r.poz.birim} · keşif ${r.poz.kesif_miktar} · BF İ:${fmtTutar(Math.round(r.poz.bf_iscilik))} M:${fmtTutar(Math.round(r.poz.bf_malzeme))}</div></td>
+      <td style="padding:4px 6px;text-align:right;font-size:11px;color:var(--dim)">${r.E}</td>
+      <td style="padding:4px 6px">${inp('hkr-isc-'+i, r.D)}</td>
+      <td style="padding:4px 6px;text-align:right;font-size:11px" id="hkr-iscbu-${i}">${(r.D - r.E).toFixed(2)}</td>
+      <td style="padding:4px 6px;text-align:right;font-size:11px" id="hkr-isctut-${i}">${hkFmt(r.I, pb)}</td>
+      <td style="padding:4px 6px;text-align:right;font-size:11px;color:var(--dim)">${r.E2}</td>
+      <td style="padding:4px 6px">${inp('hkr-mlz-'+i, r.D2)}</td>
+      <td style="padding:4px 6px;text-align:right;font-size:11px" id="hkr-mlztut-${i}">${hkFmt(r.I2, pb)}</td>
+    </tr>`).join('');
+
+  const t = calc.toplam;
+  document.getElementById('hk-edit-icerik').innerHTML = `
+    <div class="row3" style="margin-bottom:10px">
+      <div class="fg"><label>Tarih</label><input id="hkb-tarih" value="${h.tarih||''}" maxlength="10" oninput="onTarihInput(this)"></div>
+      <div class="fg"><label>Taşeron</label><input id="hkb-taseron" value="${h.taseron||''}"></div>
+      <div class="fg"><label>İşveren</label><input id="hkb-isveren" value="${h.isveren||''}"></div>
+    </div>
+    <div class="row3" style="margin-bottom:10px">
+      <div class="fg"><label>İş Tanımı</label><input id="hkb-istanimi" value="${h.is_tanimi||''}"></div>
+      <div class="fg"><label>İş Yeri</label><input id="hkb-isyeri" value="${h.is_yeri||''}"></div>
+      <div class="fg"><label>Sözleşme No</label><input id="hkb-sozno" value="${h.sozlesme_no||''}"></div>
+    </div>
+
+    <div style="font-size:12px;color:var(--dim);margin:10px 0 4px;font-weight:600">İmalat İcmali — "Toplam (bugüne kadar) miktar" girin; bu dönem ve tutarlar otomatik</div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:rgba(0,0,0,.04)">
+        <th style="padding:5px 6px;text-align:left">Poz</th><th style="padding:5px 6px;text-align:left">Tanım</th>
+        <th style="padding:5px 6px;text-align:right">Önceki İşç.</th><th style="padding:5px 6px;text-align:right">Toplam İşç.</th>
+        <th style="padding:5px 6px;text-align:right">Bu Dönem</th><th style="padding:5px 6px;text-align:right">İşç. Tutar</th>
+        <th style="padding:5px 6px;text-align:right">Önceki Mlz.</th><th style="padding:5px 6px;text-align:right">Toplam Mlz.</th><th style="padding:5px 6px;text-align:right">Mlz. Tutar</th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="9" style="padding:10px;color:var(--dim)">Poz yok</td></tr>'}</tbody>
+    </table>
+    </div>
+
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:16px">
+      <div style="flex:1;min-width:280px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px">İşçilik Kesintileri (bu dönem)</div>
+        <div class="row3">
+          <div class="fg"><label>Avans Mahsubu</label><input id="hkb-avans" value="${h.avans_kesinti||''}" inputmode="decimal"></div>
+          <div class="fg"><label>Teminat</label><input id="hkb-teminat" value="${h.teminat_kesinti||''}" inputmode="decimal"></div>
+          <div class="fg"><label>Diğer</label><input id="hkb-diger" value="${h.diger_kesinti||''}" inputmode="decimal"></div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px">Malzeme Kesintileri (bu dönem)</div>
+        <div class="row2">
+          <div class="fg"><label>Avans Mahsubu</label><input id="hkb-mlz-avans" value="${h.mlz_avans_kesinti||''}" inputmode="decimal"></div>
+          <div class="fg"><label>Teminat</label><input id="hkb-mlz-teminat" value="${h.mlz_teminat_kesinti||''}" inputmode="decimal"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="hk-ozet-kutu" style="margin-top:14px"></div>
+  `;
+  // canlı hesap için input dinleyicileri
+  calc.rows.forEach((r,i) => {
+    document.getElementById('hkr-isc-'+i)?.addEventListener('input', hakedisCanliHesap);
+    document.getElementById('hkr-mlz-'+i)?.addEventListener('input', hakedisCanliHesap);
+  });
+  ['hkb-avans','hkb-teminat','hkb-diger','hkb-mlz-avans','hkb-mlz-teminat'].forEach(id =>
+    document.getElementById(id)?.addEventListener('input', hakedisCanliHesap));
+  hakedisCanliHesap();
+}
+
+function hakedisCanliHesap() {
+  const calc = _hkEditCalc; if (!calc) return;
+  const pb = calc.hakedis.para_birimi;
+  let iscI=0, mlzI=0;
+  calc.rows.forEach((r,i) => {
+    const D = num2(document.getElementById('hkr-isc-'+i)?.value);
+    const D2 = num2(document.getElementById('hkr-mlz-'+i)?.value);
+    const I = r.poz.bf_iscilik * (D - r.E);
+    const I2 = r.poz.bf_malzeme * (D2 - r.E2);
+    iscI += I; mlzI += I2;
+    const bu = document.getElementById('hkr-iscbu-'+i); if (bu) bu.textContent = (D - r.E).toFixed(2);
+    const it = document.getElementById('hkr-isctut-'+i); if (it) it.textContent = hkFmt(I, pb);
+    const mt = document.getElementById('hkr-mlztut-'+i); if (mt) mt.textContent = hkFmt(I2, pb);
+  });
+  const avans = num2(document.getElementById('hkb-avans')?.value);
+  const teminat = num2(document.getElementById('hkb-teminat')?.value);
+  const diger = num2(document.getElementById('hkb-diger')?.value);
+  const mAvans = num2(document.getElementById('hkb-mlz-avans')?.value);
+  const mTeminat = num2(document.getElementById('hkb-mlz-teminat')?.value);
+  const iscKes = avans+teminat+diger, mlzKes = mAvans+mTeminat;
+  const netIsc = iscI - iscKes, netMlz = mlzI - mlzKes, net = netIsc + netMlz;
+  const satir = (l,v,b) => `<div class="sum-row"><span>${l}</span><span class="${b?'amt-pos':''}" style="${b?'font-weight:700':''}">${hkFmt(v,pb)}</span></div>`;
+  document.getElementById('hk-ozet-kutu').innerHTML = `
+    <div class="sum-card" style="max-width:420px;margin-left:auto">
+      ${satir('Bu Dönem İşçilik', iscI)}
+      ${satir('İşçilik Kesintileri', -iscKes)}
+      ${satir('Net İşçilik', netIsc)}
+      ${satir('Bu Dönem Malzeme', mlzI)}
+      ${satir('Malzeme Kesintileri', -mlzKes)}
+      ${satir('Net Malzeme', netMlz)}
+      <div style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px">${satir('NET HAKEDİŞ (Bu Dönem)', net, true)}</div>
+    </div>`;
+}
+
+async function saveHakedis(silent) {
+  const calc = _hkEditCalc; if (!calc) return;
+  const id = Number(document.getElementById('hk-edit-id').value);
+  const baslik = {
+    tarih: document.getElementById('hkb-tarih').value.trim(),
+    taseron: document.getElementById('hkb-taseron').value.trim(),
+    isveren: document.getElementById('hkb-isveren').value.trim(),
+    is_tanimi: document.getElementById('hkb-istanimi').value.trim(),
+    is_yeri: document.getElementById('hkb-isyeri').value.trim(),
+    sozlesme_no: document.getElementById('hkb-sozno').value.trim(),
+    para_birimi: calc.hakedis.para_birimi,
+    avans_kesinti: num2(document.getElementById('hkb-avans').value),
+    teminat_kesinti: num2(document.getElementById('hkb-teminat').value),
+    diger_kesinti: num2(document.getElementById('hkb-diger').value),
+    mlz_avans_kesinti: num2(document.getElementById('hkb-mlz-avans').value),
+    mlz_teminat_kesinti: num2(document.getElementById('hkb-mlz-teminat').value),
+    durum: calc.hakedis.durum || 'taslak',
+  };
+  const satirlar = calc.rows.map((r,i) => ({
+    poz_id: r.poz.id,
+    iscilik_toplam: num2(document.getElementById('hkr-isc-'+i)?.value),
+    malzeme_toplam: num2(document.getElementById('hkr-mlz-'+i)?.value),
+  }));
+  await api.invoke('hakedis:guncelle', id, baslik);
+  await api.invoke('hakedis:satirlar:kaydet', id, satirlar);
+  // tazele
+  _hkEditCalc = await api.invoke('hakedis:getir', id);
+  renderHakedisEditor(_hkEditCalc);
+  loadHakedisProje();
+  if (!silent) alert('Hakediş kaydedildi.');
+}
+
+async function hakedisPdf() {
+  const html = await buildHakedisRaporHtml();
+  if (html) await api.invoke('print:pdf', html);
+}
+async function hakedisExcel() {
+  const html = await buildHakedisRaporHtml();
+  if (html) await api.invoke('export:xls', { html, ad: 'Hakedis-No' + (_hkEditCalc?.hakedis?.hakedis_no||''), sheet: 'Hakedis' });
+}
+
+async function buildHakedisRaporHtml() {
+  await saveHakedis(true);
+  const calc = _hkEditCalc; if (!calc) return null;
+  const h = calc.hakedis, t = calc.toplam, pb = h.para_birimi;
+  const proje = (await api.invoke('projeler:getir')).find(p => p.id === h.proje_id);
+  const para = (n) => { const a=Math.abs(n||0), s=n<0?'-':''; return pb==='USD'? s+'$'+a.toLocaleString('en-US',{minimumFractionDigits:2}) : s+a.toLocaleString('tr-TR')+' IQD'; };
+  const bugun = fmtDate(today());
+
+  let grupAd = '';
+  const icmalRows = calc.rows.map(r => {
+    let grupSatir = '';
+    if (r.poz.grup && r.poz.grup !== grupAd) { grupAd = r.poz.grup; grupSatir = `<tr><td colspan="11" style="background:#eef;padding:4px 6px;font-weight:700">${grupAd}</td></tr>`; }
+    return grupSatir + `<tr>
+      <td style="border:1px solid #ccc;padding:3px 5px">${r.poz.poz_no||''}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px">${r.poz.tanim}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:center">${r.poz.birim}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:right">${r.poz.kesif_miktar}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:right">${para(r.poz.bf_iscilik)}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:right">${(r.gerceklesme).toFixed(0)}%</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:right">${r.D}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:right">${r.E}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:right">${r.F}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:right">${para(r.I)}</td>
+      <td style="border:1px solid #ccc;padding:3px 5px;text-align:right">${para(r.I2)}</td>
+    </tr>`;
+  }).join('');
+
+  const bcRow = (no,lbl,en,topl,once,bu,bold) => `<tr style="${bold?'font-weight:700;background:#f3f3f3':''}">
+    <td style="border:1px solid #bbb;padding:4px 6px">${no}</td>
+    <td style="border:1px solid #bbb;padding:4px 6px">${lbl}<div style="font-size:9px;color:#666">${en}</div></td>
+    <td style="border:1px solid #bbb;padding:4px 6px;text-align:right">${para(topl)}</td>
+    <td style="border:1px solid #bbb;padding:4px 6px;text-align:right">${para(once)}</td>
+    <td style="border:1px solid #bbb;padding:4px 6px;text-align:right">${para(bu)}</td>
+  </tr>`;
+  const k = t.kesinti;
+
+  const html = `
+  <div style="font-family:'Segoe UI',Arial,sans-serif;color:#111;padding:24px 30px">
+    <!-- KAPAK -->
+    <div style="text-align:center;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:14px">
+      <div style="font-size:24px;font-weight:800;letter-spacing:1px">ALBRUS COMPANY</div>
+      <div style="font-size:15px;font-weight:700;margin-top:4px">HAKEDİŞ / PROGRESS PAYMENT CERTIFICATE — No ${h.hakedis_no}</div>
+    </div>
+    <table style="width:100%;font-size:12px;margin-bottom:18px">
+      <tr><td style="padding:3px 6px;color:#666;width:38%">Proje / Project</td><td style="padding:3px 6px;font-weight:600">${proje?proje.ad:''} — ${h.is_yeri||''}</td></tr>
+      <tr><td style="padding:3px 6px;color:#666">Taşeron / Subcontractor</td><td style="padding:3px 6px">${h.taseron||'—'}</td></tr>
+      <tr><td style="padding:3px 6px;color:#666">İşveren / Employer</td><td style="padding:3px 6px">${h.isveren||'—'}</td></tr>
+      <tr><td style="padding:3px 6px;color:#666">İş Tanımı / Scope</td><td style="padding:3px 6px">${h.is_tanimi||'—'}</td></tr>
+      <tr><td style="padding:3px 6px;color:#666">Sözleşme No / Contract No</td><td style="padding:3px 6px">${h.sozlesme_no||'—'}</td></tr>
+      <tr><td style="padding:3px 6px;color:#666">Hakediş Tarihi / PPC Date</td><td style="padding:3px 6px">${fmtDate(h.tarih)}</td></tr>
+    </table>
+
+    <!-- İCMAL -->
+    <div style="font-size:13px;font-weight:700;border-left:4px solid #111;padding-left:8px;margin-bottom:6px">İMALAT İCMALİ / WORK SUMMARY</div>
+    <table style="width:100%;border-collapse:collapse;font-size:10px;margin-bottom:18px">
+      <thead><tr style="background:#222;color:#fff">
+        <th style="border:1px solid #ccc;padding:3px 5px">Poz</th><th style="border:1px solid #ccc;padding:3px 5px">Tanım / Desc.</th>
+        <th style="border:1px solid #ccc;padding:3px 5px">Birim</th><th style="border:1px solid #ccc;padding:3px 5px">Keşif</th>
+        <th style="border:1px solid #ccc;padding:3px 5px">BF İşç.</th><th style="border:1px solid #ccc;padding:3px 5px">%</th>
+        <th style="border:1px solid #ccc;padding:3px 5px">Toplam</th><th style="border:1px solid #ccc;padding:3px 5px">Önceki</th><th style="border:1px solid #ccc;padding:3px 5px">Bu Dönem</th>
+        <th style="border:1px solid #ccc;padding:3px 5px">İşç. Tutar</th><th style="border:1px solid #ccc;padding:3px 5px">Mlz. Tutar</th>
+      </tr></thead>
+      <tbody>${icmalRows}</tbody>
+      <tfoot><tr style="font-weight:700;background:#eee">
+        <td colspan="9" style="border:1px solid #ccc;padding:4px 6px;text-align:right">TOPLAM / TOTAL (Bu Dönem)</td>
+        <td style="border:1px solid #ccc;padding:4px 6px;text-align:right">${para(t.isc.I)}</td>
+        <td style="border:1px solid #ccc;padding:4px 6px;text-align:right">${para(t.mlz.I)}</td>
+      </tr></tfoot>
+    </table>
+
+    <!-- ARKA KAPAK -->
+    <div style="font-size:13px;font-weight:700;border-left:4px solid #111;padding-left:8px;margin-bottom:6px">ARKA KAPAK / SUBCOVER — MALİ ÖZET</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:#222;color:#fff">
+        <th style="border:1px solid #bbb;padding:4px 6px;width:30px">#</th><th style="border:1px solid #bbb;padding:4px 6px;text-align:left">Açıklama / Description</th>
+        <th style="border:1px solid #bbb;padding:4px 6px">Toplam<div style="font-size:9px">Cumulative</div></th>
+        <th style="border:1px solid #bbb;padding:4px 6px">Önceki<div style="font-size:9px">Previous</div></th>
+        <th style="border:1px solid #bbb;padding:4px 6px">Bu Hakediş<div style="font-size:9px">This Interim</div></th>
+      </tr></thead>
+      <tbody>
+        ${bcRow('1','Toplam İşçilik Tutarı','Total Labor', t.isc.G, t.isc.H, t.isc.I, true)}
+        ${bcRow('2','Kesintiler Toplamı','Total Deductions', k.iscTop, k.iscOnce, k.iscBu)}
+        ${bcRow('2a','&nbsp;&nbsp;Avans Mahsubu','Advance Recovery', k.avans.bu+k.avans.once, k.avans.once, k.avans.bu)}
+        ${bcRow('2b','&nbsp;&nbsp;Teminat','Retention', k.teminat.bu+k.teminat.once, k.teminat.once, k.teminat.bu)}
+        ${bcRow('2c','&nbsp;&nbsp;Diğer','Other', k.diger.bu+k.diger.once, k.diger.once, k.diger.bu)}
+        ${bcRow('3','Net İşçilik Tutarı','Net Labor Payment', t.netIscTop, t.netIscTop-t.netIscBu, t.netIscBu, true)}
+        ${bcRow('4','Toplam Malzeme Tutarı','Total Material', t.mlz.G, t.mlz.H, t.mlz.I)}
+        ${bcRow('5','Malzeme Kesintileri','Material Deductions', k.mlzTop, k.mlzOnce, k.mlzBu)}
+        ${bcRow('6','Net Malzeme Tutarı','Net Material Payment', t.netMlzTop, t.netMlzTop-t.netMlzBu, t.netMlzBu, true)}
+        ${bcRow('7','İŞÇİLİK + MALZEME TOPLAM','SUM OF LABOR + MATERIAL', t.netToplamTop, t.netToplamTop-t.netToplamBu, t.netToplamBu, true)}
+      </tbody>
+    </table>
+
+    <div style="display:flex;justify-content:space-between;margin-top:50px;font-size:11px;color:#666">
+      <div style="text-align:center">_______________________<br>Hazırlayan / Prepared</div>
+      <div style="text-align:center">_______________________<br>Kontrol / Checked</div>
+      <div style="text-align:center">_______________________<br>Onay / Approved</div>
+    </div>
+    <div style="margin-top:20px;text-align:center;font-size:9px;color:#999">Albrus Firma Yönetim Programı — ${bugun}</div>
+  </div>`;
+  return html;
 }
 
 // ══════════════════════════════════════════════════
