@@ -6293,9 +6293,8 @@ async function yesilDefterExcel() {
 async function buildYesilDefterHtml() {
   await saveHakedis(true);
   const calc = _hkEditCalc; if (!calc) return null;
-  const h = calc.hakedis, pb = h.para_birimi;
+  const h = calc.hakedis;
   const proje = (await api.invoke('projeler:getir')).find(p => p.id === h.proje_id);
-  const para = (n) => { const a=Math.abs(n||0), s=n<0?'-':''; return pb==='USD'? s+'$'+a.toLocaleString('en-US',{minimumFractionDigits:2}) : s+a.toLocaleString('tr-TR')+' IQD'; };
   const num = (n) => (n||0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
 
   // Her grup için S.NO blok başlığı + sütun başlıkları + kalemler (S.NO sürekli artar, grup no ayrı)
@@ -6309,11 +6308,10 @@ async function buildYesilDefterHtml() {
     <th style="${bd}padding:3px 4px">ÖNCEKİ<br>PREVIOUS</th>
     <th style="${bd}padding:3px 4px">BU HKD.<br>THIS PERIOD</th>
     <th style="${bd}padding:3px 4px">İŞİN %'Sİ<br>PERCENT</th>
-    <th style="${bd}padding:3px 4px">HAKEDİŞE ESAS TOPLAM<br>AMOUNT TO DATE</th>
+    <th style="${bd}padding:3px 4px">HAKEDİŞE ESAS TOPLAM<br>QUANTITY TO DATE</th>
   </tr>`;
 
   let sno = 0, gno = 0, grupAd = '__yok__';
-  let esasToplam = 0;
   let body = '';
   calc.rows.forEach(r => {
     const g = r.poz.grup || '';
@@ -6326,23 +6324,22 @@ async function buildYesilDefterHtml() {
       </tr>` + colHead;
     }
     sno++;
+    // Yeşil defter fiyatsızdır: bu hakedişe girilen kümülatif metraj TOPLAM'a,
+    // önceki hakediş ÖNCEKİ'ye, fark BU HKD'ye gider.
     const toplam = r.D || r.D2 || 0;
     const onceki = r.E || r.E2 || 0;
     const bu = toplam - onceki;
-    const bf = (r.poz.bf_iscilik || 0) + (r.poz.bf_malzeme || 0);
-    const esas = bf * toplam;
-    esasToplam += esas;
     const oran = r.poz.kesif_miktar > 0 ? (toplam / r.poz.kesif_miktar) : 0;
     body += `<tr style="font-size:10px">
       <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
       <td style="${bd}padding:2px 4px;text-align:center">${r.poz.poz_no||''}</td>
       <td style="${bd}padding:2px 4px">${r.poz.tanim}</td>
       <td style="${bd}padding:2px 4px;text-align:center">${r.poz.birim}</td>
-      <td style="${bd}padding:2px 4px;text-align:right">${num(toplam)}</td>
+      <td style="${bd}padding:2px 4px;text-align:right">${toplam?num(toplam):''}</td>
       <td style="${bd}padding:2px 4px;text-align:right">${onceki?num(onceki):''}</td>
       <td style="${bd}padding:2px 4px;text-align:right">${bu?num(bu):''}</td>
       <td style="${bd}padding:2px 4px;text-align:right">${oran?num(oran)+'%':''}</td>
-      <td style="${bd}padding:2px 4px;text-align:right">${para(esas)}</td>
+      <td style="${bd}padding:2px 4px;text-align:right">${toplam?num(toplam):''}</td>
     </tr>`;
   });
 
@@ -6362,11 +6359,8 @@ async function buildYesilDefterHtml() {
     </table>
     <table style="width:100%;border-collapse:collapse;text-align:center">
       <tbody>${body}</tbody>
-      <tfoot><tr style="font-weight:800;background:#2e7d32;color:#fff;font-size:11px">
-        <td colspan="8" style="${bd}padding:5px 6px;text-align:right">HAKEDİŞE ESAS GENEL TOPLAM / GRAND TOTAL</td>
-        <td style="${bd}padding:5px 6px;text-align:right">${para(esasToplam)}</td>
-      </tr></tfoot>
     </table>
+    <div style="margin-top:10px;font-size:10px;color:#777">Yeşil defter ölçü/metraj defteridir — fiyat içermez. Tutar hesabı hakediş icmali ve arka kapakta yapılır.</div>
   </div>`;
 }
 
