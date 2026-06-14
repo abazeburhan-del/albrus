@@ -67,19 +67,20 @@ function parseSheet(xml, shared) {
   while ((rm = rowRe.exec(xml))) {
     const rIdx = parseInt(rm[1], 10) - 1;
     const cells = [];
-    const cRe = /<c[^>]*r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>|<c[^>]*r="([A-Z]+)\d+"([^>]*)\/>/g;
+    // Hem self-closing (<c .../>) hem paired (<c ...>...</c>) — self-closing'in sonraki hücreyi yutmaması için
+    const cRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
     let cm;
     while ((cm = cRe.exec(rm[2]))) {
-      const col = cm[1] || cm[4];
-      const attrs = (cm[2] || cm[5]) || '';
-      const inner = cm[3] || '';
-      const ci = colToNum(col);
-      let val = '';
+      const attrs = cm[1] || '';
+      const inner = cm[2] || '';
+      const refM = /r="([A-Z]+)\d+"/.exec(attrs);
+      if (!refM) continue;
+      const ci = colToNum(refM[1]);
       const isShared = /t="s"/.test(attrs);
       const isInline = /t="inlineStr"/.test(attrs);
-      const vM = /<v>([\s\S]*?)<\/v>/.exec(inner);
+      let val = '';
       if (isInline) { const tM = /<t[^>]*>([\s\S]*?)<\/t>/.exec(inner); val = tM ? decodeXml(tM[1]) : ''; }
-      else if (vM) { val = isShared ? (shared[parseInt(vM[1],10)] ?? '') : vM[1]; }
+      else { const vM = /<v>([\s\S]*?)<\/v>/.exec(inner); if (vM) val = isShared ? (shared[parseInt(vM[1],10)] ?? '') : vM[1]; }
       cells[ci] = val;
     }
     rows[rIdx] = cells;

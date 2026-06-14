@@ -1210,7 +1210,10 @@
     <div class="row3">
       <div class="fg"><label>Sayfa</label><select id="boq-imp-sheet" onchange="boqImportSheetChange()"></select></div>
       <div class="fg"><label>Başlık Satırı (no)</label><input type="number" id="boq-imp-header" value="1" min="1" oninput="boqImportRender()"></div>
-      <div class="fg"><label style="display:block">&nbsp;</label><label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="boq-imp-temizle"> Mevcut pozları sil</label></div>
+      <div class="fg"><label style="display:block">&nbsp;</label>
+        <label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="boq-imp-grup" checked onchange="boqImportRender()"> Mavi/boş gruplar başlık sayılsın</label>
+        <label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer;margin-top:4px"><input type="checkbox" id="boq-imp-temizle"> Mevcut pozları sil</label>
+      </div>
     </div>
     <div style="font-size:12px;color:var(--dim);margin:6px 0">Her alan için Excel sütununu seç (Tanım zorunlu):</div>
     <div class="row3" id="boq-imp-maps"></div>
@@ -5881,11 +5884,13 @@ const BOQ_ALANLAR = [
 ];
 const sutunHarf = (i) => { let s=''; i++; while(i>0){ s=String.fromCharCode(65+(i-1)%26)+s; i=Math.floor((i-1)/26); } return s; };
 
+let _boqSablon = null;
 async function boqImportBaslat() {
   if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
   let r;
   try { r = await api.invoke('xlsx:onizle'); } catch (e) { alert(e.message); return; }
   if (!r || r.iptal) return;
+  try { _boqSablon = JSON.parse(await api.invoke('ayar:getir', 'boq_sablon') || 'null'); } catch (_) { _boqSablon = null; }
   _boqData = r;
   document.getElementById('boq-imp-dosya').textContent = 'Dosya: ' + r.dosya;
   document.getElementById('boq-imp-sheet').innerHTML = r.sheets.map((s,i)=>`<option value="${i}">${s.name}</option>`).join('');
@@ -5927,10 +5932,15 @@ function boqImportSheetChange() {
     bf_iscilik: guess(['labor unit','işçilik','iscilik','unit price','birim fiyat']),
     bf_malzeme: guess(['material unit','malzeme','mat. unit']),
   };
-  document.getElementById('boq-imp-maps').innerHTML = BOQ_ALANLAR.map(a => `
-    <div class="fg"><label>${a.lbl}</label>
-      <select id="boq-map-${a.key}">${opts.replace(`value="${tahmin[a.key]}"`, `value="${tahmin[a.key]}" selected`)}</select>
-    </div>`).join('');
+  // Kayıtlı şablon varsa onun sütunlarını öncele
+  const kullan = (_boqSablon && _boqSablon.map) ? _boqSablon.map : tahmin;
+  document.getElementById('boq-imp-maps').innerHTML = BOQ_ALANLAR.map(a => {
+    const sec = (kullan[a.key] != null && kullan[a.key] < maxCols) ? kullan[a.key] : (tahmin[a.key] ?? -1);
+    return `<div class="fg"><label>${a.lbl}</label>
+      <select id="boq-map-${a.key}" onchange="boqImportRender()">${opts.replace(`value="${sec}"`, `value="${sec}" selected`)}</select>
+    </div>`;
+  }).join('');
+  if (_boqSablon && _boqSablon.header) document.getElementById('boq-imp-header').value = _boqSablon.header;
   boqImportRender();
 }
 
@@ -5944,21 +5954,24 @@ function boqSatirlariCikar() {
   const rows = boqAktifRows();
   const header = Math.max(1, Number(document.getElementById('boq-imp-header').value)||1);
   const m = boqMapSecimleri();
+  const grupAyir = document.getElementById('boq-imp-grup')?.checked;
   const al = (r, idx) => idx>=0 ? (r[idx] ?? '') : '';
   const sayi = (v) => parseFloat(String(v).replace(/[^\d.,-]/g,'').replace(/\.(?=\d{3}\b)/g,'').replace(',','.')) || 0;
   const out = [];
+  let grup = '';
   for (let i = header; i < rows.length; i++) {
     const r = rows[i] || [];
     const tanim = String(al(r, m.tanim)).trim();
     if (!tanim) continue;
-    out.push({
-      poz_no: String(al(r, m.poz_no)).trim(),
-      tanim,
+    const pozno = String(al(r, m.poz_no)).trim();
+    const kesif = sayi(al(r, m.kesif_miktar));
+    const bfi = sayi(al(r, m.bf_iscilik));
+    const bfm = sayi(al(r, m.bf_malzeme));
+    // Grup başlığı: poz no boş + miktar/fiyat yok ama açıklama var (mavi dolgulu satırlar)
+    if (grupAyir && !pozno && !kesif && !bfi && !bfm) { grup = tanim; continue; }
+    out.push({ grup, poz_no: pozno, tanim,
       birim: String(al(r, m.birim)).trim() || 'Adet',
-      kesif_miktar: sayi(al(r, m.kesif_miktar)),
-      bf_iscilik: sayi(al(r, m.bf_iscilik)),
-      bf_malzeme: sayi(al(r, m.bf_malzeme)),
-    });
+      kesif_miktar: kesif, bf_iscilik: bfi, bf_malzeme: bfm });
   }
   return out;
 }
@@ -5966,15 +5979,17 @@ function boqSatirlariCikar() {
 function boqImportRender() {
   const sat = boqSatirlariCikar();
   const head = `<thead><tr style="background:rgba(0,0,0,.05)">
-    <th style="padding:4px 6px;text-align:left">Poz</th><th style="padding:4px 6px;text-align:left">Tanım</th>
+    <th style="padding:4px 6px;text-align:left">Grup</th><th style="padding:4px 6px;text-align:left">Poz</th><th style="padding:4px 6px;text-align:left">Tanım</th>
     <th style="padding:4px 6px">Birim</th><th style="padding:4px 6px;text-align:right">Keşif</th>
     <th style="padding:4px 6px;text-align:right">BF İşç.</th><th style="padding:4px 6px;text-align:right">BF Mlz.</th></tr></thead>`;
   const body = sat.slice(0,8).map(s=>`<tr style="border-top:1px solid var(--border)">
-    <td style="padding:3px 6px">${s.poz_no||'—'}</td><td style="padding:3px 6px">${s.tanim}</td>
+    <td style="padding:3px 6px;font-size:10px;color:var(--dim)">${s.grup||'—'}</td><td style="padding:3px 6px">${s.poz_no||'—'}</td><td style="padding:3px 6px">${s.tanim}</td>
     <td style="padding:3px 6px;text-align:center">${s.birim}</td><td style="padding:3px 6px;text-align:right">${s.kesif_miktar}</td>
     <td style="padding:3px 6px;text-align:right">${fmtTutar(Math.round(s.bf_iscilik))}</td><td style="padding:3px 6px;text-align:right">${fmtTutar(Math.round(s.bf_malzeme))}</td>
   </tr>`).join('');
-  document.getElementById('boq-imp-preview').innerHTML = head + `<tbody>${body || '<tr><td colspan="6" style="padding:8px;color:var(--dim)">Eşleşen satır yok — Tanım sütununu ve başlık satırını kontrol edin.</td></tr>'}</tbody>`;
+  const grupSayi = new Set(sat.map(s=>s.grup).filter(Boolean)).size;
+  document.getElementById('boq-imp-preview').innerHTML = head + `<tbody>${body || '<tr><td colspan="7" style="padding:8px;color:var(--dim)">Eşleşen satır yok — Tanım sütununu ve başlık satırını kontrol edin.</td></tr>'}</tbody>`
+    + `<tfoot><tr><td colspan="7" style="padding:6px;font-size:11px;color:var(--dim)">Toplam ${sat.length} poz · ${grupSayi} grup</td></tr></tfoot>`;
   document.getElementById('boq-imp-preview').dataset.count = sat.length;
 }
 
@@ -5984,6 +5999,11 @@ async function boqImportUygula() {
   const temizle = document.getElementById('boq-imp-temizle').checked;
   if (!confirm(`${sat.length} poz aktarılacak${temizle?' (mevcut pozlar silinecek)':''}. Devam edilsin mi?`)) return;
   const r = await api.invoke('hakedis:boq:import', { proje_id: _hkProjeId, satirlar: sat, temizle });
+  // Eşlemeyi şablon olarak kaydet (sonraki aynı-format BOQ'ta otomatik gelsin)
+  try {
+    const sablon = { header: Number(document.getElementById('boq-imp-header').value)||1, map: boqMapSecimleri() };
+    await api.invoke('ayar:kaydet', 'boq_sablon', JSON.stringify(sablon));
+  } catch (_) {}
   closeModal('m-boq-import');
   alert(r.eklenen + ' poz aktarıldı.');
   loadHakedisProje();
