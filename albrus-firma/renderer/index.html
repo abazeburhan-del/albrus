@@ -1271,9 +1271,23 @@
       <button class="btn btn-ghost" onclick="closeModal('m-hakedis')">Kapat</button>
       <button class="btn btn-ghost" onclick="hakedisPdf()">PDF</button>
       <button class="btn btn-ghost" onclick="hakedisExcel()">Excel</button>
-      <button class="btn btn-ghost" onclick="yesilDefterPdf()">Yeşil Defter PDF</button>
-      <button class="btn btn-ghost" onclick="yesilDefterExcel()">Yeşil Defter Excel</button>
+      <button class="btn btn-ghost" onclick="openYesilDefter()">Yeşil Defter</button>
       <button class="btn btn-primary" onclick="saveHakedis()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Yeşil Defter (metraj giriş) Modal -->
+<div class="overlay" id="m-yesil">
+  <div class="modal" style="max-width:1100px;width:96vw">
+    <div class="modal-title" id="m-yesil-title">Yeşil Defter</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px">Her poz için <b>TOPLAM (bugüne kadarki kümülatif metraj)</b> girin. Önceki hakediş otomatik ÖNCEKİ'ye, fark BU HKD'ye gider.</div>
+    <div style="max-height:70vh;overflow:auto" id="yesil-icerik"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-yesil')">Kapat</button>
+      <button class="btn btn-ghost" onclick="yesilDefterPdf()">PDF</button>
+      <button class="btn btn-ghost" onclick="yesilDefterExcel()">Excel</button>
+      <button class="btn btn-primary" onclick="yesilKaydet()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -5937,17 +5951,35 @@ function boqImportSheetChange() {
   const tahmin = {
     poz_no: guess(['p/n','poz','item','sıra','s.no','code','kod']),
     tanim: guess(['description','tanım','imalat','activity','açıklama','desc']),
-    birim: guess(['unit','birim','uom'], ['unit price','unit pr']),
+    birim: guess(['unit','birim','uom','picture'], ['unit price','unit pr']),
     kesif_miktar: guess(['qty','quantity','miktar','adet','metraj']),
     // İşçilik: 'labor/işçilik' içersin, 'material' ve 'total' içermesin
     bf_iscilik: guess(['labor','labour','işçil','iscil'], ['material','total']),
     // Malzeme: 'material/malzeme' içersin, 'labor' ve 'total' içermesin
     bf_malzeme: guess(['material','malzeme'], ['labor','labour','total']),
   };
+  // — Değer bazlı düzeltme (başlık yanıltıcı olabilir: "Picture"=birim, "P/N" sütununda sıra no olması vb.) —
+  const veriler = rows.slice(best, best+25).filter(r => r && r.some(c => String(c==null?'':c).trim()));
+  const birimSet = new Set(['no','no.','nr','adet','ad','m','mt','m2','m²','m3','m³','kg','ton','lt','lot','pcs','pc','set','tak','takım','takim','rulo','paket','pkt','metre','each','ea','%']);
+  // Birim: başlık bulamadıysa değerleri tarayıp birim sözlüğüne uyan sütunu bul
+  if (tahmin.birim < 0) {
+    let bc=-1, bs2=0;
+    for (let c=0;c<maxCols;c++){ let s=0,t=0; veriler.forEach(r=>{const v=String(r[c]==null?'':r[c]).trim().toLowerCase(); if(!v)return; t++; if(birimSet.has(v))s++;}); if(t>=3 && s/t>0.5 && s>bs2){bs2=s;bc=c;} }
+    if (bc>=0) tahmin.birim = bc;
+  }
+  // Poz No: bulunan sütun 1,2,3.. ardışık sayaç ise (grup satırları araya girse de) gerçek poz bir sonraki sütundadır
+  const ardisikMi = (col) => {
+    const nums = [];
+    veriler.forEach(r => { const v=String(r[col]==null?'':r[col]).trim(); if(!v)return; const n=parseFloat(v); if(!isNaN(n) && n===Math.floor(n)) nums.push(n); });
+    if (nums.length < 3) return false;
+    let inc=0; for(let k=1;k<nums.length;k++) if(nums[k]===nums[k-1]+1) inc++;
+    return nums[0] <= 2 && inc/(nums.length-1) > 0.7;
+  };
+  if (tahmin.poz_no>=0 && ardisikMi(tahmin.poz_no) && tahmin.poz_no+1<maxCols) tahmin.poz_no += 1;
   // Kayıtlı şablon varsa onun sütunlarını öncele
   const kullan = (_boqSablon && _boqSablon.map) ? _boqSablon.map : tahmin;
   document.getElementById('boq-imp-maps').innerHTML = BOQ_ALANLAR.map(a => {
-    const sec = (kullan[a.key] != null && kullan[a.key] < maxCols) ? kullan[a.key] : (tahmin[a.key] ?? -1);
+    const sec = (kullan[a.key] != null && kullan[a.key] >= 0 && kullan[a.key] < maxCols) ? kullan[a.key] : (tahmin[a.key] ?? -1);
     return `<div class="fg"><label>${a.lbl}</label>
       <select id="boq-map-${a.key}" onchange="boqImportRender()">${opts.replace(`value="${sec}"`, `value="${sec}" selected`)}</select>
     </div>`;
@@ -6280,18 +6312,96 @@ async function hakedisExcel() {
   const html = await buildHakedisRaporHtml();
   if (html) await api.invoke('export:xls', { html, ad: 'Hakedis-No' + (_hkEditCalc?.hakedis?.hakedis_no||''), sheet: 'Hakedis' });
 }
+// — Düzenlenebilir Yeşil Defter (metraj giriş ekranı) —
+async function openYesilDefter() {
+  await saveHakedis(true);
+  if (!_hkEditCalc) { alert('Önce hakediş açın.'); return; }
+  document.getElementById('m-yesil-title').textContent = 'Yeşil Defter — Hakediş No ' + _hkEditCalc.hakedis.hakedis_no;
+  renderYesilGrid();
+  openModal('m-yesil');
+}
+function renderYesilGrid() {
+  const calc = _hkEditCalc; if (!calc) return;
+  const num = (n) => (n||0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+  const bd = 'border:1px solid var(--border);';
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:10pt;position:sticky;top:0">
+    <th style="${bd}padding:3px 4px">S.NO</th>
+    <th style="${bd}padding:3px 4px">POZ NO</th>
+    <th style="${bd}padding:3px 4px;text-align:left">İMALATIN ADI</th>
+    <th style="${bd}padding:3px 4px">BR</th>
+    <th style="${bd}padding:3px 4px">ÖNCEKİ</th>
+    <th style="${bd}padding:3px 4px">TOPLAM (gir)</th>
+    <th style="${bd}padding:3px 4px">BU HKD</th>
+    <th style="${bd}padding:3px 4px">İŞİN %'Sİ</th>
+  </tr>`;
+  let sno=0, gno=0, grupAd='__yok__', body='';
+  calc.rows.forEach((r,i) => {
+    const g = r.poz.grup || '';
+    if (g !== grupAd) {
+      grupAd = g; gno++;
+      body += `<tr style="background:#c8e6c9;font-weight:700">
+        <td style="${bd}padding:4px 5px;text-align:center">S.NO</td>
+        <td style="${bd}padding:4px 5px;text-align:center">${gno}</td>
+        <td style="${bd}padding:4px 5px" colspan="6">${g || '—'}</td>
+      </tr>` + colHead;
+    }
+    sno++;
+    const onceki = r.E || r.E2 || 0;
+    const toplam = r.D || r.D2 || 0;
+    body += `<tr style="font-size:10pt">
+      <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
+      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.poz_no||''}</td>
+      <td style="${bd}padding:2px 4px">${r.poz.tanim}</td>
+      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.birim}</td>
+      <td style="${bd}padding:2px 4px;text-align:right;color:var(--dim)">${onceki?num(onceki):''}</td>
+      <td style="${bd}padding:2px 4px;text-align:right"><input id="yd-${i}" data-once="${onceki}" data-kesif="${r.poz.kesif_miktar||0}" value="${toplam||''}" inputmode="decimal" style="width:90px;text-align:right;padding:3px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:10pt"></td>
+      <td style="${bd}padding:2px 4px;text-align:right" id="yd-bu-${i}">${(toplam-onceki)?num(toplam-onceki):''}</td>
+      <td style="${bd}padding:2px 4px;text-align:right" id="yd-or-${i}">${r.poz.kesif_miktar>0&&toplam?num(toplam/r.poz.kesif_miktar)+'%':''}</td>
+    </tr>`;
+  });
+  document.getElementById('yesil-icerik').innerHTML =
+    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:10pt"><tbody>${body}</tbody></table>`;
+  calc.rows.forEach((r,i) => document.getElementById('yd-'+i)?.addEventListener('input', () => yesilCanli(i)));
+}
+function yesilCanli(i) {
+  const num = (n) => (n||0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+  const inp = document.getElementById('yd-'+i); if (!inp) return;
+  const toplam = num2(inp.value);
+  const onceki = parseFloat(inp.dataset.once) || 0;
+  const kesif = parseFloat(inp.dataset.kesif) || 0;
+  const bu = toplam - onceki;
+  document.getElementById('yd-bu-'+i).textContent = bu ? num(bu) : '';
+  document.getElementById('yd-or-'+i).textContent = (kesif>0 && toplam) ? num(toplam/kesif)+'%' : '';
+}
+async function yesilGridKaydet(silent) {
+  const calc = _hkEditCalc; if (!calc) return;
+  const id = Number(document.getElementById('hk-edit-id').value);
+  // Yeşil defterde girilen metraj hem işçilik hem malzeme miktarı olarak yazılır (tek fiziksel metraj)
+  const satirlar = calc.rows.map((r,i) => {
+    const v = num2(document.getElementById('yd-'+i)?.value);
+    return { poz_id: r.poz.id, iscilik_toplam: v, malzeme_toplam: v };
+  });
+  await api.invoke('hakedis:satirlar:kaydet', id, satirlar);
+  _hkEditCalc = await api.invoke('hakedis:getir', id);
+  renderYesilGrid();
+  renderHakedisEditor(_hkEditCalc);
+  loadHakedisProje();
+  if (!silent) alert('Yeşil defter metrajları kaydedildi.');
+}
+async function yesilKaydet() { await yesilGridKaydet(false); }
 async function yesilDefterPdf() {
+  if (document.getElementById('yd-0')) await yesilGridKaydet(true);
   const html = await buildYesilDefterHtml();
   if (html) await api.invoke('print:pdf', html);
 }
 async function yesilDefterExcel() {
+  if (document.getElementById('yd-0')) await yesilGridKaydet(true);
   const html = await buildYesilDefterHtml();
   if (html) await api.invoke('export:xls', { html, ad: 'YesilDefter-No' + (_hkEditCalc?.hakedis?.hakedis_no||''), sheet: 'Yesil Defter' });
 }
 
 // YEŞİL DEFTER (ölçü/metraj defteri) — BOQ pozları gruplara göre, üst bilgiler korunarak
 async function buildYesilDefterHtml() {
-  await saveHakedis(true);
   const calc = _hkEditCalc; if (!calc) return null;
   const h = calc.hakedis;
   const proje = (await api.invoke('projeler:getir')).find(p => p.id === h.proje_id);
@@ -6299,7 +6409,7 @@ async function buildYesilDefterHtml() {
 
   // Her grup için S.NO blok başlığı + sütun başlıkları + kalemler (S.NO sürekli artar, grup no ayrı)
   const bd = 'border:1px solid #999;';
-  const colHead = `<tr style="background:#2e7d32;color:#fff;font-size:9px">
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:10pt">
     <th style="${bd}padding:3px 4px">S.NO</th>
     <th style="${bd}padding:3px 4px">POZ NO<br>ITEM NO</th>
     <th style="${bd}padding:3px 4px;text-align:left">İMALATIN ADI<br>DESCRIPTION</th>
@@ -6330,7 +6440,7 @@ async function buildYesilDefterHtml() {
     const onceki = r.E || r.E2 || 0;
     const bu = toplam - onceki;
     const oran = r.poz.kesif_miktar > 0 ? (toplam / r.poz.kesif_miktar) : 0;
-    body += `<tr style="font-size:10px">
+    body += `<tr style="font-size:10pt">
       <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
       <td style="${bd}padding:2px 4px;text-align:center">${r.poz.poz_no||''}</td>
       <td style="${bd}padding:2px 4px">${r.poz.tanim}</td>
@@ -6357,10 +6467,10 @@ async function buildYesilDefterHtml() {
       <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${h.hakedis_no}</td></tr>
       <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${fmtDate(h.tarih)}</td></tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;text-align:center">
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:10pt">
       <tbody>${body}</tbody>
     </table>
-    <div style="margin-top:10px;font-size:10px;color:#777">Yeşil defter ölçü/metraj defteridir — fiyat içermez. Tutar hesabı hakediş icmali ve arka kapakta yapılır.</div>
+    <div style="margin-top:10px;font-size:9pt;color:#777">Yeşil defter ölçü/metraj defteridir — fiyat içermez. Tutar hesabı hakediş icmali ve arka kapakta yapılır.</div>
   </div>`;
 }
 
