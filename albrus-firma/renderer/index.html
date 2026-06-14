@@ -1278,7 +1278,7 @@
 </div>
 
 <!-- Yeşil Defter (metraj giriş) Modal -->
-<div class="overlay" id="m-yesil">
+<div class="overlay" id="m-yesil" style="z-index:120">
   <div class="modal" style="max-width:1100px;width:96vw">
     <div class="modal-title" id="m-yesil-title">Yeşil Defter</div>
     <div style="font-size:12px;color:var(--dim);margin-bottom:8px">Her poz için <b>TOPLAM (bugüne kadarki kümülatif metraj)</b> girin. Önceki hakediş otomatik ÖNCEKİ'ye, fark BU HKD'ye gider.</div>
@@ -6324,7 +6324,7 @@ function renderYesilGrid() {
   const calc = _hkEditCalc; if (!calc) return;
   const num = (n) => (n||0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
   const bd = 'border:1px solid var(--border);';
-  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:9pt;position:sticky;top:0">
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:9pt">
     <th style="${bd}padding:2px 4px">S.NO</th>
     <th style="${bd}padding:2px 4px">POZ NO</th>
     <th style="${bd}padding:2px 4px;text-align:left">İMALATIN ADI</th>
@@ -6347,8 +6347,10 @@ function renderYesilGrid() {
     }
     sno++;
     const onceki = r.E || r.E2 || 0;
-    const toplam = r.D || r.D2 || 0;
-    const bu = toplam - onceki; // bu hakediş = toplam - önceki (girilecek alan)
+    const dStored = r.D || r.D2 || 0;
+    const girilmis = dStored > 0;                   // bu hakediş için metraj girilmiş mi
+    const bu = girilmis ? (dStored - onceki) : 0;   // girilmemişse boş bırak (negatif gösterme)
+    const toplam = girilmis ? dStored : onceki;     // giriş yoksa önceki kümülatif taşınır
     body += `<tr style="font-size:9pt">
       <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
       <td style="${bd}padding:2px 4px;text-align:center">${r.poz.poz_no||''}</td>
@@ -6437,11 +6439,12 @@ async function buildYesilDefterHtml() {
       </tr>` + colHead;
     }
     sno++;
-    // Yeşil defter fiyatsızdır: bu hakedişe girilen kümülatif metraj TOPLAM'a,
-    // önceki hakediş ÖNCEKİ'ye, fark BU HKD'ye gider.
-    const toplam = r.D || r.D2 || 0;
+    // Yeşil defter fiyatsızdır: TOPLAM = bugüne kadarki kümülatif, ÖNCEKİ = önceki hakediş, BU HKD = fark.
     const onceki = r.E || r.E2 || 0;
-    const bu = toplam - onceki;
+    const dStored = r.D || r.D2 || 0;
+    const girilmis = dStored > 0;
+    const bu = girilmis ? (dStored - onceki) : 0;
+    const toplam = girilmis ? dStored : onceki;
     const oran = r.poz.kesif_miktar > 0 ? (toplam / r.poz.kesif_miktar) : 0;
     body += `<tr style="font-size:9pt">
       <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
