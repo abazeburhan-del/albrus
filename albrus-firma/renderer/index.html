@@ -1271,6 +1271,8 @@
       <button class="btn btn-ghost" onclick="closeModal('m-hakedis')">Kapat</button>
       <button class="btn btn-ghost" onclick="hakedisPdf()">PDF</button>
       <button class="btn btn-ghost" onclick="hakedisExcel()">Excel</button>
+      <button class="btn btn-ghost" onclick="yesilDefterPdf()">Yeşil Defter PDF</button>
+      <button class="btn btn-ghost" onclick="yesilDefterExcel()">Yeşil Defter Excel</button>
       <button class="btn btn-primary" onclick="saveHakedis()">Kaydet</button>
     </div>
   </div>
@@ -6277,6 +6279,95 @@ async function hakedisPdf() {
 async function hakedisExcel() {
   const html = await buildHakedisRaporHtml();
   if (html) await api.invoke('export:xls', { html, ad: 'Hakedis-No' + (_hkEditCalc?.hakedis?.hakedis_no||''), sheet: 'Hakedis' });
+}
+async function yesilDefterPdf() {
+  const html = await buildYesilDefterHtml();
+  if (html) await api.invoke('print:pdf', html);
+}
+async function yesilDefterExcel() {
+  const html = await buildYesilDefterHtml();
+  if (html) await api.invoke('export:xls', { html, ad: 'YesilDefter-No' + (_hkEditCalc?.hakedis?.hakedis_no||''), sheet: 'Yesil Defter' });
+}
+
+// YEŞİL DEFTER (ölçü/metraj defteri) — BOQ pozları gruplara göre, üst bilgiler korunarak
+async function buildYesilDefterHtml() {
+  await saveHakedis(true);
+  const calc = _hkEditCalc; if (!calc) return null;
+  const h = calc.hakedis, pb = h.para_birimi;
+  const proje = (await api.invoke('projeler:getir')).find(p => p.id === h.proje_id);
+  const para = (n) => { const a=Math.abs(n||0), s=n<0?'-':''; return pb==='USD'? s+'$'+a.toLocaleString('en-US',{minimumFractionDigits:2}) : s+a.toLocaleString('tr-TR')+' IQD'; };
+  const num = (n) => (n||0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+
+  // Her grup için S.NO blok başlığı + sütun başlıkları + kalemler (S.NO sürekli artar, grup no ayrı)
+  const bd = 'border:1px solid #999;';
+  const colHead = `<tr style="background:#2e7d32;color:#fff;font-size:9px">
+    <th style="${bd}padding:3px 4px">S.NO</th>
+    <th style="${bd}padding:3px 4px">POZ NO<br>ITEM NO</th>
+    <th style="${bd}padding:3px 4px;text-align:left">İMALATIN ADI<br>DESCRIPTION</th>
+    <th style="${bd}padding:3px 4px">BR<br>UNIT</th>
+    <th style="${bd}padding:3px 4px">TOPLAM<br>TO DATE</th>
+    <th style="${bd}padding:3px 4px">ÖNCEKİ<br>PREVIOUS</th>
+    <th style="${bd}padding:3px 4px">BU HKD.<br>THIS PERIOD</th>
+    <th style="${bd}padding:3px 4px">İŞİN %'Sİ<br>PERCENT</th>
+    <th style="${bd}padding:3px 4px">HAKEDİŞE ESAS TOPLAM<br>AMOUNT TO DATE</th>
+  </tr>`;
+
+  let sno = 0, gno = 0, grupAd = '__yok__';
+  let esasToplam = 0;
+  let body = '';
+  calc.rows.forEach(r => {
+    const g = r.poz.grup || '';
+    if (g !== grupAd) {
+      grupAd = g; gno++;
+      body += `<tr style="background:#c8e6c9;font-weight:700">
+        <td style="${bd}padding:4px 5px;text-align:center">S.NO</td>
+        <td style="${bd}padding:4px 5px;text-align:center">${gno}</td>
+        <td style="${bd}padding:4px 5px" colspan="7">${g || '—'}</td>
+      </tr>` + colHead;
+    }
+    sno++;
+    const toplam = r.D || r.D2 || 0;
+    const onceki = r.E || r.E2 || 0;
+    const bu = toplam - onceki;
+    const bf = (r.poz.bf_iscilik || 0) + (r.poz.bf_malzeme || 0);
+    const esas = bf * toplam;
+    esasToplam += esas;
+    const yuzde = r.poz.kesif_miktar > 0 ? (toplam / r.poz.kesif_miktar * 100) : 0;
+    body += `<tr style="font-size:10px">
+      <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
+      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.poz_no||''}</td>
+      <td style="${bd}padding:2px 4px">${r.poz.tanim}</td>
+      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.birim}</td>
+      <td style="${bd}padding:2px 4px;text-align:right">${num(toplam)}</td>
+      <td style="${bd}padding:2px 4px;text-align:right">${onceki?num(onceki):''}</td>
+      <td style="${bd}padding:2px 4px;text-align:right">${bu?num(bu):''}</td>
+      <td style="${bd}padding:2px 4px;text-align:right">${yuzde.toFixed(0)}%</td>
+      <td style="${bd}padding:2px 4px;text-align:right">${para(esas)}</td>
+    </tr>`;
+  });
+
+  return `
+  <div style="font-family:'Segoe UI',Arial,sans-serif;color:#111;padding:20px 26px">
+    <div style="text-align:center;border-bottom:3px solid #2e7d32;padding-bottom:8px;margin-bottom:12px">
+      <div style="font-size:22px;font-weight:800;letter-spacing:1px;color:#2e7d32">YEŞİL DEFTER / MEASUREMENT BOOK</div>
+      <div style="font-size:13px;font-weight:600;margin-top:3px">ALBRUS COMPANY — Hakediş No ${h.hakedis_no}</div>
+    </div>
+    <table style="width:100%;font-size:11px;margin-bottom:14px">
+      <tr><td style="padding:2px 6px;color:#555;width:32%">YÜKLENİCİ ADI / Contractor</td><td style="padding:2px 6px;font-weight:600">${h.isveren||'—'}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">ALT YÜKLENİCİ / Subcontractor</td><td style="padding:2px 6px">${h.taseron||'—'}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">SÖZLEŞME KONUSU / Scope</td><td style="padding:2px 6px">${h.is_tanimi||'—'}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">İŞİN ADI / Project</td><td style="padding:2px 6px">${proje?proje.ad:''} — ${h.is_yeri||''}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${h.hakedis_no}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${fmtDate(h.tarih)}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;text-align:center">
+      <tbody>${body}</tbody>
+      <tfoot><tr style="font-weight:800;background:#2e7d32;color:#fff;font-size:11px">
+        <td colspan="8" style="${bd}padding:5px 6px;text-align:right">HAKEDİŞE ESAS GENEL TOPLAM / GRAND TOTAL</td>
+        <td style="${bd}padding:5px 6px;text-align:right">${para(esasToplam)}</td>
+      </tr></tfoot>
+    </table>
+  </div>`;
 }
 
 async function buildHakedisRaporHtml() {
