@@ -1284,7 +1284,7 @@
     <div style="font-size:12px;color:var(--dim);margin-bottom:8px">Her poz için <b>TOPLAM (bugüne kadarki kümülatif metraj)</b> girin. Önceki hakediş otomatik ÖNCEKİ'ye, fark BU HKD'ye gider.</div>
     <div style="max-height:70vh;overflow:auto" id="yesil-icerik"></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('m-yesil')">Kapat</button>
+      <button class="btn btn-ghost" onclick="closeYesilDefter()">Kapat</button>
       <button class="btn btn-ghost" onclick="yesilDefterPdf()">PDF</button>
       <button class="btn btn-ghost" onclick="yesilDefterExcel()">Excel</button>
       <button class="btn btn-primary" onclick="yesilKaydet()">Kaydet</button>
@@ -6318,7 +6318,12 @@ async function openYesilDefter() {
   if (!_hkEditCalc) { alert('Önce hakediş açın.'); return; }
   document.getElementById('m-yesil-title').textContent = 'Yeşil Defter — Hakediş No ' + _hkEditCalc.hakedis.hakedis_no;
   renderYesilGrid();
+  closeModal('m-hakedis');   // iç içe modal olmasın — editörü kapat, sadece yeşil defter görünsün
   openModal('m-yesil');
+}
+function closeYesilDefter() {
+  closeModal('m-yesil');
+  openModal('m-hakedis');    // yeşil defterden çıkınca hakediş editörüne dön
 }
 function renderYesilGrid() {
   const calc = _hkEditCalc; if (!calc) return;
