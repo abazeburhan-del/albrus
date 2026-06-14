@@ -279,7 +279,7 @@ async function initDb() {
   try { db.run("ALTER TABLE kasa_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
   try { db.run("ALTER TABLE banka_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
 
-  // Hakediş (taşeron progress payment certificate)
+  // Hakediş — yalnızca BOQ/poz listesi (hakediş belge sistemi sıfırdan yeniden yapılacak)
   db.run(`
     CREATE TABLE IF NOT EXISTS hakedis_pozlar (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -293,35 +293,10 @@ async function initDb() {
       bf_malzeme REAL DEFAULT 0,
       sira INTEGER DEFAULT 0
     );
-    CREATE TABLE IF NOT EXISTS hakedisler (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      proje_id INTEGER NOT NULL,
-      hakedis_no INTEGER NOT NULL DEFAULT 1,
-      tarih TEXT DEFAULT '',
-      taseron TEXT DEFAULT '',
-      isveren TEXT DEFAULT '',
-      is_tanimi TEXT DEFAULT '',
-      is_yeri TEXT DEFAULT '',
-      sozlesme_no TEXT DEFAULT '',
-      sozlesme_tarihi TEXT DEFAULT '',
-      para_birimi TEXT DEFAULT 'USD',
-      avans_kesinti REAL DEFAULT 0,
-      teminat_kesinti REAL DEFAULT 0,
-      diger_kesinti REAL DEFAULT 0,
-      mlz_avans_kesinti REAL DEFAULT 0,
-      mlz_teminat_kesinti REAL DEFAULT 0,
-      durum TEXT DEFAULT 'taslak',
-      aciklama TEXT DEFAULT ''
-    );
-    CREATE TABLE IF NOT EXISTS hakedis_satirlar (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      hakedis_id INTEGER NOT NULL,
-      poz_id INTEGER NOT NULL,
-      iscilik_toplam REAL DEFAULT 0,
-      malzeme_toplam REAL DEFAULT 0,
-      UNIQUE(hakedis_id, poz_id)
-    );
   `);
+  // Eski hakediş belge tablolarını temizle (yeniden tasarlanacak)
+  db.run('DROP TABLE IF EXISTS hakedisler;');
+  db.run('DROP TABLE IF EXISTS hakedis_satirlar;');
 
   // Çek / Senet
   db.run(`
@@ -1864,153 +1839,17 @@ ipcMain.handle('hakedis:poz:guncelle', (_, id, d) => {
 
 ipcMain.handle('hakedis:poz:sil', (_, id) => {
   run('DELETE FROM hakedis_pozlar WHERE id = ?', [id]);
-  run('DELETE FROM hakedis_satirlar WHERE poz_id = ?', [id]);
   saveDb();
   return true;
 });
 
-// — Hakedişler —
-ipcMain.handle('hakedisler:getir', (_, proje_id) => {
-  const list = getAll('SELECT * FROM hakedisler WHERE proje_id = ? ORDER BY hakedis_no DESC', [proje_id]);
-  return list.map(h => ({ ...h, ozet: hakedisOzetHesapla(h) }));
-});
-
-ipcMain.handle('hakedis:ekle', (_, d) => {
-  const proje = getOne('SELECT * FROM projeler WHERE id = ?', [d.proje_id]);
-  const no = (getOne('SELECT COALESCE(MAX(hakedis_no),0) as m FROM hakedisler WHERE proje_id = ?', [d.proje_id]).m) + 1;
-  const r = insertAndGet('hakedisler',
-    `INSERT INTO hakedisler (proje_id, hakedis_no, tarih, taseron, isveren, is_tanimi, is_yeri, sozlesme_no, sozlesme_tarihi, para_birimi, aciklama)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [Number(d.proje_id), no, d.tarih ?? '', d.taseron ?? '', d.isveren ?? '',
-     d.is_tanimi ?? (proje ? proje.ad : ''), d.is_yeri ?? '', d.sozlesme_no ?? '', d.sozlesme_tarihi ?? '',
-     d.para_birimi ?? 'USD', d.aciklama ?? '']);
-  saveDb();
-  return r;
-});
-
-ipcMain.handle('hakedis:guncelle', (_, id, d) => {
-  run(`UPDATE hakedisler SET tarih=?, taseron=?, isveren=?, is_tanimi=?, is_yeri=?, sozlesme_no=?, sozlesme_tarihi=?, para_birimi=?,
-        avans_kesinti=?, teminat_kesinti=?, diger_kesinti=?, mlz_avans_kesinti=?, mlz_teminat_kesinti=?, durum=?, aciklama=? WHERE id=?`,
-    [d.tarih ?? '', d.taseron ?? '', d.isveren ?? '', d.is_tanimi ?? '', d.is_yeri ?? '', d.sozlesme_no ?? '', d.sozlesme_tarihi ?? '',
-     d.para_birimi ?? 'USD', Number(d.avans_kesinti)||0, Number(d.teminat_kesinti)||0, Number(d.diger_kesinti)||0,
-     Number(d.mlz_avans_kesinti)||0, Number(d.mlz_teminat_kesinti)||0, d.durum ?? 'taslak', d.aciklama ?? '', id]);
-  saveDb();
-  return true;
-});
-
-ipcMain.handle('hakedis:sil', (_, id) => {
-  run('DELETE FROM hakedis_satirlar WHERE hakedis_id = ?', [id]);
-  run('DELETE FROM hakedisler WHERE id = ?', [id]);
-  saveDb();
-  return true;
-});
-
-// Projedeki tüm hakedişleri sil (poz/keşif listesi korunur)
-ipcMain.handle('hakedis:tumunu:sil', (_, proje_id) => {
-  const ids = getAll('SELECT id FROM hakedisler WHERE proje_id = ?', [proje_id]).map(h => h.id);
-  for (const id of ids) run('DELETE FROM hakedis_satirlar WHERE hakedis_id = ?', [id]);
-  run('DELETE FROM hakedisler WHERE proje_id = ?', [proje_id]);
-  saveDb();
-  return ids.length;
-});
-
-// Projedeki tüm pozları (ve bağlı hakediş satırlarını) sil
+// Projedeki tüm pozları sil
 ipcMain.handle('hakedis:poz:tumunu:sil', (_, proje_id) => {
-  const ids = getAll('SELECT id FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]).map(p => p.id);
-  for (const id of ids) run('DELETE FROM hakedis_satirlar WHERE poz_id = ?', [id]);
+  const n = getAll('SELECT id FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]).length;
   run('DELETE FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]);
   saveDb();
-  return ids.length;
+  return n;
 });
-
-// Bu hakedişe ait satır metrajlarını topluca kaydet
-ipcMain.handle('hakedis:satirlar:kaydet', (_, hakedis_id, satirlar) => {
-  for (const s of (satirlar || [])) {
-    const isc = Number(s.iscilik_toplam) || 0;
-    const mlz = Number(s.malzeme_toplam) || 0;
-    const varMi = getOne('SELECT id FROM hakedis_satirlar WHERE hakedis_id = ? AND poz_id = ?', [hakedis_id, s.poz_id]);
-    if (varMi) run('UPDATE hakedis_satirlar SET iscilik_toplam=?, malzeme_toplam=? WHERE id=?', [isc, mlz, varMi.id]);
-    else       run('INSERT INTO hakedis_satirlar (hakedis_id, poz_id, iscilik_toplam, malzeme_toplam) VALUES (?,?,?,?)', [hakedis_id, s.poz_id, isc, mlz]);
-  }
-  saveDb();
-  return true;
-});
-
-// Önceki hakedişteki (daha küçük no'lu en yakın) poz kümülatif miktarını bul
-function oncekiMiktar(proje_id, hakedis_no, poz_id, alan) {
-  const row = getOne(`
-    SELECT s.${alan} as v FROM hakedis_satirlar s
-    JOIN hakedisler h ON h.id = s.hakedis_id
-    WHERE h.proje_id = ? AND h.hakedis_no < ? AND s.poz_id = ?
-    ORDER BY h.hakedis_no DESC LIMIT 1`, [proje_id, hakedis_no, poz_id]);
-  return row ? row.v : 0;
-}
-
-// Bir hakedişin tüm hesaplı verisini döndür (poz satırları + tutarlar + arka kapak)
-function hakedisHesapla(id) {
-  const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [id]);
-  if (!h) return null;
-  const pozlar = getAll('SELECT * FROM hakedis_pozlar WHERE proje_id = ? ORDER BY sira, id', [h.proje_id]);
-  const satirMap = {};
-  getAll('SELECT * FROM hakedis_satirlar WHERE hakedis_id = ?', [id]).forEach(s => { satirMap[s.poz_id] = s; });
-
-  let iscG=0, iscH=0, iscI=0, mlzG=0, mlzH=0, mlzI=0;
-  const rows = pozlar.map(p => {
-    // Bu hakediş için poz satırı yoksa kümülatif TOPLAM önceki dönemden taşınır (negatif "bu dönem" oluşmaz)
-    const s = satirMap[p.id];
-    const E = oncekiMiktar(h.proje_id, h.hakedis_no, p.id, 'iscilik_toplam');
-    const D = s ? (s.iscilik_toplam || 0) : E;
-    const F = D - E;
-    const G = p.bf_iscilik * D, H = p.bf_iscilik * E, I = G - H;
-    const E2 = oncekiMiktar(h.proje_id, h.hakedis_no, p.id, 'malzeme_toplam');
-    const D2 = s ? (s.malzeme_toplam || 0) : E2;
-    const F2 = D2 - E2;
-    const G2 = p.bf_malzeme * D2, H2 = p.bf_malzeme * E2, I2 = G2 - H2;
-    iscG+=G; iscH+=H; iscI+=I; mlzG+=G2; mlzH+=H2; mlzI+=I2;
-    return { poz: p, D,E,F,G,H,I, D2,E2,F2,G2,H2,I2,
-             kesif_tutar_iscilik: p.kesif_miktar * p.bf_iscilik,
-             gerceklesme: p.kesif_miktar > 0 ? (D / p.kesif_miktar * 100) : 0 };
-  });
-
-  // Kesintiler (bu dönem) + önceki dönem kümülatif kesintiler
-  const onceki = getAll('SELECT * FROM hakedisler WHERE proje_id = ? AND hakedis_no < ?', [h.proje_id, h.hakedis_no]);
-  const oncekiTopla = (alan) => onceki.reduce((s,x)=> s + (x[alan]||0), 0);
-  const iscKesintiBu = (h.avans_kesinti||0) + (h.teminat_kesinti||0) + (h.diger_kesinti||0);
-  const iscKesintiOnce = oncekiTopla('avans_kesinti') + oncekiTopla('teminat_kesinti') + oncekiTopla('diger_kesinti');
-  const mlzKesintiBu = (h.mlz_avans_kesinti||0) + (h.mlz_teminat_kesinti||0);
-  const mlzKesintiOnce = oncekiTopla('mlz_avans_kesinti') + oncekiTopla('mlz_teminat_kesinti');
-
-  const netIscBu = iscI - iscKesintiBu;
-  const netIscTop = iscG - (iscKesintiBu + iscKesintiOnce);
-  const netMlzBu = mlzI - mlzKesintiBu;
-  const netMlzTop = mlzG - (mlzKesintiBu + mlzKesintiOnce);
-
-  return {
-    hakedis: h, rows,
-    toplam: {
-      isc: { G: iscG, H: iscH, I: iscI },
-      mlz: { G: mlzG, H: mlzH, I: mlzI },
-      kesinti: {
-        avans: { bu: h.avans_kesinti||0, once: oncekiTopla('avans_kesinti') },
-        teminat: { bu: h.teminat_kesinti||0, once: oncekiTopla('teminat_kesinti') },
-        diger: { bu: h.diger_kesinti||0, once: oncekiTopla('diger_kesinti') },
-        mlz_avans: { bu: h.mlz_avans_kesinti||0, once: oncekiTopla('mlz_avans_kesinti') },
-        mlz_teminat: { bu: h.mlz_teminat_kesinti||0, once: oncekiTopla('mlz_teminat_kesinti') },
-        iscBu: iscKesintiBu, iscOnce: iscKesintiOnce, iscTop: iscKesintiBu+iscKesintiOnce,
-        mlzBu: mlzKesintiBu, mlzOnce: mlzKesintiOnce, mlzTop: mlzKesintiBu+mlzKesintiOnce
-      },
-      netIscBu, netIscTop, netMlzBu, netMlzTop,
-      netToplamBu: netIscBu + netMlzBu, netToplamTop: netIscTop + netMlzTop
-    }
-  };
-}
-
-function hakedisOzetHesapla(h) {
-  const calc = hakedisHesapla(h.id);
-  return calc ? { netToplamBu: calc.toplam.netToplamBu, iscBu: calc.toplam.isc.I, mlzBu: calc.toplam.mlz.I } : null;
-}
-
-ipcMain.handle('hakedis:getir', (_, id) => hakedisHesapla(id));
 
 // Excel teklif/keşif dosyasını seç ve önizle (sayfa adları + ham satırlar)
 ipcMain.handle('xlsx:onizle', async () => {
@@ -2036,9 +1875,6 @@ ipcMain.handle('xlsx:onizle', async () => {
 ipcMain.handle('hakedis:boq:import', (_, { proje_id, satirlar, temizle }) => {
   if (!proje_id) throw new Error('Proje seçilmedi.');
   if (temizle) {
-    // mevcut pozları ve onlara bağlı hakediş satırlarını sil
-    const eski = getAll('SELECT id FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]);
-    eski.forEach(p => run('DELETE FROM hakedis_satirlar WHERE poz_id = ?', [p.id]));
     run('DELETE FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]);
   }
   let sira = getOne('SELECT COALESCE(MAX(sira),0) as m FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]).m;
