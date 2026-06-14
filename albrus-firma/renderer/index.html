@@ -6428,7 +6428,7 @@ async function buildYesilDefterHtml() {
     <th style="${bd}padding:2px 3px">ÖNCEKİ<br>PREVIOUS</th>
     <th style="${bd}padding:2px 3px">BU HKD.<br>THIS PERIOD</th>
     <th style="${bd}padding:2px 3px">İŞİN %'Sİ<br>PERCENT</th>
-    <th style="${bd}padding:2px 3px">HAKEDİŞE ESAS TOPLAM<br>TOTAL × %</th>
+    <th style="${bd}padding:2px 3px">HAKEDİŞE ESAS TOPLAM<br>QUANTITY TO DATE</th>
   </tr>`;
 
   let sno = 0, gno = 0, grupAd = '__yok__';
@@ -6451,7 +6451,6 @@ async function buildYesilDefterHtml() {
     const bu = girilmis ? (dStored - onceki) : 0;
     const toplam = girilmis ? dStored : onceki;
     const oran = r.poz.kesif_miktar > 0 ? (toplam / r.poz.kesif_miktar) : 0;
-    const esas = toplam * oran;   // hakedişe esas toplam = TOPLAM × % (oran)
     body += `<tr style="font-size:7.5pt">
       <td style="${bd}padding:1px 3px;text-align:center">${sno}</td>
       <td style="${bd}padding:1px 3px;text-align:center">${r.poz.poz_no||''}</td>
@@ -6461,7 +6460,7 @@ async function buildYesilDefterHtml() {
       <td style="${bd}padding:1px 3px;text-align:right">${onceki?num(onceki):''}</td>
       <td style="${bd}padding:1px 3px;text-align:right">${bu?num(bu):''}</td>
       <td style="${bd}padding:1px 3px;text-align:right">${oran?num(oran)+'%':''}</td>
-      <td style="${bd}padding:1px 3px;text-align:right">${esas?num(esas):''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${toplam?num(toplam):''}</td>
     </tr>`;
   });
 
