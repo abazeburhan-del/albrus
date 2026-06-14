@@ -2022,7 +2022,7 @@ ipcMain.handle('xlsx:onizle', async () => {
   try {
     const wb = readWorkbook(filePaths[0]);
     const sheets = wb.sheets.map(s => {
-      const rows = sheetRows(wb, s.path).slice(0, 120).map(r => (r || []).slice(0, 30).map(c => c == null ? '' : String(c)));
+      const rows = sheetRows(wb, s.path).slice(0, 10000).map(r => (r || []).slice(0, 40).map(c => c == null ? '' : String(c)));
       return { name: s.name, rows };
     });
     return { ok: true, dosya: path.basename(filePaths[0]), sheets };
