@@ -6419,16 +6419,16 @@ async function buildYesilDefterHtml() {
 
   // Her grup için S.NO blok başlığı + sütun başlıkları + kalemler (S.NO sürekli artar, grup no ayrı)
   const bd = 'border:1px solid #999;';
-  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:9pt">
-    <th style="${bd}padding:3px 4px">S.NO</th>
-    <th style="${bd}padding:3px 4px">POZ NO<br>ITEM NO</th>
-    <th style="${bd}padding:3px 4px;text-align:left">İMALATIN ADI<br>DESCRIPTION</th>
-    <th style="${bd}padding:3px 4px">BR<br>UNIT</th>
-    <th style="${bd}padding:3px 4px">TOPLAM<br>TO DATE</th>
-    <th style="${bd}padding:3px 4px">ÖNCEKİ<br>PREVIOUS</th>
-    <th style="${bd}padding:3px 4px">BU HKD.<br>THIS PERIOD</th>
-    <th style="${bd}padding:3px 4px">İŞİN %'Sİ<br>PERCENT</th>
-    <th style="${bd}padding:3px 4px">HAKEDİŞE ESAS TOPLAM<br>QUANTITY TO DATE</th>
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:7pt">
+    <th style="${bd}padding:2px 3px">S.NO</th>
+    <th style="${bd}padding:2px 3px">POZ NO<br>ITEM NO</th>
+    <th style="${bd}padding:2px 3px;text-align:left">İMALATIN ADI<br>DESCRIPTION</th>
+    <th style="${bd}padding:2px 3px">BR<br>UNIT</th>
+    <th style="${bd}padding:2px 3px">TOPLAM<br>TO DATE</th>
+    <th style="${bd}padding:2px 3px">ÖNCEKİ<br>PREVIOUS</th>
+    <th style="${bd}padding:2px 3px">BU HKD.<br>THIS PERIOD</th>
+    <th style="${bd}padding:2px 3px">İŞİN %'Sİ<br>PERCENT</th>
+    <th style="${bd}padding:2px 3px">HAKEDİŞE ESAS TOPLAM<br>TOTAL × %</th>
   </tr>`;
 
   let sno = 0, gno = 0, grupAd = '__yok__';
@@ -6437,10 +6437,10 @@ async function buildYesilDefterHtml() {
     const g = r.poz.grup || '';
     if (g !== grupAd) {
       grupAd = g; gno++;
-      body += `<tr style="background:#c8e6c9;font-weight:700">
-        <td style="${bd}padding:4px 5px;text-align:center">S.NO</td>
-        <td style="${bd}padding:4px 5px;text-align:center">${gno}</td>
-        <td style="${bd}padding:4px 5px" colspan="7">${g || '—'}</td>
+      body += `<tr style="background:#c8e6c9;font-weight:700;font-size:8pt">
+        <td style="${bd}padding:2px 5px;text-align:center">S.NO</td>
+        <td style="${bd}padding:2px 5px;text-align:center">${gno}</td>
+        <td style="${bd}padding:2px 5px" colspan="7">${g || '—'}</td>
       </tr>` + colHead;
     }
     sno++;
@@ -6451,26 +6451,27 @@ async function buildYesilDefterHtml() {
     const bu = girilmis ? (dStored - onceki) : 0;
     const toplam = girilmis ? dStored : onceki;
     const oran = r.poz.kesif_miktar > 0 ? (toplam / r.poz.kesif_miktar) : 0;
-    body += `<tr style="font-size:9pt">
-      <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
-      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.poz_no||''}</td>
-      <td style="${bd}padding:2px 4px;text-align:left">${r.poz.tanim}</td>
-      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.birim}</td>
-      <td style="${bd}padding:2px 4px;text-align:right">${toplam?num(toplam):''}</td>
-      <td style="${bd}padding:2px 4px;text-align:right">${onceki?num(onceki):''}</td>
-      <td style="${bd}padding:2px 4px;text-align:right">${bu?num(bu):''}</td>
-      <td style="${bd}padding:2px 4px;text-align:right">${oran?num(oran)+'%':''}</td>
-      <td style="${bd}padding:2px 4px;text-align:right">${toplam?num(toplam):''}</td>
+    const esas = toplam * oran;   // hakedişe esas toplam = TOPLAM × % (oran)
+    body += `<tr style="font-size:7.5pt">
+      <td style="${bd}padding:1px 3px;text-align:center">${sno}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.poz.poz_no||''}</td>
+      <td style="${bd}padding:1px 3px;text-align:left">${r.poz.tanim}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.poz.birim}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${toplam?num(toplam):''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${onceki?num(onceki):''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${bu?num(bu):''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${oran?num(oran)+'%':''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${esas?num(esas):''}</td>
     </tr>`;
   });
 
   return `
-  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:20px 26px">
-    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:6px;margin-bottom:10px">
-      <div style="font-size:16px;font-weight:700;letter-spacing:.5px">YEŞİL DEFTER / MEASUREMENT BOOK</div>
-      <div style="font-size:11px;font-weight:600;margin-top:2px">ALBRUS COMPANY — Hakediş No ${h.hakedis_no}</div>
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:16px 22px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700;letter-spacing:.5px">YEŞİL DEFTER / MEASUREMENT BOOK</div>
+      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY — Hakediş No ${h.hakedis_no}</div>
     </div>
-    <table style="width:100%;font-size:10pt;margin-bottom:12px">
+    <table style="width:100%;font-size:8pt;margin-bottom:10px">
       <tr><td style="padding:2px 6px;color:#555;width:32%">YÜKLENİCİ ADI / Contractor</td><td style="padding:2px 6px;font-weight:600">${h.isveren||'—'}</td></tr>
       <tr><td style="padding:2px 6px;color:#555">ALT YÜKLENİCİ / Subcontractor</td><td style="padding:2px 6px">${h.taseron||'—'}</td></tr>
       <tr><td style="padding:2px 6px;color:#555">SÖZLEŞME KONUSU / Scope</td><td style="padding:2px 6px">${h.is_tanimi||'—'}</td></tr>
@@ -6478,10 +6479,10 @@ async function buildYesilDefterHtml() {
       <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${h.hakedis_no}</td></tr>
       <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${fmtDate(h.tarih)}</td></tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt">
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt">
       <tbody>${body}</tbody>
     </table>
-    <div style="margin-top:10px;font-size:8pt;color:#777">Yeşil defter ölçü/metraj defteridir — fiyat içermez. Tutar hesabı hakediş icmali ve arka kapakta yapılır.</div>
+    <div style="margin-top:8px;font-size:7pt;color:#777">Yeşil defter ölçü/metraj defteridir — fiyat içermez. Tutar hesabı hakediş icmali ve arka kapakta yapılır.</div>
   </div>`;
 }
 
