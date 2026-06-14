@@ -1705,10 +1705,12 @@ const pageLoaders = {
 };
 
 function goPage(page) {
+  const pg = document.getElementById('pg-' + page);
+  if (!pg) { console.warn('Bilinmeyen sayfa:', page); return; }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('pg-' + page).classList.add('active');
-  document.querySelector(`[data-page="${page}"]`).classList.add('active');
+  pg.classList.add('active');
+  document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
   pageLoaders[page]?.();
 }
 
