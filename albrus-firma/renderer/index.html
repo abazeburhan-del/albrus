@@ -6101,8 +6101,10 @@ async function openYesil(hakedisId) {
   if (!d) { alert('Hakediş bulunamadı.'); return; }
   if (!d.rows.length) { alert('Bu projede poz yok. Önce BOQ/poz listesi ekleyin.'); return; }
   _yesilData = d;
-  document.getElementById('m-yesil-title').textContent = `Yeşil Defter — ${d.hakedis.hakedis_no}. Hakediş`;
+  document.getElementById('m-yesil-title').textContent = `Yeşil Defter — ${d.hakedis.hakedis_no}. Hakediş  ·  sürüm 2026-06-15`;
   renderYesilGrid();
+  // Açık kalmış başka overlay varsa kapat (tıklamayı yutan görünmez katmanı önle)
+  document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-yesil') o.classList.remove('open'); });
   openModal('m-yesil');
 }
 
