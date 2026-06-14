@@ -6140,15 +6140,22 @@ function renderYesilGrid() {
       <td style="${bd}padding:2px 4px;text-align:left">${r.poz.tanim}</td>
       <td style="${bd}padding:2px 4px;text-align:center">${r.poz.birim}</td>
       <td style="${bd}padding:2px 4px;text-align:right;color:var(--dim)" id="yd-on-${i}">${r.onceki?_ydNum(r.onceki):''}</td>
-      <td style="${bd}padding:2px 4px;text-align:right"><input id="yd-${i}" data-once="${r.onceki}" value="${r.bu||''}" inputmode="decimal" style="width:88px;text-align:right;padding:2px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:9pt"></td>
+      <td style="${bd}padding:0;width:110px"><input id="yd-${i}" data-once="${r.onceki}" value="${r.bu||''}" inputmode="decimal" style="width:100%;box-sizing:border-box;text-align:right;padding:4px 5px;background:rgba(120,160,255,.06);border:1px solid var(--border);border-radius:0;color:var(--text);font-size:9pt;cursor:text"></td>
       <td style="${bd}padding:2px 4px;text-align:right;font-weight:600" id="yd-top-${i}">${r.toplam?_ydNum(r.toplam):''}</td>
       <td style="${bd}padding:2px 4px;text-align:right" id="yd-or-${i}">${r.toplam?_ydNum(r.oran*100)+'%':''}</td>
       <td style="${bd}padding:2px 4px;text-align:right" id="yd-es-${i}">${r.esas?_ydNum(r.esas):''}</td>
     </tr>`;
   });
   document.getElementById('yesil-icerik').innerHTML =
-    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt"><tbody>${body}</tbody></table>`;
-  d.rows.forEach((r,i) => document.getElementById('yd-'+i)?.addEventListener('input', () => yesilCanli(i)));
+    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt;user-select:none">${`<colgroup>${'<col>'.repeat(9)}</colgroup>`}<tbody>${body}</tbody></table>`;
+  d.rows.forEach((r,i) => {
+    const inp = document.getElementById('yd-'+i);
+    if (!inp) return;
+    inp.style.userSelect = 'text';
+    inp.addEventListener('input', () => yesilCanli(i));
+    // satıra/hücreye tıklayınca da kutuya odaklan (boşluğa denk gelse bile)
+    inp.closest('td')?.addEventListener('mousedown', (e) => { if (e.target !== inp) { e.preventDefault(); inp.focus(); } });
+  });
 }
 
 function yesilCanli(i) {
