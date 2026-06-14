@@ -1905,6 +1905,24 @@ ipcMain.handle('hakedis:sil', (_, id) => {
   return true;
 });
 
+// Projedeki tüm hakedişleri sil (poz/keşif listesi korunur)
+ipcMain.handle('hakedis:tumunu:sil', (_, proje_id) => {
+  const ids = getAll('SELECT id FROM hakedisler WHERE proje_id = ?', [proje_id]).map(h => h.id);
+  for (const id of ids) run('DELETE FROM hakedis_satirlar WHERE hakedis_id = ?', [id]);
+  run('DELETE FROM hakedisler WHERE proje_id = ?', [proje_id]);
+  saveDb();
+  return ids.length;
+});
+
+// Projedeki tüm pozları (ve bağlı hakediş satırlarını) sil
+ipcMain.handle('hakedis:poz:tumunu:sil', (_, proje_id) => {
+  const ids = getAll('SELECT id FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]).map(p => p.id);
+  for (const id of ids) run('DELETE FROM hakedis_satirlar WHERE poz_id = ?', [id]);
+  run('DELETE FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]);
+  saveDb();
+  return ids.length;
+});
+
 // Bu hakedişe ait satır metrajlarını topluca kaydet
 ipcMain.handle('hakedis:satirlar:kaydet', (_, hakedis_id, satirlar) => {
   for (const s of (satirlar || [])) {

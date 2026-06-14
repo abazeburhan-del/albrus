@@ -539,12 +539,12 @@
     <div id="hk-bos" class="empty" style="display:none">Önce bir proje seçin. Proje yoksa Projeler bölümünden ekleyin.</div>
 
     <div class="table-wrap" style="margin-bottom:18px">
-      <div class="table-head"><div class="table-head-title">Poz / Keşif Listesi (BOQ)</div></div>
+      <div class="table-head"><div class="table-head-title">Poz / Keşif Listesi (BOQ)</div><button class="btn-link btn-sm" style="color:var(--danger,#e5534b)" onclick="pozTumSil()">Tümünü Sil</button></div>
       <div id="hk-pozlar-wrap"></div>
     </div>
 
     <div class="table-wrap">
-      <div class="table-head"><div class="table-head-title">Hakedişler</div></div>
+      <div class="table-head"><div class="table-head-title">Hakedişler</div><button class="btn-link btn-sm" style="color:var(--danger,#e5534b)" onclick="hakedisTumSil()">Tümünü Sil</button></div>
       <div id="hk-liste-wrap"></div>
     </div>
   </div>
@@ -5970,15 +5970,20 @@ function boqSatirlariCikar() {
     const qtyRaw   = String(al(r, m.kesif_miktar)).trim();
     const bfiRaw   = String(al(r, m.bf_iscilik)).trim();
     const bfmRaw   = String(al(r, m.bf_malzeme)).trim();
-    // Grup başlığı (mavi dolgulu): miktar boş + fiyat yok, ama satırda metin var.
-    // Grup adı hangi sütundaysa (Tanım ya da P/N ya da ilk dolu hücre) oradan alınır.
+    const birimRaw = String(al(r, m.birim)).trim();
+    // Grup başlığı (mavi dolgulu): yalnızca bir etiket hücresi olan satır (miktar/fiyattan bağımsız).
+    // Kalem kimliği olan satır (poz_no, miktar ya da birden çok dolu hücre) FİYATI BOŞ OLSA DA çekilir.
     const metin = tanimRaw || pozRaw || (r.find(c => c && isNaN(parseFloat(String(c).replace(/[^\d.,-]/g,'')))) || '').toString().trim();
-    if (grupAyir && qtyRaw === '' && (bfiRaw === '' || sayi(bfiRaw) === 0) && (bfmRaw === '' || sayi(bfmRaw) === 0) && metin) {
+    const doluHucre = [pozRaw, tanimRaw, qtyRaw, bfiRaw, bfmRaw, birimRaw].filter(x => x !== '').length;
+    const kalemMi = qtyRaw !== '' || sayi(qtyRaw) > 0 || doluHucre >= 2;
+    if (grupAyir && !kalemMi && metin) {
       grup = metin; continue;
     }
-    if (!tanimRaw) continue;
-    out.push({ grup, poz_no: pozRaw, tanim: tanimRaw,
-      birim: String(al(r, m.birim)).trim() || 'Adet',
+    // Tanım boşsa poz_no'yu tanım olarak kullan (kimlik P/N sütununda olabilir)
+    const tanim = tanimRaw || pozRaw;
+    if (!tanim) continue;
+    out.push({ grup, poz_no: pozRaw, tanim,
+      birim: birimRaw || 'Adet',
       kesif_miktar: sayi(qtyRaw), bf_iscilik: sayi(bfiRaw), bf_malzeme: sayi(bfmRaw) });
   }
   return out;
@@ -6092,6 +6097,20 @@ async function hakedisSil(id) {
   if (!confirm('Bu hakedişi silmek istiyor musunuz?')) return;
   await api.invoke('hakedis:sil', id);
   loadHakedisProje();
+}
+async function hakedisTumSil() {
+  if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
+  if (!confirm('Bu projedeki TÜM hakedişler silinecek (poz/keşif listesi kalır). Emin misiniz?')) return;
+  const n = await api.invoke('hakedis:tumunu:sil', _hkProjeId);
+  await loadHakedisProje();
+  alert(n + ' hakediş silindi.');
+}
+async function pozTumSil() {
+  if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
+  if (!confirm('Bu projedeki TÜM pozlar (ve bağlı hakediş metrajları) silinecek. Emin misiniz?')) return;
+  const n = await api.invoke('hakedis:poz:tumunu:sil', _hkProjeId);
+  await loadHakedisProje();
+  alert(n + ' poz silindi.');
 }
 
 // — Hakediş editör —
