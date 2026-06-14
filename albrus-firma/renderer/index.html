@@ -1236,11 +1236,11 @@
 
 <!-- Yeşil Defter (metraj giriş) Modal -->
 <div class="overlay" id="m-yesil">
-  <div class="modal" style="max-width:1150px;width:96vw">
-    <div class="modal-title" id="m-yesil-title">Yeşil Defter</div>
-    <div style="font-size:12px;color:var(--dim);margin-bottom:8px">Her poz için <b>BU HKD.</b> (bu dönem yapılan metraj) gir. ÖNCEKİ önceki dönemlerden otomatik gelir; TOPLAM = ÖNCEKİ + BU HKD.</div>
-    <div style="max-height:70vh;overflow:auto" id="yesil-icerik"></div>
-    <div class="modal-actions">
+  <div class="modal" style="max-width:1150px;width:96vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" id="m-yesil-title" style="flex:0 0 auto">Yeşil Defter</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:0 0 auto">Her poz için <b>BU HKD.</b> (bu dönem yapılan metraj) gir. ÖNCEKİ önceki dönemlerden otomatik gelir; TOPLAM = ÖNCEKİ + BU HKD.</div>
+    <div style="flex:1 1 auto;overflow:auto;min-height:0" id="yesil-icerik"></div>
+    <div class="modal-actions" style="flex:0 0 auto">
       <button class="btn btn-ghost" onclick="closeModal('m-yesil')">Kapat</button>
       <button class="btn btn-ghost" onclick="yesilPdf()">PDF</button>
       <button class="btn btn-ghost" onclick="yesilExcel()">Excel</button>
@@ -6106,6 +6106,7 @@ async function openYesil(hakedisId) {
   // Açık kalmış başka overlay varsa kapat (tıklamayı yutan görünmez katmanı önle)
   document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-yesil') o.classList.remove('open'); });
   openModal('m-yesil');
+  document.getElementById('yesil-icerik').scrollTop = 0; // en üstten başla
 }
 
 function renderYesilGrid() {
