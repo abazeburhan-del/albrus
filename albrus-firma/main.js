@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { readWorkbook, sheetRows } = require('./xlsx-read');
 
 let db;
 let SQL;
@@ -1991,6 +1992,49 @@ function hakedisOzetHesapla(h) {
 }
 
 ipcMain.handle('hakedis:getir', (_, id) => hakedisHesapla(id));
+
+// Excel teklif/keşif dosyasını seç ve önizle (sayfa adları + ham satırlar)
+ipcMain.handle('xlsx:onizle', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Teklif / Keşif Excel Dosyası Seç',
+    properties: ['openFile'],
+    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+  });
+  if (canceled || !filePaths?.length) return { ok: false, iptal: true };
+  try {
+    const wb = readWorkbook(filePaths[0]);
+    const sheets = wb.sheets.map(s => {
+      const rows = sheetRows(wb, s.path).slice(0, 120).map(r => (r || []).slice(0, 30).map(c => c == null ? '' : String(c)));
+      return { name: s.name, rows };
+    });
+    return { ok: true, dosya: path.basename(filePaths[0]), sheets };
+  } catch (e) {
+    throw new Error('Excel okunamadı: ' + e.message);
+  }
+});
+
+// Eşlenmiş satırları o projenin poz/BOQ listesine ekle
+ipcMain.handle('hakedis:boq:import', (_, { proje_id, satirlar, temizle }) => {
+  if (!proje_id) throw new Error('Proje seçilmedi.');
+  if (temizle) {
+    // mevcut pozları ve onlara bağlı hakediş satırlarını sil
+    const eski = getAll('SELECT id FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]);
+    eski.forEach(p => run('DELETE FROM hakedis_satirlar WHERE poz_id = ?', [p.id]));
+    run('DELETE FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]);
+  }
+  let sira = getOne('SELECT COALESCE(MAX(sira),0) as m FROM hakedis_pozlar WHERE proje_id = ?', [proje_id]).m;
+  let eklenen = 0;
+  for (const s of (satirlar || [])) {
+    if (!s.tanim || !String(s.tanim).trim()) continue;
+    sira++;
+    run('INSERT INTO hakedis_pozlar (proje_id, grup, poz_no, tanim, birim, kesif_miktar, bf_iscilik, bf_malzeme, sira) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [proje_id, s.grup || '', s.poz_no || '', String(s.tanim).trim(), s.birim || 'Adet',
+       Number(s.kesif_miktar) || 0, Number(s.bf_iscilik) || 0, Number(s.bf_malzeme) || 0, sira]);
+    eklenen++;
+  }
+  saveDb();
+  return { ok: true, eklenen };
+});
 
 // ════════════════════════════════════════════════════════════
 // ÇEK / SENET
