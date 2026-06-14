@@ -89,6 +89,12 @@
     tr:hover td { background: rgba(0,0,0,.04); }
     .empty { padding: 36px; text-align: center; color: var(--dim); }
 
+    /* Hakediş tabloları: küçük font, dar boşluk, metin sütuna sığsın (kelime kırma) */
+    .hk-table th, .hk-table td { padding: 4px 7px; font-size: 11px; vertical-align: top; }
+    .hk-table th { text-transform: none; letter-spacing: 0; }
+    .hk-table td { white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
+    .hk-table .hk-tanim { max-width: 360px; }
+
     /* ── Badges ── */
     .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
     .b-giris     { background: rgba(34,197,94,.15);  color: var(--green); }
@@ -5835,19 +5841,19 @@ async function loadHakedisProje() {
     pw.innerHTML = '<div class="empty">Poz yok — "+ Poz (Keşif)" ile iş kalemlerini ekleyin.</div>';
   } else {
     pw.innerHTML = `
-      <table><thead><tr>
+      <table class="hk-table"><thead><tr>
         <th>Grup</th><th>Poz</th><th>Tanım</th><th>Birim</th>
         <th style="text-align:right">Keşif</th><th style="text-align:right">BF İşçilik</th><th style="text-align:right">BF Malzeme</th><th></th>
       </tr></thead><tbody>
         ${_hkPozlar.map(p => `<tr>
-          <td style="font-size:11px;color:var(--dim)">${p.grup||'—'}</td>
+          <td style="color:var(--dim)">${p.grup||'—'}</td>
           <td>${p.poz_no||'—'}</td>
-          <td>${p.tanim}</td>
+          <td class="hk-tanim">${p.tanim}</td>
           <td>${p.birim}</td>
           <td style="text-align:right">${p.kesif_miktar}</td>
           <td style="text-align:right">${fmtTutar(Math.round(p.bf_iscilik))}</td>
           <td style="text-align:right">${fmtTutar(Math.round(p.bf_malzeme))}</td>
-          <td style="display:flex;gap:4px"><button class="btn-link btn-sm" onclick="openPozDuzenle(${p.id})">Düzenle</button><button class="btn-del" onclick="pozSil(${p.id})">✕</button></td>
+          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openPozDuzenle(${p.id})">Düzenle</button><button class="btn-del" onclick="pozSil(${p.id})">✕</button></td>
         </tr>`).join('')}
       </tbody></table>`;
   }
@@ -5856,7 +5862,7 @@ async function loadHakedisProje() {
   const lw = document.getElementById('hk-liste-wrap');
   if (!list.length) { lw.innerHTML = '<div class="empty">Bu projede hakediş yok — "+ Yeni Hakediş" ile başlayın.</div>'; return; }
   lw.innerHTML = `
-    <table><thead><tr>
+    <table class="hk-table"><thead><tr>
       <th>No</th><th>Tarih</th><th>Taşeron</th><th style="text-align:right">Bu Dönem İşçilik</th><th style="text-align:right">Bu Dönem Malzeme</th><th style="text-align:right">Net (Bu Hakediş)</th><th>Durum</th><th></th>
     </tr></thead><tbody>
       ${list.map(h => `<tr>
@@ -6128,11 +6134,11 @@ async function openHakedis(id) {
 function renderHakedisEditor(calc) {
   const h = calc.hakedis;
   const pb = h.para_birimi;
-  const inp = (id,val,w=90) => `<input id="${id}" value="${val??''}" inputmode="decimal" style="width:${w}px;text-align:right;padding:4px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text)">`;
+  const inp = (id,val,w=68) => `<input id="${id}" value="${val??''}" inputmode="decimal" style="width:${w}px;text-align:right;padding:3px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px">`;
   const rows = calc.rows.map((r,i) => `
     <tr style="border-top:1px solid var(--border)">
-      <td style="padding:4px 6px;font-size:11px;color:var(--dim)">${r.poz.poz_no||''}</td>
-      <td style="padding:4px 6px;font-size:12px">${r.poz.tanim}<div style="font-size:10px;color:var(--dim)">${r.poz.birim} · keşif ${r.poz.kesif_miktar} · BF İ:${fmtTutar(Math.round(r.poz.bf_iscilik))} M:${fmtTutar(Math.round(r.poz.bf_malzeme))}</div></td>
+      <td style="color:var(--dim)">${r.poz.poz_no||''}</td>
+      <td class="hk-tanim">${r.poz.tanim}<div style="font-size:10px;color:var(--dim)">${r.poz.birim} · keşif ${r.poz.kesif_miktar} · BF İ:${fmtTutar(Math.round(r.poz.bf_iscilik))} M:${fmtTutar(Math.round(r.poz.bf_malzeme))}</div></td>
       <td style="padding:4px 6px;text-align:right;font-size:11px;color:var(--dim)">${r.E}</td>
       <td style="padding:4px 6px">${inp('hkr-isc-'+i, r.D)}</td>
       <td style="padding:4px 6px;text-align:right;font-size:11px" id="hkr-iscbu-${i}">${(r.D - r.E).toFixed(2)}</td>
@@ -6157,7 +6163,7 @@ function renderHakedisEditor(calc) {
 
     <div style="font-size:12px;color:var(--dim);margin:10px 0 4px;font-weight:600">İmalat İcmali — "Toplam (bugüne kadar) miktar" girin; bu dönem ve tutarlar otomatik</div>
     <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <table class="hk-table" style="width:100%;border-collapse:collapse">
       <thead><tr style="background:rgba(0,0,0,.04)">
         <th style="padding:5px 6px;text-align:left">Poz</th><th style="padding:5px 6px;text-align:left">Tanım</th>
         <th style="padding:5px 6px;text-align:right">Önceki İşç.</th><th style="padding:5px 6px;text-align:right">Toplam İşç.</th>
