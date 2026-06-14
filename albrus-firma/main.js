@@ -1956,13 +1956,14 @@ function hakedisHesapla(id) {
 
   let iscG=0, iscH=0, iscI=0, mlzG=0, mlzH=0, mlzI=0;
   const rows = pozlar.map(p => {
-    const s = satirMap[p.id] || { iscilik_toplam: 0, malzeme_toplam: 0 };
-    const D = s.iscilik_toplam || 0;
+    // Bu hakediş için poz satırı yoksa kümülatif TOPLAM önceki dönemden taşınır (negatif "bu dönem" oluşmaz)
+    const s = satirMap[p.id];
     const E = oncekiMiktar(h.proje_id, h.hakedis_no, p.id, 'iscilik_toplam');
+    const D = s ? (s.iscilik_toplam || 0) : E;
     const F = D - E;
     const G = p.bf_iscilik * D, H = p.bf_iscilik * E, I = G - H;
-    const D2 = s.malzeme_toplam || 0;
     const E2 = oncekiMiktar(h.proje_id, h.hakedis_no, p.id, 'malzeme_toplam');
+    const D2 = s ? (s.malzeme_toplam || 0) : E2;
     const F2 = D2 - E2;
     const G2 = p.bf_malzeme * D2, H2 = p.bf_malzeme * E2, I2 = G2 - H2;
     iscG+=G; iscH+=H; iscI+=I; mlzG+=G2; mlzH+=H2; mlzI+=I2;
