@@ -539,6 +539,7 @@
         <select id="hk-proje" onchange="loadHakedisProje()" style="min-width:200px"></select>
         <button class="btn btn-ghost" onclick="boqImportBaslat()">Excel'den BOQ Aktar</button>
         <button class="btn btn-ghost" onclick="openPozEkle()">+ Poz (Keşif)</button>
+        <button class="btn btn-primary" onclick="hakedisEkle()">+ Yeni Hakediş</button>
       </div>
     </div>
     <div id="hk-bos" class="empty" style="display:none">Önce bir proje seçin. Proje yoksa Projeler bölümünden ekleyin.</div>
@@ -546,6 +547,11 @@
     <div class="table-wrap" style="margin-bottom:18px">
       <div class="table-head"><div class="table-head-title">Poz / Keşif Listesi (BOQ)</div><button class="btn-link btn-sm" style="color:var(--danger,#e5534b)" onclick="pozTumSil()">Tümünü Sil</button></div>
       <div id="hk-pozlar-wrap"></div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-head"><div class="table-head-title">Hakediş Dönemleri — Yeşil Defter</div></div>
+      <div id="hk-liste-wrap"></div>
     </div>
   </div>
 
@@ -1224,6 +1230,21 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-boq-import')">İptal</button>
       <button class="btn btn-primary" onclick="boqImportUygula()">Aktar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Yeşil Defter (metraj giriş) Modal -->
+<div class="overlay" id="m-yesil">
+  <div class="modal" style="max-width:1150px;width:96vw">
+    <div class="modal-title" id="m-yesil-title">Yeşil Defter</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px">Her poz için <b>BU HKD.</b> (bu dönem yapılan metraj) gir. ÖNCEKİ önceki dönemlerden otomatik gelir; TOPLAM = ÖNCEKİ + BU HKD.</div>
+    <div style="max-height:70vh;overflow:auto" id="yesil-icerik"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-yesil')">Kapat</button>
+      <button class="btn btn-ghost" onclick="yesilPdf()">PDF</button>
+      <button class="btn btn-ghost" onclick="yesilExcel()">Excel</button>
+      <button class="btn btn-primary" onclick="yesilKaydet()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -5808,6 +5829,39 @@ async function loadHakedisProje() {
         </tr>`).join('')}
       </tbody></table>`;
   }
+
+  // Hakediş dönemleri listesi
+  const list = await api.invoke('hakedisler:getir', _hkProjeId);
+  const lw = document.getElementById('hk-liste-wrap');
+  if (!list.length) {
+    lw.innerHTML = '<div class="empty">Hakediş dönemi yok — "+ Yeni Hakediş" ile başlayın. (Önce BOQ/poz listesi olmalı.)</div>';
+  } else {
+    lw.innerHTML = `
+      <table class="hk-table"><thead><tr>
+        <th>Hakediş No</th><th>Tarih</th><th></th>
+      </tr></thead><tbody>
+        ${list.map(h => `<tr>
+          <td><b>${h.hakedis_no}. Hakediş</b></td>
+          <td>${h.tarih ? fmtDate(h.tarih) : '—'}</td>
+          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
+        </tr>`).join('')}
+      </tbody></table>`;
+  }
+}
+
+// — Hakediş dönemi —
+async function hakedisEkle() {
+  if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
+  if (!_hkPozlar.length) { alert('Önce BOQ/poz listesi ekleyin (Excel BOQ Aktar).'); return; }
+  if (!confirm('Yeni hakediş dönemi oluşturulsun mu? (No otomatik verilir)')) return;
+  const r = await api.invoke('hakedis:ekle', { proje_id: _hkProjeId, tarih: today() });
+  await loadHakedisProje();
+  openYesil(r.id);
+}
+async function hakedisSil(id) {
+  if (!confirm('Bu hakediş dönemi ve yeşil defter metrajları silinsin mi?')) return;
+  await api.invoke('hakedis:sil', id);
+  loadHakedisProje();
 }
 
 // — Excel'den BOQ aktar —
@@ -6032,6 +6086,149 @@ async function pozTumSil() {
   alert(n + ' poz silindi.');
 }
 
+// ══════════════════════════════════════════════════
+// YEŞİL DEFTER (ölçü/metraj defteri) — RAN HASTANE formülleriyle birebir
+//   TOPLAM (I) = ÖNCEKİ (J) + BU HKD (K)
+//   İŞİN %'Sİ (L) = BU HKD ÷ TOPLAM
+//   HAKEDİŞE ESAS TOPLAM (M) = TOPLAM × % (= BU HKD)
+//   POZ NO / İMALATIN ADI / BR  ← BOQ (poz listesi)
+// ══════════════════════════════════════════════════
+let _yesilData = null;
+const _ydNum = (n) => (n||0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+
+async function openYesil(hakedisId) {
+  const d = await api.invoke('yesil:getir', hakedisId);
+  if (!d) { alert('Hakediş bulunamadı.'); return; }
+  if (!d.rows.length) { alert('Bu projede poz yok. Önce BOQ/poz listesi ekleyin.'); return; }
+  _yesilData = d;
+  document.getElementById('m-yesil-title').textContent = `Yeşil Defter — ${d.hakedis.hakedis_no}. Hakediş`;
+  renderYesilGrid();
+  openModal('m-yesil');
+}
+
+function renderYesilGrid() {
+  const d = _yesilData; if (!d) return;
+  const bd = 'border:1px solid var(--border);';
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:9pt">
+    <th style="${bd}padding:2px 4px">S.NO</th>
+    <th style="${bd}padding:2px 4px">POZ NO</th>
+    <th style="${bd}padding:2px 4px;text-align:left">İMALATIN ADI</th>
+    <th style="${bd}padding:2px 4px">BR</th>
+    <th style="${bd}padding:2px 4px">ÖNCEKİ</th>
+    <th style="${bd}padding:2px 4px">BU HKD. (gir)</th>
+    <th style="${bd}padding:2px 4px">TOPLAM</th>
+    <th style="${bd}padding:2px 4px">İŞİN %'Sİ</th>
+    <th style="${bd}padding:2px 4px">HAKEDİŞE ESAS TOPLAM</th>
+  </tr>`;
+  let sno=0, gno=0, grupAd='__yok__', body='';
+  d.rows.forEach((r,i) => {
+    const g = r.poz.grup || '';
+    if (g !== grupAd) {
+      grupAd = g; gno++;
+      body += `<tr style="background:#c8e6c9;font-weight:700">
+        <td style="${bd}padding:3px 5px;text-align:center">S.NO</td>
+        <td style="${bd}padding:3px 5px;text-align:center">${gno}</td>
+        <td style="${bd}padding:3px 5px" colspan="7">${g || '—'}</td>
+      </tr>` + colHead;
+    }
+    sno++;
+    body += `<tr style="font-size:9pt">
+      <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
+      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.poz_no||''}</td>
+      <td style="${bd}padding:2px 4px;text-align:left">${r.poz.tanim}</td>
+      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.birim}</td>
+      <td style="${bd}padding:2px 4px;text-align:right;color:var(--dim)" id="yd-on-${i}">${r.onceki?_ydNum(r.onceki):''}</td>
+      <td style="${bd}padding:2px 4px;text-align:right"><input id="yd-${i}" data-once="${r.onceki}" value="${r.bu||''}" inputmode="decimal" style="width:88px;text-align:right;padding:2px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:9pt"></td>
+      <td style="${bd}padding:2px 4px;text-align:right;font-weight:600" id="yd-top-${i}">${r.toplam?_ydNum(r.toplam):''}</td>
+      <td style="${bd}padding:2px 4px;text-align:right" id="yd-or-${i}">${r.toplam?_ydNum(r.oran*100)+'%':''}</td>
+      <td style="${bd}padding:2px 4px;text-align:right" id="yd-es-${i}">${r.esas?_ydNum(r.esas):''}</td>
+    </tr>`;
+  });
+  document.getElementById('yesil-icerik').innerHTML =
+    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt"><tbody>${body}</tbody></table>`;
+  d.rows.forEach((r,i) => document.getElementById('yd-'+i)?.addEventListener('input', () => yesilCanli(i)));
+}
+
+function yesilCanli(i) {
+  const inp = document.getElementById('yd-'+i); if (!inp) return;
+  const bu = num2(inp.value);
+  const onceki = parseFloat(inp.dataset.once) || 0;
+  const toplam = onceki + bu;
+  const oran = toplam ? (bu / toplam) : 0;
+  const esas = toplam * oran;
+  document.getElementById('yd-top-'+i).textContent = toplam ? _ydNum(toplam) : '';
+  document.getElementById('yd-or-'+i).textContent  = toplam ? _ydNum(oran*100)+'%' : '';
+  document.getElementById('yd-es-'+i).textContent  = esas ? _ydNum(esas) : '';
+}
+
+async function yesilKaydet(silent) {
+  const d = _yesilData; if (!d) return;
+  const satirlar = d.rows.map((r,i) => ({ poz_id: r.poz.id, bu: num2(document.getElementById('yd-'+i)?.value) }));
+  await api.invoke('yesil:kaydet', d.hakedis.id, satirlar);
+  _yesilData = await api.invoke('yesil:getir', d.hakedis.id);
+  renderYesilGrid();
+  if (!silent) alert('Yeşil defter kaydedildi.');
+}
+
+async function yesilPdf() {
+  if (document.getElementById('yd-0')) await yesilKaydet(true);
+  const html = await buildYesilHtml();
+  if (html) await api.invoke('print:pdf', html);
+}
+async function yesilExcel() {
+  if (document.getElementById('yd-0')) await yesilKaydet(true);
+  const html = await buildYesilHtml();
+  if (html) await api.invoke('export:xls', { html, ad: 'YesilDefter-Hkd' + (_yesilData?.hakedis?.hakedis_no||''), sheet: 'Yesil Defter' });
+}
+
+async function buildYesilHtml() {
+  const d = _yesilData; if (!d) return null;
+  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const bd = 'border:1px solid #999;';
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:7pt">
+    <th style="${bd}padding:2px 3px">S.NO</th><th style="${bd}padding:2px 3px">POZ NO<br>ITEM NO</th>
+    <th style="${bd}padding:2px 3px;text-align:left">İMALATIN ADI<br>DESCRIPTION</th><th style="${bd}padding:2px 3px">BR<br>UNIT</th>
+    <th style="${bd}padding:2px 3px">ÖNCEKİ<br>PREVIOUS</th><th style="${bd}padding:2px 3px">BU HKD.<br>THIS PERIOD</th>
+    <th style="${bd}padding:2px 3px">TOPLAM<br>TO DATE</th><th style="${bd}padding:2px 3px">İŞİN %'Sİ<br>PERCENT</th>
+    <th style="${bd}padding:2px 3px">HAKEDİŞE ESAS TOPLAM<br>AMOUNT TO DATE</th>
+  </tr>`;
+  let sno=0, gno=0, grupAd='__yok__', body='';
+  d.rows.forEach(r => {
+    const g = r.poz.grup || '';
+    if (g !== grupAd) {
+      grupAd = g; gno++;
+      body += `<tr style="background:#c8e6c9;font-weight:700;font-size:8pt">
+        <td style="${bd}padding:2px 5px;text-align:center">S.NO</td><td style="${bd}padding:2px 5px;text-align:center">${gno}</td>
+        <td style="${bd}padding:2px 5px" colspan="7">${g || '—'}</td></tr>` + colHead;
+    }
+    sno++;
+    body += `<tr style="font-size:7.5pt">
+      <td style="${bd}padding:1px 3px;text-align:center">${sno}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.poz.poz_no||''}</td>
+      <td style="${bd}padding:1px 3px;text-align:left">${r.poz.tanim}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.poz.birim}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${r.onceki?_ydNum(r.onceki):''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${r.bu?_ydNum(r.bu):''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${r.toplam?_ydNum(r.toplam):''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${r.toplam?_ydNum(r.oran*100)+'%':''}</td>
+      <td style="${bd}padding:1px 3px;text-align:right">${r.esas?_ydNum(r.esas):''}</td>
+    </tr>`;
+  });
+  return `
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:16px 22px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700;letter-spacing:.5px">YEŞİL DEFTER / MEASUREMENT BOOK</div>
+      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
+    </div>
+    <table style="width:100%;font-size:8pt;margin-bottom:10px">
+      <tr><td style="padding:2px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:2px 6px;font-weight:600">${proje?proje.ad:''}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${d.hakedis.tarih?fmtDate(d.hakedis.tarih):'—'}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt"><tbody>${body}</tbody></table>
+    <div style="margin-top:8px;font-size:7pt;color:#777">Yeşil defter ölçü/metraj defteridir — fiyat içermez. TOPLAM = ÖNCEKİ + BU HKD · İŞİN %'Sİ = BU HKD ÷ TOPLAM · HAKEDİŞE ESAS = TOPLAM × %.</div>
+  </div>`;
+}
 
 // ══════════════════════════════════════════════════
 // RAPORLAR — Yaşlandırma + Kategori

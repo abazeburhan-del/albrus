@@ -279,7 +279,7 @@ async function initDb() {
   try { db.run("ALTER TABLE kasa_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
   try { db.run("ALTER TABLE banka_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
 
-  // Hakediş — yalnızca BOQ/poz listesi (hakediş belge sistemi sıfırdan yeniden yapılacak)
+  // Hakediş — BOQ/poz listesi + dönemler + yeşil defter satırları
   db.run(`
     CREATE TABLE IF NOT EXISTS hakedis_pozlar (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -293,10 +293,20 @@ async function initDb() {
       bf_malzeme REAL DEFAULT 0,
       sira INTEGER DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS hakedisler (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      proje_id INTEGER NOT NULL,
+      hakedis_no INTEGER NOT NULL DEFAULT 1,
+      tarih TEXT DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS hakedis_satirlar (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hakedis_id INTEGER NOT NULL,
+      poz_id INTEGER NOT NULL,
+      bu_miktar REAL DEFAULT 0,
+      UNIQUE(hakedis_id, poz_id)
+    );
   `);
-  // Eski hakediş belge tablolarını temizle (yeniden tasarlanacak)
-  db.run('DROP TABLE IF EXISTS hakedisler;');
-  db.run('DROP TABLE IF EXISTS hakedis_satirlar;');
 
   // Çek / Senet
   db.run(`
@@ -1889,6 +1899,70 @@ ipcMain.handle('hakedis:boq:import', (_, { proje_id, satirlar, temizle }) => {
   }
   saveDb();
   return { ok: true, eklenen };
+});
+
+// ════════════════════════════════════════════════════════════
+// HAKEDİŞ DÖNEMLERİ + YEŞİL DEFTER
+// ════════════════════════════════════════════════════════════
+
+// Bir poz için önceki dönemlerin (hakedis_no < bu) BU HKD miktar toplamı = ÖNCEKİ kümülatif
+function yesilOncekiToplam(proje_id, hakedis_no, poz_id) {
+  const row = getOne(`
+    SELECT COALESCE(SUM(s.bu_miktar),0) as v
+    FROM hakedis_satirlar s
+    JOIN hakedisler h ON h.id = s.hakedis_id
+    WHERE h.proje_id = ? AND h.hakedis_no < ? AND s.poz_id = ?`,
+    [proje_id, hakedis_no, poz_id]);
+  return row ? row.v : 0;
+}
+
+ipcMain.handle('hakedisler:getir', (_, proje_id) =>
+  getAll('SELECT * FROM hakedisler WHERE proje_id = ? ORDER BY hakedis_no DESC', [proje_id]));
+
+ipcMain.handle('hakedis:ekle', (_, d) => {
+  const no = (getOne('SELECT COALESCE(MAX(hakedis_no),0) as m FROM hakedisler WHERE proje_id = ?', [d.proje_id]).m) + 1;
+  const r = insertAndGet('hakedisler',
+    'INSERT INTO hakedisler (proje_id, hakedis_no, tarih) VALUES (?, ?, ?)',
+    [Number(d.proje_id), no, d.tarih ?? '']);
+  saveDb();
+  return r;
+});
+
+ipcMain.handle('hakedis:sil', (_, id) => {
+  run('DELETE FROM hakedis_satirlar WHERE hakedis_id = ?', [id]);
+  run('DELETE FROM hakedisler WHERE id = ?', [id]);
+  saveDb();
+  return true;
+});
+
+// Yeşil defter verisi: pozlar + ÖNCEKİ (önceki dönemler) + BU HKD (bu dönem) + hesaplı alanlar
+ipcMain.handle('yesil:getir', (_, hakedis_id) => {
+  const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
+  if (!h) return null;
+  const pozlar = getAll('SELECT * FROM hakedis_pozlar WHERE proje_id = ? ORDER BY sira, id', [h.proje_id]);
+  const buMap = {};
+  getAll('SELECT * FROM hakedis_satirlar WHERE hakedis_id = ?', [hakedis_id]).forEach(s => { buMap[s.poz_id] = s.bu_miktar || 0; });
+  const rows = pozlar.map(p => {
+    const onceki = yesilOncekiToplam(h.proje_id, h.hakedis_no, p.id); // J
+    const bu = buMap[p.id] || 0;                                       // K
+    const toplam = onceki + bu;                                        // I = J + K
+    const oran = toplam ? (bu / toplam) : 0;                           // L = K / I
+    const esas = toplam * oran;                                        // M = I × L (= bu)
+    return { poz: p, onceki, bu, toplam, oran, esas };
+  });
+  return { hakedis: h, rows };
+});
+
+// Yeşil defter BU HKD metrajlarını kaydet (poz başına bir kayıt)
+ipcMain.handle('yesil:kaydet', (_, hakedis_id, satirlar) => {
+  for (const s of (satirlar || [])) {
+    const bu = Number(s.bu) || 0;
+    const varMi = getOne('SELECT id FROM hakedis_satirlar WHERE hakedis_id = ? AND poz_id = ?', [hakedis_id, s.poz_id]);
+    if (varMi) run('UPDATE hakedis_satirlar SET bu_miktar = ? WHERE id = ?', [bu, varMi.id]);
+    else       run('INSERT INTO hakedis_satirlar (hakedis_id, poz_id, bu_miktar) VALUES (?, ?, ?)', [hakedis_id, s.poz_id, bu]);
+  }
+  saveDb();
+  return true;
 });
 
 // ════════════════════════════════════════════════════════════
