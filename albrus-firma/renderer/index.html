@@ -5919,18 +5919,22 @@ function boqImportSheetChange() {
   const opts = ['<option value="-1">— yok —</option>'].concat(
     Array.from({length:maxCols}, (_,c) => `<option value="${c}">${sutunHarf(c)} — ${(headerRow[c]||'').slice(0,24)}</option>`)
   ).join('');
-  // Otomatik eşle (başlık metnine göre)
-  const guess = (keywords) => {
-    for (let c=0;c<maxCols;c++){ const h=(headerRow[c]||'').toLowerCase(); if(keywords.some(k=>h.includes(k))) return c; }
+  // Otomatik eşle (başlık metnine göre). exc = bu kelimeleri içeren sütunu atla
+  const guess = (keywords, exc=[]) => {
+    for (let c=0;c<maxCols;c++){ const h=(headerRow[c]||'').toLowerCase();
+      if(exc.some(k=>h.includes(k))) continue;
+      if(keywords.some(k=>h.includes(k))) return c; }
     return -1;
   };
   const tahmin = {
-    poz_no: guess(['p/n','poz','no','item','sıra','s.no','code','kod']),
-    tanim: guess(['description','tanım','imalat','iş','activity','açıklama','desc']),
-    birim: guess(['unit','birim','uom']),
+    poz_no: guess(['p/n','poz','item','sıra','s.no','code','kod']),
+    tanim: guess(['description','tanım','imalat','activity','açıklama','desc']),
+    birim: guess(['unit','birim','uom'], ['unit price','unit pr']),
     kesif_miktar: guess(['qty','quantity','miktar','adet','metraj']),
-    bf_iscilik: guess(['labor unit','işçilik','iscilik','unit price','birim fiyat']),
-    bf_malzeme: guess(['material unit','malzeme','mat. unit']),
+    // İşçilik: 'labor/işçilik' içersin, 'material' ve 'total' içermesin
+    bf_iscilik: guess(['labor','labour','işçil','iscil'], ['material','total']),
+    // Malzeme: 'material/malzeme' içersin, 'labor' ve 'total' içermesin
+    bf_malzeme: guess(['material','malzeme'], ['labor','labour','total']),
   };
   // Kayıtlı şablon varsa onun sütunlarını öncele
   const kullan = (_boqSablon && _boqSablon.map) ? _boqSablon.map : tahmin;
@@ -5961,17 +5965,21 @@ function boqSatirlariCikar() {
   let grup = '';
   for (let i = header; i < rows.length; i++) {
     const r = rows[i] || [];
-    const tanim = String(al(r, m.tanim)).trim();
-    if (!tanim) continue;
-    const pozno = String(al(r, m.poz_no)).trim();
-    const kesif = sayi(al(r, m.kesif_miktar));
-    const bfi = sayi(al(r, m.bf_iscilik));
-    const bfm = sayi(al(r, m.bf_malzeme));
-    // Grup başlığı: poz no boş + miktar/fiyat yok ama açıklama var (mavi dolgulu satırlar)
-    if (grupAyir && !pozno && !kesif && !bfi && !bfm) { grup = tanim; continue; }
-    out.push({ grup, poz_no: pozno, tanim,
+    const tanimRaw = String(al(r, m.tanim)).trim();
+    const pozRaw   = String(al(r, m.poz_no)).trim();
+    const qtyRaw   = String(al(r, m.kesif_miktar)).trim();
+    const bfiRaw   = String(al(r, m.bf_iscilik)).trim();
+    const bfmRaw   = String(al(r, m.bf_malzeme)).trim();
+    // Grup başlığı (mavi dolgulu): miktar boş + fiyat yok, ama satırda metin var.
+    // Grup adı hangi sütundaysa (Tanım ya da P/N ya da ilk dolu hücre) oradan alınır.
+    const metin = tanimRaw || pozRaw || (r.find(c => c && isNaN(parseFloat(String(c).replace(/[^\d.,-]/g,'')))) || '').toString().trim();
+    if (grupAyir && qtyRaw === '' && (bfiRaw === '' || sayi(bfiRaw) === 0) && (bfmRaw === '' || sayi(bfmRaw) === 0) && metin) {
+      grup = metin; continue;
+    }
+    if (!tanimRaw) continue;
+    out.push({ grup, poz_no: pozRaw, tanim: tanimRaw,
       birim: String(al(r, m.birim)).trim() || 'Adet',
-      kesif_miktar: kesif, bf_iscilik: bfi, bf_malzeme: bfm });
+      kesif_miktar: sayi(qtyRaw), bf_iscilik: sayi(bfiRaw), bf_malzeme: sayi(bfmRaw) });
   }
   return out;
 }
