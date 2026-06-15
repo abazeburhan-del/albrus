@@ -6127,7 +6127,7 @@ async function openYesil(hakedisId) {
   if (!d) { alert('Hakediş bulunamadı.'); return; }
   if (!d.rows.length) { alert('Bu projede poz yok. Önce BOQ/poz listesi ekleyin.'); return; }
   _yesilData = d;
-  document.getElementById('m-yesil-title').textContent = `Yeşil Defter — ${d.hakedis.hakedis_no}. Hakediş  ·  sürüm 2026-06-15`;
+  document.getElementById('m-yesil-title').textContent = `Yeşil Defter — ${d.hakedis.hakedis_no}. Hakediş  ·  ↑/↓ ile gezin  ·  sürüm 2026-06-16`;
   renderYesilGrid();
   // Açık kalmış başka overlay varsa kapat (tıklamayı yutan görünmez katmanı önle)
   document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-yesil') o.classList.remove('open'); });
@@ -6182,7 +6182,34 @@ function renderYesilGrid() {
     if (!inp) return;
     inp.addEventListener('input', () => yesilCanli(i));
     inp.addEventListener('focus', () => inp.select());
+    // ↑/↓ ve Enter ile alt/üst kutuya geç
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); ydFocus(i + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); ydFocus(i - 1); }
+    });
   });
+}
+
+// Belirtilen indeksteki (varsa) BU HKD kutusuna odaklan — sınır dışında en yakına
+function ydFocus(i) {
+  const n = (_yesilData?.rows || []).length;
+  if (i < 0) i = 0; if (i > n - 1) i = n - 1;
+  const inp = document.getElementById('yd-' + i);
+  if (inp) { inp.focus(); inp.scrollIntoView({ block: 'nearest' }); }
+}
+
+// Odağı çalmayan kayan bildirim (native alert yerine)
+function yesilToast(msg) {
+  let t = document.getElementById('yd-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'yd-toast';
+    t.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#2e7d32;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,.3);transition:opacity .3s';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg; t.style.opacity = '1';
+  clearTimeout(t._tmr);
+  t._tmr = setTimeout(() => { t.style.opacity = '0'; }, 1600);
 }
 
 function yesilCanli(i) {
@@ -6199,11 +6226,15 @@ function yesilCanli(i) {
 
 async function yesilKaydet(silent) {
   const d = _yesilData; if (!d) return;
-  const satirlar = d.rows.map((r,i) => ({ poz_id: r.poz.id, bu: num2(document.getElementById('yd-'+i)?.value) }));
+  // Grid'i YENİDEN ÇİZME — input'ları yok edip odağı kaybetmesin. _yesilData'yı yerinde güncelle.
+  const satirlar = d.rows.map((r,i) => {
+    const bu = num2(document.getElementById('yd-'+i)?.value);
+    r.bu = bu; r.toplam = r.onceki + bu;
+    r.oran = r.toplam ? (bu / r.toplam) : 0; r.esas = r.toplam * r.oran;
+    return { poz_id: r.poz.id, bu };
+  });
   await api.invoke('yesil:kaydet', d.hakedis.id, satirlar);
-  _yesilData = await api.invoke('yesil:getir', d.hakedis.id);
-  renderYesilGrid();
-  if (!silent) alert('Yeşil defter kaydedildi.');
+  if (!silent) yesilToast('Yeşil defter kaydedildi ✓');
 }
 
 async function yesilPdf() {
