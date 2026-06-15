@@ -1813,6 +1813,8 @@ async function loadKasa() {
   if (S.secilenKasa) {
     const yeni = kasalar.find(k => k.id === S.secilenKasa.id);
     if (yeni) { S.secilenKasa = yeni; loadKasaHareketler(); }
+  } else if (kasalar.length) {
+    secilenKasa(kasalar[0].id);   // ilk kasayı otomatik seç → "+ Yeni Fiş" hemen aktif olsun
   }
 }
 
@@ -2300,6 +2302,8 @@ async function loadBanka() {
   if (S.secilenBanka) {
     const yeni = bankalar.find(b => b.id === S.secilenBanka.id);
     if (yeni) { S.secilenBanka = yeni; loadBankaHareketler(); }
+  } else if (bankalar.length) {
+    secilenBanka(bankalar[0].id);   // ilk bankayı otomatik seç → "+ Yeni Fiş" hemen aktif olsun
   }
 }
 
