@@ -2029,14 +2029,17 @@ ipcMain.handle('yesil:kaydet', (_, hakedis_id, satirlar) => {
 // Hakediş Genel İcmali (RAN "(R) REPRESENTATION" sayfası): BOQ + Yeşil Defter birleşimi
 // BOQ'dan: sıra/poz/tanım/birim/keşif miktarı/birim fiyat/keşif tutarı
 // Yeşil Defter'den: ÖNCEKİ + BU = TOPLAM miktar; tutarlar birim fiyatla çarpılır
-ipcMain.handle('icmal:getir', (_, hakedis_id) => {
+ipcMain.handle('icmal:getir', (_, hakedis_id, mod) => {
   const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
   if (!h) return null;
+  // mod: 'iscilik' (sadece işçilik) | 'malzeme' (sadece malzeme) | 'tum' (malzemeli + işçilik)
+  mod = mod || 'iscilik';
   const pozlar = getAll('SELECT * FROM hakedis_pozlar WHERE proje_id = ? ORDER BY sira, id', [h.proje_id]);
   const buMap = {};
   getAll('SELECT * FROM hakedis_satirlar WHERE hakedis_id = ?', [hakedis_id]).forEach(s => { buMap[s.poz_id] = s.bu_miktar || 0; });
   const rows = pozlar.map(p => {
-    const bf = Number(p.bf_iscilik) || 0;                                     // H/O birim fiyat (B) — sadece işçilik
+    const isc = Number(p.bf_iscilik) || 0, mlz = Number(p.bf_malzeme) || 0;
+    const bf = mod === 'malzeme' ? mlz : mod === 'tum' ? (isc + mlz) : isc;    // H/O birim fiyat (B) — seçilen moda göre
     const kesifMiktar = Number(p.kesif_miktar) || 0;                          // G keşif miktarı (A)
     const kesifTutar  = kesifMiktar * bf;                                     // I keşif tutarı (C=A×B)
     const onceki = yesilOncekiToplam(h.proje_id, h.hakedis_no, p.id);         // M önceki miktar (E)
@@ -2054,7 +2057,7 @@ ipcMain.handle('icmal:getir', (_, hakedis_id) => {
     kesifTutar: sum('kesifTutar'), toplamTutar: sum('toplamTutar'),
     oncekiTutar: sum('oncekiTutar'), buTutar: sum('buTutar')
   };
-  return { hakedis: h, rows, toplamlar };
+  return { hakedis: h, rows, toplamlar, mod };
 });
 
 // İlave İşler İcmali (RAN "ADDITIONAL OPERATION SUMMARY"): tutanakla onaylanan sözleşme-dışı işler

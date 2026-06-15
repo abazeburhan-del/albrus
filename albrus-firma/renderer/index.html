@@ -1257,7 +1257,15 @@
 <div class="overlay" id="m-icmal">
   <div class="modal" style="max-width:1320px;width:97vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
     <div class="modal-title" id="m-icmal-title" style="flex:0 0 auto">Hakediş Genel İcmali</div>
-    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:0 0 auto">BOQ keşif + Yeşil Defter metrajları birleşik. Miktarlar Yeşil Defter'den; tutarlar birim fiyatla otomatik hesaplanır.</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:0 0 auto">BOQ keşif + Yeşil Defter metrajları birleşik. Miktarlar Yeşil Defter'den; tutarlar seçilen birim fiyatla otomatik hesaplanır.</div>
+    <div style="flex:0 0 auto;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:12px;color:var(--dim)">Birim fiyat türü:</span>
+      <select id="icmal-mod" onchange="icmalModDegisti()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:13px">
+        <option value="iscilik">Sadece İşçilik</option>
+        <option value="malzeme">Sadece Malzeme</option>
+        <option value="tum">Malzemeli + İşçilik</option>
+      </select>
+    </div>
     <div style="flex:1 1 auto;overflow:auto;min-height:0" id="icmal-icerik"></div>
     <div class="modal-actions" style="flex:0 0 auto">
       <button class="btn btn-ghost" onclick="closeModal('m-icmal')">Kapat</button>
@@ -6389,7 +6397,8 @@ let _icmalData = null;
 const _icmM = (n) => (Math.round(n||0)).toLocaleString('tr-TR');
 
 async function openIcmal(hakedisId) {
-  const d = await api.invoke('icmal:getir', hakedisId);
+  const mod = document.getElementById('icmal-mod')?.value || 'iscilik';
+  const d = await api.invoke('icmal:getir', hakedisId, mod);
   if (!d) { alert('Hakediş bulunamadı.'); return; }
   if (!d.rows.length) { alert('Bu projede poz yok. Önce BOQ/poz listesi ekleyin.'); return; }
   _icmalData = d;
@@ -6398,6 +6407,17 @@ async function openIcmal(hakedisId) {
   document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-icmal') o.classList.remove('open'); });
   openModal('m-icmal');
   document.getElementById('icmal-icerik').scrollTop = 0;
+}
+
+// Birim fiyat türü değişince icmali yeniden hesapla (aynı hakediş)
+async function icmalModDegisti() {
+  if (!_icmalData) return;
+  const id = _icmalData.hakedis.id;
+  const mod = document.getElementById('icmal-mod').value;
+  const d = await api.invoke('icmal:getir', id, mod);
+  if (!d) return;
+  _icmalData = d;
+  renderIcmalGrid();
 }
 
 function renderIcmalGrid() {
@@ -6471,8 +6491,11 @@ async function icmalExcel() {
   if (html) await api.invoke('export:xls', { html, ad: 'GenelIcmal-Hkd' + (_icmalData?.hakedis?.hakedis_no||''), sheet: 'Genel Icmal' });
 }
 
+const _icmalModEtiket = { iscilik:'Sadece İşçilik / Labor Only', malzeme:'Sadece Malzeme / Material Only', tum:'Malzemeli + İşçilik / Material + Labor' };
+
 async function buildIcmalHtml() {
   const d = _icmalData; if (!d) return null;
+  const modEt = _icmalModEtiket[d.mod] || _icmalModEtiket.iscilik;
   const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
   const bd = 'border:1px solid #999;';
   const R = 'text-align:right';
@@ -6532,9 +6555,10 @@ async function buildIcmalHtml() {
       <tr><td style="padding:1px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:1px 6px;font-weight:600">${proje?proje.ad:''}</td></tr>
       <tr><td style="padding:1px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:1px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
       <tr><td style="padding:1px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:1px 6px">${d.hakedis.tarih?fmtDate(d.hakedis.tarih):'—'}</td></tr>
+      <tr><td style="padding:1px 6px;color:#555">BİRİM FİYAT TÜRÜ / Unit Price Type</td><td style="padding:1px 6px;font-weight:600">${modEt}</td></tr>
     </table>
     <table style="width:100%;border-collapse:collapse;text-align:center;font-size:5.5pt"><tbody>${body}</tbody></table>
-    <div style="margin-top:6px;font-size:6pt;color:#777">Keşif Tutarı = Keşif Mik. × B.Fiyat · Toplam Mik. = Önceki + Bu Defa · Toplam Tutar = Toplam Mik. × B.Fiyat · Bu Defa Tutar = Toplam − Önceki. Birim fiyat = işçilik birim fiyatı.</div>
+    <div style="margin-top:6px;font-size:6pt;color:#777">Keşif Tutarı = Keşif Mik. × B.Fiyat · Toplam Mik. = Önceki + Bu Defa · Toplam Tutar = Toplam Mik. × B.Fiyat · Bu Defa Tutar = Toplam − Önceki. Birim fiyat türü: ${modEt}.</div>
   </div>`;
 }
 
