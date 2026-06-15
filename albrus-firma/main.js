@@ -306,6 +306,19 @@ async function initDb() {
       bu_miktar REAL DEFAULT 0,
       UNIQUE(hakedis_id, poz_id)
     );
+    CREATE TABLE IF NOT EXISTS ilave_isler (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hakedis_id INTEGER NOT NULL,
+      tutanak_no TEXT DEFAULT '',
+      tutanak_tarih TEXT DEFAULT '',
+      imalat_adi TEXT DEFAULT '',
+      kirilim TEXT DEFAULT '',
+      birim TEXT DEFAULT '',
+      miktar REAL DEFAULT 0,
+      birim_fiyat REAL DEFAULT 0,
+      parite REAL DEFAULT 0,
+      sira INTEGER DEFAULT 0
+    );
   `);
 
   // Çek / Senet
@@ -1965,6 +1978,7 @@ ipcMain.handle('hakedis:ekle', (_, d) => {
 
 ipcMain.handle('hakedis:sil', (_, id) => {
   run('DELETE FROM hakedis_satirlar WHERE hakedis_id = ?', [id]);
+  run('DELETE FROM ilave_isler WHERE hakedis_id = ?', [id]);
   run('DELETE FROM hakedisler WHERE id = ?', [id]);
   saveDb();
   return true;
@@ -2029,6 +2043,34 @@ ipcMain.handle('icmal:getir', (_, hakedis_id) => {
     oncekiTutar: sum('oncekiTutar'), buTutar: sum('buTutar')
   };
   return { hakedis: h, rows, toplamlar };
+});
+
+// İlave İşler İcmali (RAN "ADDITIONAL OPERATION SUMMARY"): tutanakla onaylanan sözleşme-dışı işler
+// Elle girilir (BOQ'tan çekilmez). TOPLAM TUTAR = miktar × birim fiyat × (parite varsa, yoksa 1)
+ipcMain.handle('ilave:getir', (_, hakedis_id) => {
+  const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
+  if (!h) return null;
+  const satirlar = getAll('SELECT * FROM ilave_isler WHERE hakedis_id = ? ORDER BY sira, id', [hakedis_id]);
+  const rows = satirlar.map(s => {
+    const parite = Number(s.parite) || 0;
+    const tutar = (Number(s.miktar) || 0) * (Number(s.birim_fiyat) || 0) * (parite > 0 ? parite : 1);
+    return { ...s, tutar };
+  });
+  const genelToplam = rows.reduce((a, r) => a + (r.tutar || 0), 0);
+  return { hakedis: h, rows, genelToplam };
+});
+
+// İlave işleri kaydet (tam değiştirme: o hakedişin tüm satırları silinip yeniden yazılır)
+ipcMain.handle('ilave:kaydet', (_, hakedis_id, satirlar) => {
+  run('DELETE FROM ilave_isler WHERE hakedis_id = ?', [hakedis_id]);
+  (satirlar || []).forEach((s, i) => {
+    run(`INSERT INTO ilave_isler (hakedis_id, tutanak_no, tutanak_tarih, imalat_adi, kirilim, birim, miktar, birim_fiyat, parite, sira)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [hakedis_id, s.tutanak_no ?? '', s.tutanak_tarih ?? '', s.imalat_adi ?? '', s.kirilim ?? '',
+       s.birim ?? '', Number(s.miktar) || 0, Number(s.birim_fiyat) || 0, Number(s.parite) || 0, i + 1]);
+  });
+  saveDb();
+  return true;
 });
 
 // ════════════════════════════════════════════════════════════

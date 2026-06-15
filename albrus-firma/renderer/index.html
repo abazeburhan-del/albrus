@@ -1267,6 +1267,22 @@
   </div>
 </div>
 
+<!-- İlave İşler (Additional Operation Summary) Modal -->
+<div class="overlay" id="m-ilave">
+  <div class="modal" style="max-width:1200px;width:97vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" id="m-ilave-title" style="flex:0 0 auto">İlave İşler İcmali</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:0 0 auto">Tutanakla onaylanan sözleşme-dışı işler (BOQ'ta yok, elle girilir). <b>Toplam Tutar = Miktar × Birim Fiyat × Parite</b> (parite boşsa 1).</div>
+    <div style="flex:0 0 auto;margin-bottom:8px"><button class="btn btn-ghost btn-sm" onclick="ilaveSatirEkle()">+ Satır Ekle</button></div>
+    <div style="flex:1 1 auto;overflow:auto;min-height:0" id="ilave-icerik"></div>
+    <div class="modal-actions" style="flex:0 0 auto">
+      <button class="btn btn-ghost" onclick="closeModal('m-ilave')">Kapat</button>
+      <button class="btn btn-ghost" onclick="ilavePdf()">PDF</button>
+      <button class="btn btn-ghost" onclick="ilaveExcel()">Excel</button>
+      <button class="btn btn-primary" onclick="ilaveKaydet()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
 <!-- Personel Ekle/Düzenle Modal -->
 <div class="overlay" id="m-personel">
   <div class="modal">
@@ -5904,7 +5920,7 @@ async function loadHakedisProje() {
         ${list.map(h => `<tr>
           <td><b>${h.hakedis_no}. Hakediş</b></td>
           <td>${h.tarih ? fmtDate(h.tarih) : '—'}</td>
-          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
+          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-link btn-sm" onclick="openIlave(${h.id})">İlave İşler</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
         </tr>`).join('')}
       </tbody></table>`;
   }
@@ -6503,6 +6519,184 @@ async function buildIcmalHtml() {
     </table>
     <table style="width:100%;border-collapse:collapse;text-align:center;font-size:5.5pt"><tbody>${body}</tbody></table>
     <div style="margin-top:6px;font-size:6pt;color:#777">Keşif Tutarı = Keşif Mik. × B.Fiyat · Toplam Mik. = Önceki + Bu Defa · Toplam Tutar = Toplam Mik. × B.Fiyat · Bu Defa Tutar = Toplam − Önceki. Birim fiyat = işçilik birim fiyatı.</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════
+// İLAVE İŞLER İCMALİ — RAN "ADDITIONAL OPERATION SUMMARY"
+//   Tutanakla onaylanan sözleşme-dışı işler (BOQ'ta yok, elle girilir)
+//   TOPLAM TUTAR = Miktar × Birim Fiyat × Parite (parite boşsa 1)
+// ══════════════════════════════════════════════════
+let _ilaveData = null;
+
+async function openIlave(hakedisId) {
+  const d = await api.invoke('ilave:getir', hakedisId);
+  if (!d) { alert('Hakediş bulunamadı.'); return; }
+  _ilaveData = { hakedis: d.hakedis, rows: d.rows.map(r => ({ ...r })) };
+  if (!_ilaveData.rows.length) _ilaveData.rows.push(ilaveBosSatir());
+  document.getElementById('m-ilave-title').textContent = `İlave İşler İcmali — ${d.hakedis.hakedis_no}. Hakediş`;
+  renderIlaveGrid();
+  document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-ilave') o.classList.remove('open'); });
+  openModal('m-ilave');
+  document.getElementById('ilave-icerik').scrollTop = 0;
+}
+
+function ilaveBosSatir() {
+  return { tutanak_no:'', tutanak_tarih:'', imalat_adi:'', kirilim:'', birim:'', miktar:0, birim_fiyat:0, parite:0 };
+}
+
+function ilaveTopla() {
+  const d = _ilaveData; if (!d) return;
+  let toplam = 0;
+  d.rows.forEach((r, i) => {
+    const mik = num2(document.getElementById('il-mik-' + i)?.value);
+    const bf  = num2(document.getElementById('il-bf-' + i)?.value);
+    const par = num2(document.getElementById('il-par-' + i)?.value);
+    const t = mik * bf * (par > 0 ? par : 1);
+    const cell = document.getElementById('il-top-' + i);
+    if (cell) cell.textContent = t ? _icmM(t) : '';
+    toplam += t;
+  });
+  const g = document.getElementById('il-genel');
+  if (g) g.textContent = _icmM(toplam);
+}
+
+function ilaveCollect() {
+  const d = _ilaveData; if (!d) return;
+  d.rows = d.rows.map((r, i) => ({
+    tutanak_no:    document.getElementById('il-tno-' + i)?.value ?? '',
+    tutanak_tarih: document.getElementById('il-tar-' + i)?.value ?? '',
+    imalat_adi:    document.getElementById('il-ad-' + i)?.value ?? '',
+    kirilim:       r.kirilim ?? '',
+    birim:         document.getElementById('il-br-' + i)?.value ?? '',
+    miktar:        num2(document.getElementById('il-mik-' + i)?.value),
+    birim_fiyat:   num2(document.getElementById('il-bf-' + i)?.value),
+    parite:        num2(document.getElementById('il-par-' + i)?.value),
+  }));
+}
+
+function renderIlaveGrid() {
+  const d = _ilaveData; if (!d) return;
+  const bd = 'border:1px solid var(--border);';
+  const inp = "width:100%;box-sizing:border-box;background:rgba(120,160,255,.06);border:1px solid var(--border);border-radius:0;color:var(--text);font-size:9pt;padding:3px 4px";
+  const esc = s => String(s ?? '').replace(/"/g, '&quot;');
+  let body = `<tr style="background:#d9d9d9;color:#111;font-size:9pt">
+    <th style="${bd}padding:2px 4px">S.NO</th>
+    <th style="${bd}padding:2px 4px">TUTANAK NO</th>
+    <th style="${bd}padding:2px 4px">TUTANAK TARİHİ</th>
+    <th style="${bd}padding:2px 4px;text-align:left">İMALATIN ADI</th>
+    <th style="${bd}padding:2px 4px">BR</th>
+    <th style="${bd}padding:2px 4px">MİKTAR</th>
+    <th style="${bd}padding:2px 4px">BİRİM FİYAT</th>
+    <th style="${bd}padding:2px 4px">PARİTE</th>
+    <th style="${bd}padding:2px 4px">TOPLAM TUTAR</th>
+    <th style="${bd}padding:2px 4px"></th>
+  </tr>`;
+  d.rows.forEach((r, i) => {
+    body += `<tr>
+      <td style="${bd}padding:2px 4px;text-align:center">${i + 1}</td>
+      <td style="${bd}padding:0;width:90px"><input id="il-tno-${i}" value="${esc(r.tutanak_no)}" style="${inp}"></td>
+      <td style="${bd}padding:0;width:110px"><input id="il-tar-${i}" value="${esc(r.tutanak_tarih)}" placeholder="2026-06-16" style="${inp};text-align:center"></td>
+      <td style="${bd}padding:0"><input id="il-ad-${i}" value="${esc(r.imalat_adi)}" style="${inp};text-align:left"></td>
+      <td style="${bd}padding:0;width:55px"><input id="il-br-${i}" value="${esc(r.birim)}" style="${inp};text-align:center"></td>
+      <td style="${bd}padding:0;width:90px"><input id="il-mik-${i}" value="${r.miktar || ''}" inputmode="decimal" oninput="ilaveTopla()" style="${inp};text-align:right"></td>
+      <td style="${bd}padding:0;width:110px"><input id="il-bf-${i}" value="${r.birim_fiyat || ''}" inputmode="decimal" oninput="ilaveTopla()" style="${inp};text-align:right"></td>
+      <td style="${bd}padding:0;width:70px"><input id="il-par-${i}" value="${r.parite || ''}" inputmode="decimal" placeholder="1" oninput="ilaveTopla()" style="${inp};text-align:right"></td>
+      <td style="${bd}padding:2px 4px;text-align:right;font-weight:600" id="il-top-${i}">${r.tutar ? _icmM(r.tutar) : ''}</td>
+      <td style="${bd}padding:2px 4px;text-align:center"><button class="btn-del" onclick="ilaveSatirSil(${i})">✕</button></td>
+    </tr>`;
+  });
+  body += `<tr style="background:#ffe082;font-weight:700">
+    <td style="${bd}padding:4px 6px;text-align:right" colspan="8">GENEL TOPLAM</td>
+    <td style="${bd}padding:4px 6px;text-align:right" id="il-genel"></td>
+    <td style="${bd}"></td>
+  </tr>`;
+  document.getElementById('ilave-icerik').innerHTML =
+    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt"><colgroup>${'<col>'.repeat(10)}</colgroup><tbody>${body}</tbody></table>`;
+  ilaveTopla();
+}
+
+function ilaveSatirEkle() {
+  if (!_ilaveData) return;
+  ilaveCollect();
+  _ilaveData.rows.push(ilaveBosSatir());
+  renderIlaveGrid();
+  const i = _ilaveData.rows.length - 1;
+  document.getElementById('il-ad-' + i)?.focus();
+}
+
+function ilaveSatirSil(i) {
+  if (!_ilaveData) return;
+  ilaveCollect();
+  _ilaveData.rows.splice(i, 1);
+  if (!_ilaveData.rows.length) _ilaveData.rows.push(ilaveBosSatir());
+  renderIlaveGrid();
+}
+
+async function ilaveKaydet(silent) {
+  const d = _ilaveData; if (!d) return;
+  ilaveCollect();
+  const satirlar = d.rows.filter(r => (r.imalat_adi || '').trim() || r.miktar || r.birim_fiyat);
+  await api.invoke('ilave:kaydet', d.hakedis.id, satirlar);
+  if (!silent) yesilToast('İlave işler kaydedildi ✓');
+}
+
+async function ilavePdf() {
+  if (_ilaveData) await ilaveKaydet(true);
+  const html = await buildIlaveHtml();
+  if (html) await api.invoke('print:pdf', html);
+}
+async function ilaveExcel() {
+  if (_ilaveData) await ilaveKaydet(true);
+  const html = await buildIlaveHtml();
+  if (html) await api.invoke('export:xls', { html, ad: 'IlaveIsler-Hkd' + (_ilaveData?.hakedis?.hakedis_no || ''), sheet: 'Ilave Isler' });
+}
+
+async function buildIlaveHtml() {
+  if (!_ilaveData) return null;
+  const d = await api.invoke('ilave:getir', _ilaveData.hakedis.id);
+  if (!d) return null;
+  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const bd = 'border:1px solid #999;';
+  const R = 'text-align:right';
+  const head = `<tr style="background:#d9d9d9;color:#111;font-size:7pt">
+    <th style="${bd}padding:2px 3px">S.NO</th><th style="${bd}padding:2px 3px">TUTANAK NO<br>REPORT NO</th>
+    <th style="${bd}padding:2px 3px">TARİH<br>DATE</th><th style="${bd}padding:2px 3px;text-align:left">İMALATIN ADI<br>ACTIVITY</th>
+    <th style="${bd}padding:2px 3px">BR<br>UNIT</th><th style="${bd}padding:2px 3px">MİKTAR<br>QTY</th>
+    <th style="${bd}padding:2px 3px">BİRİM FİYAT<br>U.PRICE</th><th style="${bd}padding:2px 3px">PARİTE<br>RATE</th>
+    <th style="${bd}padding:2px 3px">TOPLAM TUTAR<br>TOTAL</th>
+  </tr>`;
+  let body = '';
+  d.rows.forEach((r, i) => {
+    body += `<tr style="font-size:7.5pt">
+      <td style="${bd}padding:1px 3px;text-align:center">${i + 1}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.tutanak_no || ''}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.tutanak_tarih || ''}</td>
+      <td style="${bd}padding:1px 3px;text-align:left">${r.imalat_adi || ''}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.birim || ''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.miktar ? _ydNum(r.miktar) : ''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.birim_fiyat ? _icmM(r.birim_fiyat) : ''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.parite ? _ydNum(r.parite) : ''}</td>
+      <td style="${bd}padding:1px 3px;${R};font-weight:600">${r.tutar ? _icmM(r.tutar) : ''}</td>
+    </tr>`;
+  });
+  body += `<tr style="background:#ffe082;font-weight:700;font-size:8pt">
+    <td style="${bd}padding:3px 5px;text-align:right" colspan="8">TOPLAM / TOTAL</td>
+    <td style="${bd}padding:3px 5px;${R}">${_icmM(d.genelToplam)}</td>
+  </tr>`;
+  return `
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:14px 18px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700;letter-spacing:.5px">İLAVE İŞLER İCMALİ / ADDITIONAL WORKS SUMMARY</div>
+      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
+    </div>
+    <table style="width:100%;font-size:8pt;margin-bottom:8px">
+      <tr><td style="padding:2px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:2px 6px;font-weight:600">${proje ? proje.ad : ''}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt"><tbody>${head}${body}</tbody></table>
+    <div style="margin-top:8px;font-size:7pt;color:#777">Toplam Tutar = Miktar × Birim Fiyat × Parite (parite boşsa 1). Bu sayfa tutanakla onaylanan sözleşme-dışı (ilave) işleri kapsar.</div>
   </div>`;
 }
 
