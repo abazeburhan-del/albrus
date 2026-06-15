@@ -1283,6 +1283,22 @@
   </div>
 </div>
 
+<!-- Kesintiler İcmali Modal -->
+<div class="overlay" id="m-kesinti">
+  <div class="modal" style="max-width:1200px;width:97vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" id="m-kesinti-title" style="flex:0 0 auto">Kesintiler İcmali</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:0 0 auto">Hakedişten düşülen kesintiler (elle girilir). <b>Toplam = Miktar × Birim Fiyat × Parite</b> (parite boşsa 1).</div>
+    <div style="flex:0 0 auto;margin-bottom:8px"><button class="btn btn-ghost btn-sm" onclick="kesintiSatirEkle()">+ Satır Ekle</button></div>
+    <div style="flex:1 1 auto;overflow:auto;min-height:0" id="kesinti-icerik"></div>
+    <div class="modal-actions" style="flex:0 0 auto">
+      <button class="btn btn-ghost" onclick="closeModal('m-kesinti')">Kapat</button>
+      <button class="btn btn-ghost" onclick="kesintiPdf()">PDF</button>
+      <button class="btn btn-ghost" onclick="kesintiExcel()">Excel</button>
+      <button class="btn btn-primary" onclick="kesintiKaydet()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
 <!-- Personel Ekle/Düzenle Modal -->
 <div class="overlay" id="m-personel">
   <div class="modal">
@@ -5920,7 +5936,7 @@ async function loadHakedisProje() {
         ${list.map(h => `<tr>
           <td><b>${h.hakedis_no}. Hakediş</b></td>
           <td>${h.tarih ? fmtDate(h.tarih) : '—'}</td>
-          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-link btn-sm" onclick="openIlave(${h.id})">İlave İşler</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
+          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-link btn-sm" onclick="openIlave(${h.id})">İlave İşler</button><button class="btn-link btn-sm" onclick="openKesinti(${h.id})">Kesintiler</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
         </tr>`).join('')}
       </tbody></table>`;
   }
@@ -6697,6 +6713,179 @@ async function buildIlaveHtml() {
     </table>
     <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt"><tbody>${head}${body}</tbody></table>
     <div style="margin-top:8px;font-size:7pt;color:#777">Toplam Tutar = Miktar × Birim Fiyat × Parite (parite boşsa 1). Bu sayfa tutanakla onaylanan sözleşme-dışı (ilave) işleri kapsar.</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════
+// KESİNTİLER İCMALİ (RAN "KESİNTİLER İCMALİ")
+//   Hakedişten düşülen kesintiler. Elle girilir.
+//   TOPLAM = Miktar × Birim Fiyat × Parite (parite boşsa 1)
+// ══════════════════════════════════════════════════
+let _kesintiData = null;
+
+async function openKesinti(hakedisId) {
+  const d = await api.invoke('kesinti:getir', hakedisId);
+  if (!d) { yesilToast('Hakediş bulunamadı.'); return; }
+  _kesintiData = { hakedis: d.hakedis, rows: d.rows.map(r => ({ ...r })) };
+  if (!_kesintiData.rows.length) _kesintiData.rows.push(kesintiBosSatir());
+  document.getElementById('m-kesinti-title').textContent = `Kesintiler İcmali — ${d.hakedis.hakedis_no}. Hakediş`;
+  renderKesintiGrid();
+  document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-kesinti') o.classList.remove('open'); });
+  openModal('m-kesinti');
+  document.getElementById('kesinti-icerik').scrollTop = 0;
+}
+
+function kesintiBosSatir() {
+  return { tarih:'', aciklama:'', birim:'', miktar:0, birim_fiyat:0, parite:0 };
+}
+
+function kesintiTopla() {
+  const d = _kesintiData; if (!d) return;
+  let toplam = 0;
+  d.rows.forEach((r, i) => {
+    const mik = num2(document.getElementById('ks-mik-' + i)?.value);
+    const bf  = num2(document.getElementById('ks-bf-' + i)?.value);
+    const par = num2(document.getElementById('ks-par-' + i)?.value);
+    const t = mik * bf * (par > 0 ? par : 1);
+    const cell = document.getElementById('ks-top-' + i);
+    if (cell) cell.textContent = t ? _icmM(t) : '';
+    toplam += t;
+  });
+  const g = document.getElementById('ks-genel');
+  if (g) g.textContent = _icmM(toplam);
+}
+
+function kesintiCollect() {
+  const d = _kesintiData; if (!d) return;
+  d.rows = d.rows.map((r, i) => ({
+    tarih:       document.getElementById('ks-tar-' + i)?.value ?? '',
+    aciklama:    document.getElementById('ks-ad-' + i)?.value ?? '',
+    birim:       document.getElementById('ks-br-' + i)?.value ?? '',
+    miktar:      num2(document.getElementById('ks-mik-' + i)?.value),
+    birim_fiyat: num2(document.getElementById('ks-bf-' + i)?.value),
+    parite:      num2(document.getElementById('ks-par-' + i)?.value),
+  }));
+}
+
+function renderKesintiGrid() {
+  const d = _kesintiData; if (!d) return;
+  const bd = 'border:1px solid var(--border);';
+  const inp = "width:100%;box-sizing:border-box;background:rgba(120,160,255,.06);border:1px solid var(--border);border-radius:0;color:var(--text);font-size:9pt;padding:3px 4px";
+  const esc = s => String(s ?? '').replace(/"/g, '&quot;');
+  let body = `<tr style="background:#d9d9d9;color:#111;font-size:9pt">
+    <th style="${bd}padding:2px 4px">S.NO</th>
+    <th style="${bd}padding:2px 4px">TARİH</th>
+    <th style="${bd}padding:2px 4px;text-align:left">KESİNTİ AÇIKLAMASI</th>
+    <th style="${bd}padding:2px 4px">BR</th>
+    <th style="${bd}padding:2px 4px">MİKTAR</th>
+    <th style="${bd}padding:2px 4px">BİRİM FİYAT</th>
+    <th style="${bd}padding:2px 4px">PARİTE</th>
+    <th style="${bd}padding:2px 4px">TOPLAM</th>
+    <th style="${bd}padding:2px 4px"></th>
+  </tr>`;
+  d.rows.forEach((r, i) => {
+    body += `<tr>
+      <td style="${bd}padding:2px 4px;text-align:center">${i + 1}</td>
+      <td style="${bd}padding:0;width:110px"><input id="ks-tar-${i}" value="${esc(r.tarih)}" placeholder="2026-06-16" style="${inp};text-align:center"></td>
+      <td style="${bd}padding:0"><input id="ks-ad-${i}" value="${esc(r.aciklama)}" style="${inp};text-align:left"></td>
+      <td style="${bd}padding:0;width:55px"><input id="ks-br-${i}" value="${esc(r.birim)}" style="${inp};text-align:center"></td>
+      <td style="${bd}padding:0;width:90px"><input id="ks-mik-${i}" value="${r.miktar || ''}" inputmode="decimal" oninput="kesintiTopla()" style="${inp};text-align:right"></td>
+      <td style="${bd}padding:0;width:110px"><input id="ks-bf-${i}" value="${r.birim_fiyat || ''}" inputmode="decimal" oninput="kesintiTopla()" style="${inp};text-align:right"></td>
+      <td style="${bd}padding:0;width:70px"><input id="ks-par-${i}" value="${r.parite || ''}" inputmode="decimal" placeholder="1" oninput="kesintiTopla()" style="${inp};text-align:right"></td>
+      <td style="${bd}padding:2px 4px;text-align:right;font-weight:600" id="ks-top-${i}">${r.tutar ? _icmM(r.tutar) : ''}</td>
+      <td style="${bd}padding:2px 4px;text-align:center"><button class="btn-del" onclick="kesintiSatirSil(${i})">✕</button></td>
+    </tr>`;
+  });
+  body += `<tr style="background:#ffcdd2;font-weight:700">
+    <td style="${bd}padding:4px 6px;text-align:right" colspan="7">GENEL TOPLAM (KESİNTİ)</td>
+    <td style="${bd}padding:4px 6px;text-align:right" id="ks-genel"></td>
+    <td style="${bd}"></td>
+  </tr>`;
+  document.getElementById('kesinti-icerik').innerHTML =
+    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt"><colgroup>${'<col>'.repeat(9)}</colgroup><tbody>${body}</tbody></table>`;
+  kesintiTopla();
+}
+
+function kesintiSatirEkle() {
+  if (!_kesintiData) return;
+  kesintiCollect();
+  _kesintiData.rows.push(kesintiBosSatir());
+  renderKesintiGrid();
+  const i = _kesintiData.rows.length - 1;
+  document.getElementById('ks-ad-' + i)?.focus();
+}
+
+function kesintiSatirSil(i) {
+  if (!_kesintiData) return;
+  kesintiCollect();
+  _kesintiData.rows.splice(i, 1);
+  if (!_kesintiData.rows.length) _kesintiData.rows.push(kesintiBosSatir());
+  renderKesintiGrid();
+}
+
+async function kesintiKaydet(silent) {
+  const d = _kesintiData; if (!d) return;
+  kesintiCollect();
+  const satirlar = d.rows.filter(r => (r.aciklama || '').trim() || r.miktar || r.birim_fiyat);
+  await api.invoke('kesinti:kaydet', d.hakedis.id, satirlar);
+  if (!silent) yesilToast('Kesintiler kaydedildi ✓');
+}
+
+async function kesintiPdf() {
+  if (_kesintiData) await kesintiKaydet(true);
+  const html = await buildKesintiHtml();
+  if (html) await api.invoke('print:pdf', html);
+}
+async function kesintiExcel() {
+  if (_kesintiData) await kesintiKaydet(true);
+  const html = await buildKesintiHtml();
+  if (html) await api.invoke('export:xls', { html, ad: 'Kesintiler-Hkd' + (_kesintiData?.hakedis?.hakedis_no || ''), sheet: 'Kesintiler' });
+}
+
+async function buildKesintiHtml() {
+  if (!_kesintiData) return null;
+  const d = await api.invoke('kesinti:getir', _kesintiData.hakedis.id);
+  if (!d) return null;
+  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const bd = 'border:1px solid #999;';
+  const R = 'text-align:right';
+  const head = `<tr style="background:#d9d9d9;color:#111;font-size:7pt">
+    <th style="${bd}padding:2px 3px">S.NO</th><th style="${bd}padding:2px 3px">TARİH<br>DATE</th>
+    <th style="${bd}padding:2px 3px;text-align:left">KESİNTİ AÇIKLAMASI<br>DEDUCTION DESC.</th>
+    <th style="${bd}padding:2px 3px">BR<br>UNIT</th><th style="${bd}padding:2px 3px">MİKTAR<br>QTY</th>
+    <th style="${bd}padding:2px 3px">BİRİM FİYAT<br>U.PRICE</th><th style="${bd}padding:2px 3px">PARİTE<br>RATE</th>
+    <th style="${bd}padding:2px 3px">TOPLAM<br>TOTAL</th>
+  </tr>`;
+  let body = '';
+  d.rows.forEach((r, i) => {
+    body += `<tr style="font-size:7.5pt">
+      <td style="${bd}padding:1px 3px;text-align:center">${i + 1}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.tarih || ''}</td>
+      <td style="${bd}padding:1px 3px;text-align:left">${r.aciklama || ''}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.birim || ''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.miktar ? _ydNum(r.miktar) : ''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.birim_fiyat ? _icmM(r.birim_fiyat) : ''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.parite ? _ydNum(r.parite) : ''}</td>
+      <td style="${bd}padding:1px 3px;${R};font-weight:600">${r.tutar ? _icmM(r.tutar) : ''}</td>
+    </tr>`;
+  });
+  body += `<tr style="background:#ffcdd2;font-weight:700;font-size:8pt">
+    <td style="${bd}padding:3px 5px;text-align:right" colspan="7">TOPLAM KESİNTİ / TOTAL DEDUCTION</td>
+    <td style="${bd}padding:3px 5px;${R}">${_icmM(d.genelToplam)}</td>
+  </tr>`;
+  return `
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:14px 18px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700;letter-spacing:.5px">KESİNTİLER İCMALİ / DEDUCTIONS SUMMARY</div>
+      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
+    </div>
+    <table style="width:100%;font-size:8pt;margin-bottom:8px">
+      <tr><td style="padding:2px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:2px 6px;font-weight:600">${proje ? proje.ad : ''}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt"><tbody>${head}${body}</tbody></table>
+    <div style="margin-top:8px;font-size:7pt;color:#777">Toplam = Miktar × Birim Fiyat × Parite (parite boşsa 1). Bu tutarlar hakedişten düşülür.</div>
   </div>`;
 }
 

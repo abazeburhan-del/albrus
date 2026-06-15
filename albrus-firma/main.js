@@ -319,6 +319,17 @@ async function initDb() {
       parite REAL DEFAULT 0,
       sira INTEGER DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS kesintiler (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hakedis_id INTEGER NOT NULL,
+      tarih TEXT DEFAULT '',
+      aciklama TEXT DEFAULT '',
+      birim TEXT DEFAULT '',
+      miktar REAL DEFAULT 0,
+      birim_fiyat REAL DEFAULT 0,
+      parite REAL DEFAULT 0,
+      sira INTEGER DEFAULT 0
+    );
   `);
 
   // Çek / Senet
@@ -1979,6 +1990,7 @@ ipcMain.handle('hakedis:ekle', (_, d) => {
 ipcMain.handle('hakedis:sil', (_, id) => {
   run('DELETE FROM hakedis_satirlar WHERE hakedis_id = ?', [id]);
   run('DELETE FROM ilave_isler WHERE hakedis_id = ?', [id]);
+  run('DELETE FROM kesintiler WHERE hakedis_id = ?', [id]);
   run('DELETE FROM hakedisler WHERE id = ?', [id]);
   saveDb();
   return true;
@@ -2068,6 +2080,34 @@ ipcMain.handle('ilave:kaydet', (_, hakedis_id, satirlar) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [hakedis_id, s.tutanak_no ?? '', s.tutanak_tarih ?? '', s.imalat_adi ?? '', s.kirilim ?? '',
        s.birim ?? '', Number(s.miktar) || 0, Number(s.birim_fiyat) || 0, Number(s.parite) || 0, i + 1]);
+  });
+  saveDb();
+  return true;
+});
+
+// Kesintiler İcmali (RAN "KESİNTİLER İCMALİ"): hakedişten düşülen kesintiler
+// Elle girilir. TOPLAM = miktar × birim fiyat × (parite varsa, yoksa 1)
+ipcMain.handle('kesinti:getir', (_, hakedis_id) => {
+  const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
+  if (!h) return null;
+  const satirlar = getAll('SELECT * FROM kesintiler WHERE hakedis_id = ? ORDER BY sira, id', [hakedis_id]);
+  const rows = satirlar.map(s => {
+    const parite = Number(s.parite) || 0;
+    const tutar = (Number(s.miktar) || 0) * (Number(s.birim_fiyat) || 0) * (parite > 0 ? parite : 1);
+    return { ...s, tutar };
+  });
+  const genelToplam = rows.reduce((a, r) => a + (r.tutar || 0), 0);
+  return { hakedis: h, rows, genelToplam };
+});
+
+// Kesintileri kaydet (tam değiştirme)
+ipcMain.handle('kesinti:kaydet', (_, hakedis_id, satirlar) => {
+  run('DELETE FROM kesintiler WHERE hakedis_id = ?', [hakedis_id]);
+  (satirlar || []).forEach((s, i) => {
+    run(`INSERT INTO kesintiler (hakedis_id, tarih, aciklama, birim, miktar, birim_fiyat, parite, sira)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [hakedis_id, s.tarih ?? '', s.aciklama ?? '', s.birim ?? '',
+       Number(s.miktar) || 0, Number(s.birim_fiyat) || 0, Number(s.parite) || 0, i + 1]);
   });
   saveDb();
   return true;
