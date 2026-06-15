@@ -1981,7 +1981,7 @@ ipcMain.handle('icmal:getir', (_, hakedis_id) => {
   const buMap = {};
   getAll('SELECT * FROM hakedis_satirlar WHERE hakedis_id = ?', [hakedis_id]).forEach(s => { buMap[s.poz_id] = s.bu_miktar || 0; });
   const rows = pozlar.map(p => {
-    const bf = (Number(p.bf_iscilik) || 0) + (Number(p.bf_malzeme) || 0);     // H/O birim fiyat (B)
+    const bf = Number(p.bf_iscilik) || 0;                                     // H/O birim fiyat (B) — sadece işçilik
     const kesifMiktar = Number(p.kesif_miktar) || 0;                          // G keşif miktarı (A)
     const kesifTutar  = kesifMiktar * bf;                                     // I keşif tutarı (C=A×B)
     const onceki = yesilOncekiToplam(h.proje_id, h.hakedis_no, p.id);         // M önceki miktar (E)
