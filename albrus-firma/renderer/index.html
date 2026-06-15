@@ -6133,6 +6133,11 @@ async function openYesil(hakedisId) {
   document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-yesil') o.classList.remove('open'); });
   openModal('m-yesil');
   document.getElementById('yesil-icerik').scrollTop = 0; // en üstten başla
+  // Açılır açılmaz klavye girişi çalışsın: pencereye odak ver + ilk kutuya odaklan
+  // (yoksa açılışta kutuya yazılmıyor, ancak Kaydet/PDF sonrası çalışıyordu)
+  try { await api.invoke('win:focus'); } catch (_) {}
+  const ilk = document.getElementById('yd-0');
+  if (ilk) { ilk.focus(); ilk.select(); }
 }
 
 function renderYesilGrid() {

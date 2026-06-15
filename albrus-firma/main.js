@@ -387,6 +387,13 @@ function createWindow() {
   mainWindow = win;
 }
 
+// Renderer isteğiyle pencere/webContents'e klavye odağı ver (modal açılışında kutular hemen yazılabilsin)
+ipcMain.handle('win:focus', (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender) || mainWindow;
+  if (w && !w.isDestroyed()) { w.focus(); w.webContents.focus(); }
+  return true;
+});
+
 app.whenReady().then(async () => {
   await initDb();
   createWindow();
