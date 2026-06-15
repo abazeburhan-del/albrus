@@ -1807,6 +1807,10 @@ async function loadKasa() {
       <div class="card-label">${k.ad}</div>
       <div class="card-val ${k.bakiye >= 0 ? 'pos' : 'neg'}">${fmt(k.bakiye, k.para_birimi)}</div>
       <div class="card-sub">${k.para_birimi}</div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn-link btn-sm" onclick="event.stopPropagation();openKasaEkle(${JSON.stringify(k).replace(/"/g,'&quot;')})">Düzenle</button>
+        <button class="btn-del btn-sm" onclick="event.stopPropagation();delKasa(${k.id})">✕</button>
+      </div>
     </div>
   `).join('');
 
@@ -2244,22 +2248,40 @@ async function delFis(id) {
   loadKasa();
 }
 
-async function openKasaEkle() {
-  document.getElementById('ka-ad').value = '';
-  document.getElementById('ka-bakiye').value = '';
+let _kasaDuzenleId = null;
+async function openKasaEkle(kasa) {
+  _kasaDuzenleId = kasa ? kasa.id : null;
+  document.querySelector('#m-kasa-ekle .modal-title').textContent = kasa ? 'Kasa Düzenle' : 'Yeni Kasa';
+  document.getElementById('ka-ad').value = kasa ? kasa.ad : '';
+  document.getElementById('ka-pb').value = kasa ? kasa.para_birimi : 'IQD';
+  document.getElementById('ka-bakiye').value = kasa ? '' : '';
+  // Açılış bakiyesi sadece yeni kasada anlamlı (bakiye hareketlerden gelir)
+  document.getElementById('ka-bakiye').closest('.fg').style.display = kasa ? 'none' : '';
   openModal('m-kasa-ekle');
 }
 
 async function saveKasa() {
   const d = {
-    ad: document.getElementById('ka-ad').value,
+    id: _kasaDuzenleId,
+    ad: document.getElementById('ka-ad').value.trim(),
     para_birimi: document.getElementById('ka-pb').value,
     bakiye: parseFloat(document.getElementById('ka-bakiye').value) || 0
   };
   if (!d.ad) { alert('Kasa adı zorunludur.'); return; }
-  await api.invoke('kasalar:ekle', d);
+  if (_kasaDuzenleId) await api.invoke('kasalar:guncelle', d);
+  else                await api.invoke('kasalar:ekle', d);
   closeModal('m-kasa-ekle');
+  _kasaDuzenleId = null;
   loadKasa();
+}
+
+async function delKasa(id) {
+  if (!confirm('Bu kasa silinsin mi? (Hareketi olan kasa silinemez)')) return;
+  try {
+    await api.invoke('kasalar:sil', id);
+    if (S.secilenKasa?.id === id) { S.secilenKasa = null; document.getElementById('btn-yeni-fis').disabled = true; document.getElementById('btn-personel-ode').disabled = true; }
+    loadKasa();
+  } catch (e) { alert(e.message); }
 }
 
 // ══════════════════════════════════════════════════

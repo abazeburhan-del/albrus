@@ -424,6 +424,21 @@ ipcMain.handle('kasalar:ekle', (_, d) => {
   return r;
 });
 
+ipcMain.handle('kasalar:guncelle', (_, d) => {
+  run('UPDATE kasalar SET ad = ?, para_birimi = ? WHERE id = ?',
+    [d.ad, d.para_birimi, d.id]);
+  saveDb();
+  return getOne('SELECT * FROM kasalar WHERE id = ?', [d.id]);
+});
+
+ipcMain.handle('kasalar:sil', (_, id) => {
+  const hareketSayisi = getOne('SELECT COUNT(*) as n FROM kasa_hareketleri WHERE kasa_id = ?', [id]).n;
+  if (hareketSayisi > 0) throw new Error('Bu kasada hareket var, silinemez.');
+  run('DELETE FROM kasalar WHERE id = ?', [id]);
+  saveDb();
+  return true;
+});
+
 ipcMain.handle('sonraki:fis:no', () => {
   const row = getOne('SELECT MAX(id) as max FROM kasa_hareketleri');
   const next = (row?.max ?? 0) + 1;
