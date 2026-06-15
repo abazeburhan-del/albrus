@@ -1971,6 +1971,37 @@ ipcMain.handle('yesil:kaydet', (_, hakedis_id, satirlar) => {
   return true;
 });
 
+// Hakediş Genel İcmali (RAN "(R) REPRESENTATION" sayfası): BOQ + Yeşil Defter birleşimi
+// BOQ'dan: sıra/poz/tanım/birim/keşif miktarı/birim fiyat/keşif tutarı
+// Yeşil Defter'den: ÖNCEKİ + BU = TOPLAM miktar; tutarlar birim fiyatla çarpılır
+ipcMain.handle('icmal:getir', (_, hakedis_id) => {
+  const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
+  if (!h) return null;
+  const pozlar = getAll('SELECT * FROM hakedis_pozlar WHERE proje_id = ? ORDER BY sira, id', [h.proje_id]);
+  const buMap = {};
+  getAll('SELECT * FROM hakedis_satirlar WHERE hakedis_id = ?', [hakedis_id]).forEach(s => { buMap[s.poz_id] = s.bu_miktar || 0; });
+  const rows = pozlar.map(p => {
+    const bf = (Number(p.bf_iscilik) || 0) + (Number(p.bf_malzeme) || 0);     // H/O birim fiyat (B)
+    const kesifMiktar = Number(p.kesif_miktar) || 0;                          // G keşif miktarı (A)
+    const kesifTutar  = kesifMiktar * bf;                                     // I keşif tutarı (C=A×B)
+    const onceki = yesilOncekiToplam(h.proje_id, h.hakedis_no, p.id);         // M önceki miktar (E)
+    const bu     = buMap[p.id] || 0;                                          // N bu defa miktar (F)
+    const toplam = onceki + bu;                                               // L toplam miktar (D)
+    const oran   = kesifMiktar ? (toplam / kesifMiktar) : 0;                  // J gerçekleşme % (D/A)
+    const toplamTutar = toplam * bf;                                          // P toplam tutar (G=B×D)
+    const oncekiTutar = onceki * bf;                                          // Q önceki tutar (H=E×B)
+    const buTutar     = toplamTutar - oncekiTutar;                            // R bu defa tutar (I=G−H)
+    return { poz: p, bf, bfIscilik: Number(p.bf_iscilik) || 0, bfMalzeme: Number(p.bf_malzeme) || 0,
+             kesifMiktar, kesifTutar, onceki, bu, toplam, oran, toplamTutar, oncekiTutar, buTutar };
+  });
+  const sum = k => rows.reduce((a, r) => a + (r[k] || 0), 0);
+  const toplamlar = {
+    kesifTutar: sum('kesifTutar'), toplamTutar: sum('toplamTutar'),
+    oncekiTutar: sum('oncekiTutar'), buTutar: sum('buTutar')
+  };
+  return { hakedis: h, rows, toplamlar };
+});
+
 // ════════════════════════════════════════════════════════════
 // ÇEK / SENET
 // ════════════════════════════════════════════════════════════

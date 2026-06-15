@@ -1253,6 +1253,20 @@
   </div>
 </div>
 
+<!-- Hakediş Genel İcmal Modal -->
+<div class="overlay" id="m-icmal">
+  <div class="modal" style="max-width:1320px;width:97vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" id="m-icmal-title" style="flex:0 0 auto">Hakediş Genel İcmali</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:0 0 auto">BOQ keşif + Yeşil Defter metrajları birleşik. Miktarlar Yeşil Defter'den; tutarlar birim fiyatla otomatik hesaplanır.</div>
+    <div style="flex:1 1 auto;overflow:auto;min-height:0" id="icmal-icerik"></div>
+    <div class="modal-actions" style="flex:0 0 auto">
+      <button class="btn btn-ghost" onclick="closeModal('m-icmal')">Kapat</button>
+      <button class="btn btn-ghost" onclick="icmalPdf()">PDF</button>
+      <button class="btn btn-ghost" onclick="icmalExcel()">Excel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Personel Ekle/Düzenle Modal -->
 <div class="overlay" id="m-personel">
   <div class="modal">
@@ -5847,7 +5861,7 @@ async function loadHakedisProje() {
         ${list.map(h => `<tr>
           <td><b>${h.hakedis_no}. Hakediş</b></td>
           <td>${h.tarih ? fmtDate(h.tarih) : '—'}</td>
-          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
+          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
         </tr>`).join('')}
       </tbody></table>`;
   }
@@ -6241,6 +6255,164 @@ async function buildYesilHtml() {
     </table>
     <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt"><tbody>${body}</tbody></table>
     <div style="margin-top:8px;font-size:7pt;color:#777">Yeşil defter ölçü/metraj defteridir — fiyat içermez. TOPLAM = ÖNCEKİ + BU HKD · İŞİN %'Sİ = BU HKD ÷ TOPLAM · HAKEDİŞE ESAS = TOPLAM × %.</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════
+// HAKEDİŞ GENEL İCMALİ — RAN "(R) REPRESENTATION" sayfası
+//   BOQ'dan: sıra/poz/tanım/birim/keşif miktarı/birim fiyat/keşif tutarı
+//   Yeşil Defter'den: ÖNCEKİ + BU = TOPLAM miktar
+//   TUTAR (P) = TOPLAM × BF · ÖNCEKİ TUTAR (Q) = ÖNCEKİ × BF · BU TUTAR (R) = P − Q
+// ══════════════════════════════════════════════════
+let _icmalData = null;
+const _icmM = (n) => (Math.round(n||0)).toLocaleString('tr-TR');
+
+async function openIcmal(hakedisId) {
+  const d = await api.invoke('icmal:getir', hakedisId);
+  if (!d) { alert('Hakediş bulunamadı.'); return; }
+  if (!d.rows.length) { alert('Bu projede poz yok. Önce BOQ/poz listesi ekleyin.'); return; }
+  _icmalData = d;
+  document.getElementById('m-icmal-title').textContent = `Hakediş Genel İcmali — ${d.hakedis.hakedis_no}. Hakediş`;
+  renderIcmalGrid();
+  document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-icmal') o.classList.remove('open'); });
+  openModal('m-icmal');
+  document.getElementById('icmal-icerik').scrollTop = 0;
+}
+
+function renderIcmalGrid() {
+  const d = _icmalData; if (!d) return;
+  const bd = 'border:1px solid var(--border);';
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:8.5pt">
+    <th style="${bd}padding:2px 4px">S.NO</th>
+    <th style="${bd}padding:2px 4px">POZ NO</th>
+    <th style="${bd}padding:2px 4px;text-align:left">İMALATIN ADI</th>
+    <th style="${bd}padding:2px 4px">BR</th>
+    <th style="${bd}padding:2px 4px">KEŞİF MİK.</th>
+    <th style="${bd}padding:2px 4px">BİRİM FİYAT</th>
+    <th style="${bd}padding:2px 4px">KEŞİF TUTARI</th>
+    <th style="${bd}padding:2px 4px">%</th>
+    <th style="${bd}padding:2px 4px">ÖNCEKİ MİK.</th>
+    <th style="${bd}padding:2px 4px">BU DEFA MİK.</th>
+    <th style="${bd}padding:2px 4px">TOPLAM MİK.</th>
+    <th style="${bd}padding:2px 4px">ÖNCEKİ TUTAR</th>
+    <th style="${bd}padding:2px 4px">BU DEFA TUTAR</th>
+    <th style="${bd}padding:2px 4px">TOPLAM TUTAR</th>
+  </tr>`;
+  const R = 'text-align:right';
+  let sno=0, gno=0, grupAd='__yok__', body='';
+  d.rows.forEach(r => {
+    const g = r.poz.grup || '';
+    if (g !== grupAd) {
+      grupAd = g; gno++;
+      body += `<tr style="background:#c8e6c9;font-weight:700">
+        <td style="${bd}padding:3px 5px;text-align:center">S.NO</td>
+        <td style="${bd}padding:3px 5px;text-align:center">${gno}</td>
+        <td style="${bd}padding:3px 5px" colspan="12">${g || '—'}</td>
+      </tr>` + colHead;
+    }
+    sno++;
+    body += `<tr style="font-size:8.5pt">
+      <td style="${bd}padding:2px 4px;text-align:center">${sno}</td>
+      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.poz_no||''}</td>
+      <td style="${bd}padding:2px 4px;text-align:left">${r.poz.tanim}</td>
+      <td style="${bd}padding:2px 4px;text-align:center">${r.poz.birim}</td>
+      <td style="${bd}padding:2px 4px;${R}">${_ydNum(r.kesifMiktar)}</td>
+      <td style="${bd}padding:2px 4px;${R}">${_icmM(r.bf)}</td>
+      <td style="${bd}padding:2px 4px;${R}">${_icmM(r.kesifTutar)}</td>
+      <td style="${bd}padding:2px 4px;${R}">${r.kesifMiktar?_ydNum(r.oran*100)+'%':''}</td>
+      <td style="${bd}padding:2px 4px;${R};color:var(--dim)">${r.onceki?_ydNum(r.onceki):''}</td>
+      <td style="${bd}padding:2px 4px;${R}">${r.bu?_ydNum(r.bu):''}</td>
+      <td style="${bd}padding:2px 4px;${R};font-weight:600">${r.toplam?_ydNum(r.toplam):''}</td>
+      <td style="${bd}padding:2px 4px;${R};color:var(--dim)">${r.oncekiTutar?_icmM(r.oncekiTutar):''}</td>
+      <td style="${bd}padding:2px 4px;${R}">${r.buTutar?_icmM(r.buTutar):''}</td>
+      <td style="${bd}padding:2px 4px;${R};font-weight:600">${r.toplamTutar?_icmM(r.toplamTutar):''}</td>
+    </tr>`;
+  });
+  const t = d.toplamlar;
+  body += `<tr style="background:#ffe082;font-weight:700;font-size:9pt">
+    <td style="${bd}padding:4px 5px" colspan="6" >GENEL TOPLAM</td>
+    <td style="${bd}padding:4px 5px;${R}">${_icmM(t.kesifTutar)}</td>
+    <td style="${bd}" colspan="4"></td>
+    <td style="${bd}padding:4px 5px;${R}">${_icmM(t.oncekiTutar)}</td>
+    <td style="${bd}padding:4px 5px;${R}">${_icmM(t.buTutar)}</td>
+    <td style="${bd}padding:4px 5px;${R}">${_icmM(t.toplamTutar)}</td>
+  </tr>`;
+  document.getElementById('icmal-icerik').innerHTML =
+    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:8.5pt"><colgroup>${'<col>'.repeat(14)}</colgroup><tbody>${body}</tbody></table>`;
+}
+
+async function icmalPdf() {
+  const html = await buildIcmalHtml();
+  if (html) await api.invoke('print:pdf', html);
+}
+async function icmalExcel() {
+  const html = await buildIcmalHtml();
+  if (html) await api.invoke('export:xls', { html, ad: 'GenelIcmal-Hkd' + (_icmalData?.hakedis?.hakedis_no||''), sheet: 'Genel Icmal' });
+}
+
+async function buildIcmalHtml() {
+  const d = _icmalData; if (!d) return null;
+  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const bd = 'border:1px solid #999;';
+  const R = 'text-align:right';
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:6.5pt">
+    <th style="${bd}padding:2px 3px">S.NO</th><th style="${bd}padding:2px 3px">POZ NO<br>ITEM</th>
+    <th style="${bd}padding:2px 3px;text-align:left">İMALATIN ADI<br>DESCRIPTION</th><th style="${bd}padding:2px 3px">BR<br>UNIT</th>
+    <th style="${bd}padding:2px 3px">KEŞİF MİK.<br>CONTR. QTY</th><th style="${bd}padding:2px 3px">B.FİYAT<br>U.PRICE</th>
+    <th style="${bd}padding:2px 3px">KEŞİF TUTARI<br>CONTR. AMOUNT</th><th style="${bd}padding:2px 3px">%</th>
+    <th style="${bd}padding:2px 3px">ÖNCEKİ MİK.<br>PREV. QTY</th><th style="${bd}padding:2px 3px">BU DEFA MİK.<br>THIS QTY</th>
+    <th style="${bd}padding:2px 3px">TOPLAM MİK.<br>QTY TO DATE</th><th style="${bd}padding:2px 3px">ÖNCEKİ TUTAR<br>PREV. AMOUNT</th>
+    <th style="${bd}padding:2px 3px">BU DEFA TUTAR<br>THIS AMOUNT</th><th style="${bd}padding:2px 3px">TOPLAM TUTAR<br>AMOUNT TO DATE</th>
+  </tr>`;
+  let sno=0, gno=0, grupAd='__yok__', body='';
+  d.rows.forEach(r => {
+    const g = r.poz.grup || '';
+    if (g !== grupAd) {
+      grupAd = g; gno++;
+      body += `<tr style="background:#c8e6c9;font-weight:700;font-size:7.5pt">
+        <td style="${bd}padding:2px 5px;text-align:center">S.NO</td><td style="${bd}padding:2px 5px;text-align:center">${gno}</td>
+        <td style="${bd}padding:2px 5px" colspan="12">${g || '—'}</td></tr>` + colHead;
+    }
+    sno++;
+    body += `<tr style="font-size:7pt">
+      <td style="${bd}padding:1px 3px;text-align:center">${sno}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.poz.poz_no||''}</td>
+      <td style="${bd}padding:1px 3px;text-align:left">${r.poz.tanim}</td>
+      <td style="${bd}padding:1px 3px;text-align:center">${r.poz.birim}</td>
+      <td style="${bd}padding:1px 3px;${R}">${_ydNum(r.kesifMiktar)}</td>
+      <td style="${bd}padding:1px 3px;${R}">${_icmM(r.bf)}</td>
+      <td style="${bd}padding:1px 3px;${R}">${_icmM(r.kesifTutar)}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.kesifMiktar?_ydNum(r.oran*100)+'%':''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.onceki?_ydNum(r.onceki):''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.bu?_ydNum(r.bu):''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.toplam?_ydNum(r.toplam):''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.oncekiTutar?_icmM(r.oncekiTutar):''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.buTutar?_icmM(r.buTutar):''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${r.toplamTutar?_icmM(r.toplamTutar):''}</td>
+    </tr>`;
+  });
+  const t = d.toplamlar;
+  body += `<tr style="background:#ffe082;font-weight:700;font-size:7.5pt">
+    <td style="${bd}padding:3px 5px" colspan="6">GENEL TOPLAM / GRAND TOTAL</td>
+    <td style="${bd}padding:3px 5px;${R}">${_icmM(t.kesifTutar)}</td>
+    <td style="${bd}" colspan="4"></td>
+    <td style="${bd}padding:3px 5px;${R}">${_icmM(t.oncekiTutar)}</td>
+    <td style="${bd}padding:3px 5px;${R}">${_icmM(t.buTutar)}</td>
+    <td style="${bd}padding:3px 5px;${R}">${_icmM(t.toplamTutar)}</td>
+  </tr>`;
+  return `
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:14px 18px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700;letter-spacing:.5px">HAKEDİŞ GENEL İCMALİ / PROGRESS PAYMENT SUMMARY</div>
+      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
+    </div>
+    <table style="width:100%;font-size:8pt;margin-bottom:8px">
+      <tr><td style="padding:2px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:2px 6px;font-weight:600">${proje?proje.ad:''}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${d.hakedis.tarih?fmtDate(d.hakedis.tarih):'—'}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7pt"><tbody>${body}</tbody></table>
+    <div style="margin-top:8px;font-size:7pt;color:#777">Keşif Tutarı = Keşif Mik. × B.Fiyat · Toplam Mik. = Önceki + Bu Defa · Toplam Tutar = Toplam Mik. × B.Fiyat · Bu Defa Tutar = Toplam − Önceki. Birim fiyat = işçilik + malzeme.</div>
   </div>`;
 }
 
