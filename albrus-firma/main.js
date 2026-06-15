@@ -368,6 +368,8 @@ function insertAndGet(table, sql, params = []) {
 }
 
 // ── Pencere ───────────────────────────────────────────────────
+let mainWindow = null;
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280, height: 800, minWidth: 1024, minHeight: 640,
@@ -379,6 +381,10 @@ function createWindow() {
     title: 'Albrus — Firma Yönetim'
   });
   win.loadFile('renderer/index.html');
+  // Pencere her odaklandığında webContents'e de odak ver (alt-tab/tıklama sonrası
+  // klavye girişinin kutulara ulaşmama sorununu çözer).
+  win.on('focus', () => { if (!win.isDestroyed()) win.webContents.focus(); });
+  mainWindow = win;
 }
 
 app.whenReady().then(async () => {
