@@ -6152,15 +6152,14 @@ function renderYesilGrid() {
     </tr>`;
   });
   document.getElementById('yesil-icerik').innerHTML =
-    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt;user-select:none">${`<colgroup>${'<col>'.repeat(9)}</colgroup>`}<tbody>${body}</tbody></table>`;
+    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt">${`<colgroup>${'<col>'.repeat(9)}</colgroup>`}<tbody>${body}</tbody></table>`;
+  // Kutular uygulamadaki diğer çalışan kutularla aynı: sade input, fareyle odak
+  // engelleyen mousedown/preventDefault ve user-select:none KALDIRILDI.
   d.rows.forEach((r,i) => {
     const inp = document.getElementById('yd-'+i);
     if (!inp) return;
-    inp.style.userSelect = 'text';
     inp.addEventListener('input', () => yesilCanli(i));
     inp.addEventListener('focus', () => inp.select());
-    // satıra/hücreye tıklayınca da kutuya odaklan (boşluğa denk gelse bile)
-    inp.closest('td')?.addEventListener('mousedown', (e) => { if (e.target !== inp) { e.preventDefault(); inp.focus(); } });
   });
 }
 
