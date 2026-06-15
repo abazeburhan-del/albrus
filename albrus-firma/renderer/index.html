@@ -5869,11 +5869,13 @@ async function loadHakedisProje() {
 
 // — Hakediş dönemi —
 async function hakedisEkle() {
-  if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
-  if (!_hkPozlar.length) { alert('Önce BOQ/poz listesi ekleyin (Excel BOQ Aktar).'); return; }
-  if (!confirm('Yeni hakediş dönemi oluşturulsun mu? (No otomatik verilir)')) return;
+  if (!_hkProjeId) { yesilToast('Önce proje seçin.'); return; }
+  if (!_hkPozlar.length) { yesilToast('Önce BOQ/poz listesi ekleyin (Excel BOQ Aktar).'); return; }
+  // Native confirm() KULLANMA: Windows'ta native dialog kapanınca webContents klavye
+  // odağını kaybediyor → açılan Yeşil Defter kutusuna yazılamıyor. Doğrudan oluştur.
   const r = await api.invoke('hakedis:ekle', { proje_id: _hkProjeId, tarih: today() });
   await loadHakedisProje();
+  yesilToast(r.hakedis_no + '. Hakediş oluşturuldu');
   openYesil(r.id);
 }
 async function hakedisSil(id) {
@@ -6127,7 +6129,7 @@ async function openYesil(hakedisId) {
   if (!d) { alert('Hakediş bulunamadı.'); return; }
   if (!d.rows.length) { alert('Bu projede poz yok. Önce BOQ/poz listesi ekleyin.'); return; }
   _yesilData = d;
-  document.getElementById('m-yesil-title').textContent = `Yeşil Defter — ${d.hakedis.hakedis_no}. Hakediş  ·  ↑/↓ ile gezin  ·  sürüm 2026-06-16`;
+  document.getElementById('m-yesil-title').textContent = `Yeşil Defter — ${d.hakedis.hakedis_no}. Hakediş  ·  ↑/↓ ile gezin  ·  sürüm 2026-06-16-2`;
   renderYesilGrid();
   // Açık kalmış başka overlay varsa kapat (tıklamayı yutan görünmez katmanı önle)
   document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-yesil') o.classList.remove('open'); });

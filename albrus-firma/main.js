@@ -390,7 +390,12 @@ function createWindow() {
 // Renderer isteğiyle pencere/webContents'e klavye odağı ver (modal açılışında kutular hemen yazılabilsin)
 ipcMain.handle('win:focus', (e) => {
   const w = BrowserWindow.fromWebContents(e.sender) || mainWindow;
-  if (w && !w.isDestroyed()) { w.focus(); w.webContents.focus(); }
+  if (w && !w.isDestroyed()) {
+    // blur+focus döngüsü Windows'ta klavye odağını yeniden kurar (native dialog'un yaptığı gibi)
+    try { w.blur(); } catch (_) {}
+    w.focus();
+    w.webContents.focus();
+  }
   return true;
 });
 
