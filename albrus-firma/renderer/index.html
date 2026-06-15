@@ -4320,6 +4320,9 @@ async function loadPersonel() {
     const g = _personeller.find(p => p.id === _secilenPersonel.id);
     if (g) { _secilenPersonel = g; loadMaasOdemeleri(); }
     else   { _secilenPersonel = null; document.getElementById('personel-odeme-wrap').style.display = 'none'; }
+  } else if (_personeller.length) {
+    secPersonel(_personeller[0].id);   // ilk personeli otomatik seç → Puantaj/Maaş Öde hemen aktif
+    return;                            // secPersonel butonları + render'ı zaten ayarladı
   }
   document.getElementById('btn-maas-ode').disabled  = !_secilenPersonel;
   document.getElementById('btn-puantaj').disabled    = !_secilenPersonel;
