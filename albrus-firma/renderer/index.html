@@ -6355,7 +6355,7 @@ async function buildIcmalHtml() {
   const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
   const bd = 'border:1px solid #999;';
   const R = 'text-align:right';
-  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:6.5pt">
+  const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:5.5pt">
     <th style="${bd}padding:2px 3px">S.NO</th><th style="${bd}padding:2px 3px">POZ NO<br>ITEM</th>
     <th style="${bd}padding:2px 3px;text-align:left">İMALATIN ADI<br>DESCRIPTION</th><th style="${bd}padding:2px 3px">BR<br>UNIT</th>
     <th style="${bd}padding:2px 3px">KEŞİF MİK.<br>CONTR. QTY</th><th style="${bd}padding:2px 3px">B.FİYAT<br>U.PRICE</th>
@@ -6369,30 +6369,30 @@ async function buildIcmalHtml() {
     const g = r.poz.grup || '';
     if (g !== grupAd) {
       grupAd = g; gno++;
-      body += `<tr style="background:#c8e6c9;font-weight:700;font-size:7.5pt">
-        <td style="${bd}padding:2px 5px;text-align:center">S.NO</td><td style="${bd}padding:2px 5px;text-align:center">${gno}</td>
-        <td style="${bd}padding:2px 5px" colspan="12">${g || '—'}</td></tr>` + colHead;
+      body += `<tr style="background:#c8e6c9;font-weight:700;font-size:6pt">
+        <td style="${bd}padding:2px 4px;text-align:center">S.NO</td><td style="${bd}padding:2px 4px;text-align:center">${gno}</td>
+        <td style="${bd}padding:2px 4px" colspan="12">${g || '—'}</td></tr>` + colHead;
     }
     sno++;
-    body += `<tr style="font-size:7pt">
-      <td style="${bd}padding:1px 3px;text-align:center">${sno}</td>
-      <td style="${bd}padding:1px 3px;text-align:center">${r.poz.poz_no||''}</td>
-      <td style="${bd}padding:1px 3px;text-align:left">${r.poz.tanim}</td>
-      <td style="${bd}padding:1px 3px;text-align:center">${r.poz.birim}</td>
-      <td style="${bd}padding:1px 3px;${R}">${_ydNum(r.kesifMiktar)}</td>
-      <td style="${bd}padding:1px 3px;${R}">${_icmM(r.bf)}</td>
-      <td style="${bd}padding:1px 3px;${R}">${_icmM(r.kesifTutar)}</td>
-      <td style="${bd}padding:1px 3px;${R}">${r.kesifMiktar?_ydNum(r.oran*100)+'%':''}</td>
-      <td style="${bd}padding:1px 3px;${R}">${r.onceki?_ydNum(r.onceki):''}</td>
-      <td style="${bd}padding:1px 3px;${R}">${r.bu?_ydNum(r.bu):''}</td>
-      <td style="${bd}padding:1px 3px;${R}">${r.toplam?_ydNum(r.toplam):''}</td>
-      <td style="${bd}padding:1px 3px;${R}">${r.oncekiTutar?_icmM(r.oncekiTutar):''}</td>
-      <td style="${bd}padding:1px 3px;${R}">${r.buTutar?_icmM(r.buTutar):''}</td>
-      <td style="${bd}padding:1px 3px;${R}">${r.toplamTutar?_icmM(r.toplamTutar):''}</td>
+    body += `<tr style="font-size:5.5pt">
+      <td style="${bd}padding:1px 2px;text-align:center">${sno}</td>
+      <td style="${bd}padding:1px 2px;text-align:center">${r.poz.poz_no||''}</td>
+      <td style="${bd}padding:1px 2px;text-align:left">${r.poz.tanim}</td>
+      <td style="${bd}padding:1px 2px;text-align:center">${r.poz.birim}</td>
+      <td style="${bd}padding:1px 2px;${R}">${_ydNum(r.kesifMiktar)}</td>
+      <td style="${bd}padding:1px 2px;${R}">${_icmM(r.bf)}</td>
+      <td style="${bd}padding:1px 2px;${R}">${_icmM(r.kesifTutar)}</td>
+      <td style="${bd}padding:1px 2px;${R}">${r.kesifMiktar?_ydNum(r.oran*100)+'%':''}</td>
+      <td style="${bd}padding:1px 2px;${R}">${r.onceki?_ydNum(r.onceki):''}</td>
+      <td style="${bd}padding:1px 2px;${R}">${r.bu?_ydNum(r.bu):''}</td>
+      <td style="${bd}padding:1px 2px;${R}">${r.toplam?_ydNum(r.toplam):''}</td>
+      <td style="${bd}padding:1px 2px;${R}">${r.oncekiTutar?_icmM(r.oncekiTutar):''}</td>
+      <td style="${bd}padding:1px 2px;${R}">${r.buTutar?_icmM(r.buTutar):''}</td>
+      <td style="${bd}padding:1px 2px;${R}">${r.toplamTutar?_icmM(r.toplamTutar):''}</td>
     </tr>`;
   });
   const t = d.toplamlar;
-  body += `<tr style="background:#ffe082;font-weight:700;font-size:7.5pt">
+  body += `<tr style="background:#ffe082;font-weight:700;font-size:6pt">
     <td style="${bd}padding:3px 5px" colspan="6">GENEL TOPLAM / GRAND TOTAL</td>
     <td style="${bd}padding:3px 5px;${R}">${_icmM(t.kesifTutar)}</td>
     <td style="${bd}" colspan="4"></td>
@@ -6401,18 +6401,19 @@ async function buildIcmalHtml() {
     <td style="${bd}padding:3px 5px;${R}">${_icmM(t.toplamTutar)}</td>
   </tr>`;
   return `
-  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:14px 18px">
-    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
-      <div style="font-size:13px;font-weight:700;letter-spacing:.5px">HAKEDİŞ GENEL İCMALİ / PROGRESS PAYMENT SUMMARY</div>
-      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
+  <style>@page { size: A4 landscape; margin: 8mm; }</style>
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:8px 10px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:4px;margin-bottom:6px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.5px">HAKEDİŞ GENEL İCMALİ / PROGRESS PAYMENT SUMMARY</div>
+      <div style="font-size:8px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
     </div>
-    <table style="width:100%;font-size:8pt;margin-bottom:8px">
-      <tr><td style="padding:2px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:2px 6px;font-weight:600">${proje?proje.ad:''}</td></tr>
-      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
-      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${d.hakedis.tarih?fmtDate(d.hakedis.tarih):'—'}</td></tr>
+    <table style="width:100%;font-size:7pt;margin-bottom:6px">
+      <tr><td style="padding:1px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:1px 6px;font-weight:600">${proje?proje.ad:''}</td></tr>
+      <tr><td style="padding:1px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:1px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:1px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:1px 6px">${d.hakedis.tarih?fmtDate(d.hakedis.tarih):'—'}</td></tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7pt"><tbody>${body}</tbody></table>
-    <div style="margin-top:8px;font-size:7pt;color:#777">Keşif Tutarı = Keşif Mik. × B.Fiyat · Toplam Mik. = Önceki + Bu Defa · Toplam Tutar = Toplam Mik. × B.Fiyat · Bu Defa Tutar = Toplam − Önceki. Birim fiyat = işçilik birim fiyatı.</div>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:5.5pt"><tbody>${body}</tbody></table>
+    <div style="margin-top:6px;font-size:6pt;color:#777">Keşif Tutarı = Keşif Mik. × B.Fiyat · Toplam Mik. = Önceki + Bu Defa · Toplam Tutar = Toplam Mik. × B.Fiyat · Bu Defa Tutar = Toplam − Önceki. Birim fiyat = işçilik birim fiyatı.</div>
   </div>`;
 }
 
