@@ -5936,26 +5936,30 @@ function boqImportSheetChange() {
       if(keywords.some(k=>h.includes(k))) return c; }
     return -1;
   };
+  // Veri örneği (değer bazlı tespit için) — başlıklar yanıltıcı olabilir ("Picture"=aslında birim)
+  const veriler = rows.slice(best, best+25).filter(r => r && r.some(c => String(c==null?'':c).trim()));
+  const birimSet = new Set(['no','no.','nr','adet','ad','m','mt','m2','m²','m3','m³','kg','ton','lt','lot','pcs','pc','set','tak','takım','takim','rulo','paket','pkt','metre','each','ea','%']);
+  // Birim sütunu = değerleri No/m/Lot/Adet/metre... sözlüğüne en çok uyan sütun (başlık adına bakma)
+  const birimDegerSutun = () => {
+    let bc=-1, bs2=0;
+    for (let c=0;c<maxCols;c++){ let s=0,t=0; veriler.forEach(r=>{const v=String(r[c]==null?'':r[c]).trim().toLowerCase(); if(!v)return; t++; if(birimSet.has(v))s++;}); if(t>=3 && s/t>0.5 && s>bs2){bs2=s;bc=c;} }
+    return bc;
+  };
+  const modelCol = guess(['model']);          // POZ NO buradan (kullanıcı isteği: BOQ "Model" sütunu)
+  const birimByVal = birimDegerSutun();        // BR/UNIT: adet mi metre mi → değerden
   const tahmin = {
-    poz_no: guess(['p/n','poz','item','sıra','s.no','code','kod']),
+    // Poz No: önce "Model" sütunu; yoksa P/N/item/kod
+    poz_no: modelCol >= 0 ? modelCol : guess(['p/n','poz','item','sıra','s.no','code','kod']),
     tanim: guess(['description','tanım','imalat','activity','açıklama','desc']),
-    birim: guess(['unit','birim','uom','picture'], ['unit price','unit pr']),
+    // Birim: önce değer bazlı (adet/metre), yoksa başlık
+    birim: birimByVal >= 0 ? birimByVal : guess(['unit','birim','uom','picture'], ['unit price','unit pr']),
     kesif_miktar: guess(['qty','quantity','miktar','adet','metraj']),
     // İşçilik: 'labor/işçilik' içersin, 'material' ve 'total' içermesin
     bf_iscilik: guess(['labor','labour','işçil','iscil'], ['material','total']),
     // Malzeme: 'material/malzeme' içersin, 'labor' ve 'total' içermesin
     bf_malzeme: guess(['material','malzeme'], ['labor','labour','total']),
   };
-  // — Değer bazlı düzeltme (başlık yanıltıcı olabilir: "Picture"=birim, "P/N" sütununda sıra no olması vb.) —
-  const veriler = rows.slice(best, best+25).filter(r => r && r.some(c => String(c==null?'':c).trim()));
-  const birimSet = new Set(['no','no.','nr','adet','ad','m','mt','m2','m²','m3','m³','kg','ton','lt','lot','pcs','pc','set','tak','takım','takim','rulo','paket','pkt','metre','each','ea','%']);
-  // Birim: başlık bulamadıysa değerleri tarayıp birim sözlüğüne uyan sütunu bul
-  if (tahmin.birim < 0) {
-    let bc=-1, bs2=0;
-    for (let c=0;c<maxCols;c++){ let s=0,t=0; veriler.forEach(r=>{const v=String(r[c]==null?'':r[c]).trim().toLowerCase(); if(!v)return; t++; if(birimSet.has(v))s++;}); if(t>=3 && s/t>0.5 && s>bs2){bs2=s;bc=c;} }
-    if (bc>=0) tahmin.birim = bc;
-  }
-  // Poz No: bulunan sütun 1,2,3.. ardışık sayaç ise (grup satırları araya girse de) gerçek poz bir sonraki sütundadır
+  // Model yoksa ve P/N sütunu 1,2,3.. ardışık sayaçsa gerçek poz bir sonraki sütundadır
   const ardisikMi = (col) => {
     const nums = [];
     veriler.forEach(r => { const v=String(r[col]==null?'':r[col]).trim(); if(!v)return; const n=parseFloat(v); if(!isNaN(n) && n===Math.floor(n)) nums.push(n); });
@@ -5963,11 +5967,15 @@ function boqImportSheetChange() {
     let inc=0; for(let k=1;k<nums.length;k++) if(nums[k]===nums[k-1]+1) inc++;
     return nums[0] <= 2 && inc/(nums.length-1) > 0.7;
   };
-  if (tahmin.poz_no>=0 && ardisikMi(tahmin.poz_no) && tahmin.poz_no+1<maxCols) tahmin.poz_no += 1;
-  // Kayıtlı şablon varsa onun sütunlarını öncele
+  if (modelCol < 0 && tahmin.poz_no>=0 && ardisikMi(tahmin.poz_no) && tahmin.poz_no+1<maxCols) tahmin.poz_no += 1;
+  // Kayıtlı şablon: çoğu alanda öncelikli; ANCAK poz_no ve birim'de taze tahmin öne geçer (eski yanlış şablonu ezsin)
   const kullan = (_boqSablon && _boqSablon.map) ? _boqSablon.map : tahmin;
+  const gecerli = (x) => x != null && x >= 0 && x < maxCols;
   document.getElementById('boq-imp-maps').innerHTML = BOQ_ALANLAR.map(a => {
-    const sec = (kullan[a.key] != null && kullan[a.key] >= 0 && kullan[a.key] < maxCols) ? kullan[a.key] : (tahmin[a.key] ?? -1);
+    const tazeOnce = (a.key === 'poz_no' || a.key === 'birim');
+    const sec = tazeOnce
+      ? (gecerli(tahmin[a.key]) ? tahmin[a.key] : (gecerli(kullan[a.key]) ? kullan[a.key] : -1))
+      : (gecerli(kullan[a.key]) ? kullan[a.key] : (gecerli(tahmin[a.key]) ? tahmin[a.key] : -1));
     return `<div class="fg"><label>${a.lbl}</label>
       <select id="boq-map-${a.key}" onchange="boqImportRender()">${opts.replace(`value="${sec}"`, `value="${sec}" selected`)}</select>
     </div>`;
