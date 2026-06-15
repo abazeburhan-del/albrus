@@ -6675,16 +6675,16 @@ async function buildIlaveHtml() {
   const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
   const bd = 'border:1px solid #999;';
   const R = 'text-align:right';
-  const head = `<tr style="background:#d9d9d9;color:#111;font-size:7pt">
-    <th style="${bd}padding:2px 3px">S.NO</th><th style="${bd}padding:2px 3px">TUTANAK NO<br>REPORT NO</th>
-    <th style="${bd}padding:2px 3px">TARİH<br>DATE</th><th style="${bd}padding:2px 3px;text-align:left">İMALATIN ADI<br>ACTIVITY</th>
-    <th style="${bd}padding:2px 3px">BR<br>UNIT</th><th style="${bd}padding:2px 3px">MİKTAR<br>QTY</th>
-    <th style="${bd}padding:2px 3px">BİRİM FİYAT<br>U.PRICE</th><th style="${bd}padding:2px 3px">PARİTE<br>RATE</th>
-    <th style="${bd}padding:2px 3px">TOPLAM TUTAR<br>TOTAL</th>
+  const head = `<tr style="background:#d9d9d9;color:#111;font-size:5.5pt">
+    <th style="${bd}padding:1px 2px">S.NO</th><th style="${bd}padding:1px 2px">TUTANAK NO<br>REPORT NO</th>
+    <th style="${bd}padding:1px 2px">TARİH<br>DATE</th><th style="${bd}padding:1px 2px;text-align:left">İMALATIN ADI<br>ACTIVITY</th>
+    <th style="${bd}padding:1px 2px">BR<br>UNIT</th><th style="${bd}padding:1px 2px">MİKTAR<br>QTY</th>
+    <th style="${bd}padding:1px 2px">BİRİM FİYAT<br>U.PRICE</th><th style="${bd}padding:1px 2px">PARİTE<br>RATE</th>
+    <th style="${bd}padding:1px 2px">TOPLAM TUTAR<br>TOTAL</th>
   </tr>`;
   let body = '';
   d.rows.forEach((r, i) => {
-    body += `<tr style="font-size:7.5pt">
+    body += `<tr style="font-size:6pt">
       <td style="${bd}padding:1px 3px;text-align:center">${i + 1}</td>
       <td style="${bd}padding:1px 3px;text-align:center">${r.tutanak_no || ''}</td>
       <td style="${bd}padding:1px 3px;text-align:center">${r.tutanak_tarih || ''}</td>
@@ -6696,23 +6696,23 @@ async function buildIlaveHtml() {
       <td style="${bd}padding:1px 3px;${R};font-weight:600">${r.tutar ? _icmM(r.tutar) : ''}</td>
     </tr>`;
   });
-  body += `<tr style="background:#ffe082;font-weight:700;font-size:8pt">
-    <td style="${bd}padding:3px 5px;text-align:right" colspan="8">TOPLAM / TOTAL</td>
-    <td style="${bd}padding:3px 5px;${R}">${_icmM(d.genelToplam)}</td>
+  body += `<tr style="background:#ffe082;font-weight:700;font-size:6.5pt">
+    <td style="${bd}padding:2px 4px;text-align:right" colspan="8">TOPLAM / TOTAL</td>
+    <td style="${bd}padding:2px 4px;${R}">${_icmM(d.genelToplam)}</td>
   </tr>`;
   return `
-  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:14px 18px">
-    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
-      <div style="font-size:13px;font-weight:700;letter-spacing:.5px">İLAVE İŞLER İCMALİ / ADDITIONAL WORKS SUMMARY</div>
-      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:12px 16px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:4px;margin-bottom:6px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px">İLAVE İŞLER İCMALİ / ADDITIONAL WORKS SUMMARY</div>
+      <div style="font-size:8px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
     </div>
-    <table style="width:100%;font-size:8pt;margin-bottom:8px">
-      <tr><td style="padding:2px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:2px 6px;font-weight:600">${proje ? proje.ad : ''}</td></tr>
-      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
-      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
+    <table style="width:100%;font-size:6.5pt;margin-bottom:6px">
+      <tr><td style="padding:1px 5px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:1px 5px;font-weight:600">${proje ? proje.ad : ''}</td></tr>
+      <tr><td style="padding:1px 5px;color:#555">HKD. NO / PPC NO</td><td style="padding:1px 5px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:1px 5px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:1px 5px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt"><tbody>${head}${body}</tbody></table>
-    <div style="margin-top:8px;font-size:7pt;color:#777">Toplam Tutar = Miktar × Birim Fiyat × Parite (parite boşsa 1). Bu sayfa tutanakla onaylanan sözleşme-dışı (ilave) işleri kapsar.</div>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:6pt"><tbody>${head}${body}</tbody></table>
+    <div style="margin-top:6px;font-size:6pt;color:#777">Toplam Tutar = Miktar × Birim Fiyat × Parite (parite boşsa 1). Bu sayfa tutanakla onaylanan sözleşme-dışı (ilave) işleri kapsar.</div>
   </div>`;
 }
 
@@ -6849,16 +6849,16 @@ async function buildKesintiHtml() {
   const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
   const bd = 'border:1px solid #999;';
   const R = 'text-align:right';
-  const head = `<tr style="background:#d9d9d9;color:#111;font-size:7pt">
-    <th style="${bd}padding:2px 3px">S.NO</th><th style="${bd}padding:2px 3px">TARİH<br>DATE</th>
-    <th style="${bd}padding:2px 3px;text-align:left">KESİNTİ AÇIKLAMASI<br>DEDUCTION DESC.</th>
-    <th style="${bd}padding:2px 3px">BR<br>UNIT</th><th style="${bd}padding:2px 3px">MİKTAR<br>QTY</th>
-    <th style="${bd}padding:2px 3px">BİRİM FİYAT<br>U.PRICE</th><th style="${bd}padding:2px 3px">PARİTE<br>RATE</th>
-    <th style="${bd}padding:2px 3px">TOPLAM<br>TOTAL</th>
+  const head = `<tr style="background:#d9d9d9;color:#111;font-size:5.5pt">
+    <th style="${bd}padding:1px 2px">S.NO</th><th style="${bd}padding:1px 2px">TARİH<br>DATE</th>
+    <th style="${bd}padding:1px 2px;text-align:left">KESİNTİ AÇIKLAMASI<br>DEDUCTION DESC.</th>
+    <th style="${bd}padding:1px 2px">BR<br>UNIT</th><th style="${bd}padding:1px 2px">MİKTAR<br>QTY</th>
+    <th style="${bd}padding:1px 2px">BİRİM FİYAT<br>U.PRICE</th><th style="${bd}padding:1px 2px">PARİTE<br>RATE</th>
+    <th style="${bd}padding:1px 2px">TOPLAM<br>TOTAL</th>
   </tr>`;
   let body = '';
   d.rows.forEach((r, i) => {
-    body += `<tr style="font-size:7.5pt">
+    body += `<tr style="font-size:6pt">
       <td style="${bd}padding:1px 3px;text-align:center">${i + 1}</td>
       <td style="${bd}padding:1px 3px;text-align:center">${r.tarih || ''}</td>
       <td style="${bd}padding:1px 3px;text-align:left">${r.aciklama || ''}</td>
@@ -6869,23 +6869,23 @@ async function buildKesintiHtml() {
       <td style="${bd}padding:1px 3px;${R};font-weight:600">${r.tutar ? _icmM(r.tutar) : ''}</td>
     </tr>`;
   });
-  body += `<tr style="background:#ffcdd2;font-weight:700;font-size:8pt">
-    <td style="${bd}padding:3px 5px;text-align:right" colspan="7">TOPLAM KESİNTİ / TOTAL DEDUCTION</td>
-    <td style="${bd}padding:3px 5px;${R}">${_icmM(d.genelToplam)}</td>
+  body += `<tr style="background:#ffcdd2;font-weight:700;font-size:6.5pt">
+    <td style="${bd}padding:2px 4px;text-align:right" colspan="7">TOPLAM KESİNTİ / TOTAL DEDUCTION</td>
+    <td style="${bd}padding:2px 4px;${R}">${_icmM(d.genelToplam)}</td>
   </tr>`;
   return `
-  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:14px 18px">
-    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
-      <div style="font-size:13px;font-weight:700;letter-spacing:.5px">KESİNTİLER İCMALİ / DEDUCTIONS SUMMARY</div>
-      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:12px 16px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:4px;margin-bottom:6px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px">KESİNTİLER İCMALİ / DEDUCTIONS SUMMARY</div>
+      <div style="font-size:8px;font-weight:600;margin-top:2px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
     </div>
-    <table style="width:100%;font-size:8pt;margin-bottom:8px">
-      <tr><td style="padding:2px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:2px 6px;font-weight:600">${proje ? proje.ad : ''}</td></tr>
-      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
-      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
+    <table style="width:100%;font-size:6.5pt;margin-bottom:6px">
+      <tr><td style="padding:1px 5px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:1px 5px;font-weight:600">${proje ? proje.ad : ''}</td></tr>
+      <tr><td style="padding:1px 5px;color:#555">HKD. NO / PPC NO</td><td style="padding:1px 5px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:1px 5px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:1px 5px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
     </table>
-    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt"><tbody>${head}${body}</tbody></table>
-    <div style="margin-top:8px;font-size:7pt;color:#777">Toplam = Miktar × Birim Fiyat × Parite (parite boşsa 1). Bu tutarlar hakedişten düşülür.</div>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:6pt"><tbody>${head}${body}</tbody></table>
+    <div style="margin-top:6px;font-size:6pt;color:#777">Toplam = Miktar × Birim Fiyat × Parite (parite boşsa 1). Bu tutarlar hakedişten düşülür.</div>
   </div>`;
 }
 
