@@ -7341,7 +7341,11 @@ async function openProgress(hakedisId) {
 function _progressLayout(d, edit) {
   const v = d.data || {};
   const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  const bd = edit ? 'border:1px solid var(--border)' : 'border:1px solid #000';
+  const lineIn  = edit ? '1px dotted var(--border)' : '1px dotted #000';  // iç kenarlık (noktalı)
+  const lineOut = edit ? '1px solid var(--border)'  : '1px solid #000';   // dış çerçeve + başlık (düz)
+  const bd  = 'border:' + lineIn;   // iç hücreler
+  const bdS = 'border:' + lineOut;  // başlık hücreleri (düz)
+  const tblO = `border:${lineOut};border-collapse:collapse`;  // tablo: dış çerçeve düz, içler noktalı
   const lc = edit ? 'var(--dim)' : '#222';      // etiket rengi
   const tc = edit ? 'var(--text)' : '#000';     // değer rengi
   const inpS = `width:100%;box-sizing:border-box;border:none;background:${edit?'rgba(120,160,255,.07)':'transparent'};color:${tc};font-family:inherit;font-size:${edit?'13px':'8pt'};padding:3px 5px;outline:none`;
@@ -7373,7 +7377,7 @@ function _progressLayout(d, edit) {
     <td style="${valS}">${content}</td></tr>`;
 
   // ── ÜST KÜNYE ──
-  const idBlock = `<table style="width:100%;border-collapse:collapse;font-size:${fs}">
+  const idBlock = `<table style="width:100%;${tblO};font-size:${fs}">
     ${row('Taşeron Adı','Name of the Subcontractor', val('subcontractor'))}
     ${row('İşin Adı','Name of the Works', val('works_name'))}
     ${row('İmalat Türü','Type of Manufacturing', val('type_manuf'))}
@@ -7382,7 +7386,7 @@ function _progressLayout(d, edit) {
   </table>`;
 
   // ── 3 SÜTUN: NÜSHA | TÜR | PPC NO/DATE ──
-  const hdrS = `${bd};padding:3px 6px;background:${edit?'rgba(255,255,255,.05)':'#d9d9d9'};color:${edit?'var(--text)':'#111'};font-weight:700;font-size:${edit?'11px':'7.5pt'};text-align:center`;
+  const hdrS = `${bdS};padding:3px 6px;background:${edit?'rgba(255,255,255,.05)':'#d9d9d9'};color:${edit?'var(--text)':'#111'};font-weight:700;font-size:${edit?'11px':'7.5pt'};text-align:center`;
   const cellS = `${bd};padding:3px 6px`;
   const nushaTbl = `<table style="width:100%;height:100%;border-collapse:collapse">
     <tr><td style="${hdrS}">HAKEDİŞ NÜSHASI / PPC Copies</td></tr>
@@ -7396,7 +7400,7 @@ function _progressLayout(d, edit) {
     <tr><td style="${cellS};color:${lc};font-size:${edit?'11px':'7.5pt'}">Hakediş No / PPC NO</td><td style="${cellS};text-align:center;color:${lc}">:</td><td style="${cellS};font-weight:600;color:${tc}">${d.hakedis.hakedis_no}</td></tr>
     <tr><td style="${cellS};color:${lc};font-size:${edit?'11px':'7.5pt'}">Tarih / PPC Date</td><td style="${cellS};text-align:center;color:${lc}">:</td><td style="${cellS};font-weight:600;color:${tc}">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : ''}</td></tr>
   </table>`;
-  const ucSutun = `<table style="width:100%;border-collapse:collapse;font-size:${fs};margin-top:${edit?'8px':'4px'}">
+  const ucSutun = `<table style="width:100%;${tblO};font-size:${fs};margin-top:${edit?'8px':'4px'}">
     <tr style="vertical-align:top">
       <td style="${bd};padding:0;width:39%">${nushaTbl}</td>
       <td style="${bd};padding:0;width:39%">${turTbl}</td>
@@ -7405,7 +7409,7 @@ function _progressLayout(d, edit) {
 
   // ── SÖZLEŞME BİLGİLERİ ──
   const cv = Number(v.contract_value) || 0;
-  const infoBlock = `<table style="width:100%;border-collapse:collapse;font-size:${fs};margin-top:${edit?'8px':'4px'}">
+  const infoBlock = `<table style="width:100%;${tblO};font-size:${fs};margin-top:${edit?'8px':'4px'}">
     ${row('İşin Adı','Project Name', val('project_name'), 38)}
     ${row('İşin Yeri','Project Location', val('project_location'), 38)}
     ${row('Sözleşme Konusu','Scope of Contract', area('scope'), 38)}
@@ -7419,8 +7423,8 @@ function _progressLayout(d, edit) {
     ${row('İşin Süresi','Time for Completion', val('time_completion'), 38)}
     ${row('Süre İlavesi','Additional Days', val('additional_days'), 38)}
     <tr><td style="${lblS};width:38%" colspan="3">Not / Notes :</td></tr>
-    <tr><td style="${valS};height:${edit?'140px':'150px'};vertical-align:top" colspan="3">${
-      edit ? `<textarea id="pr-notes" style="${inpS};height:140px;resize:vertical">${esc(v.notes)}</textarea>`
+    <tr><td style="${valS};height:${edit?'230px':'250px'};vertical-align:top" colspan="3">${
+      edit ? `<textarea id="pr-notes" style="${inpS};height:230px;resize:vertical">${esc(v.notes)}</textarea>`
            : esc(v.notes).replace(/\n/g,'<br>')
     }</td></tr>
   </table>`;
