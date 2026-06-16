@@ -7419,7 +7419,10 @@ function _progressLayout(d, edit) {
     ${row('İşin Süresi','Time for Completion', val('time_completion'), 38)}
     ${row('Süre İlavesi','Additional Days', val('additional_days'), 38)}
     <tr><td style="${lblS};width:38%" colspan="3">Not / Notes :</td></tr>
-    <tr><td style="${valS}" colspan="3">${area('notes')}</td></tr>
+    <tr><td style="${valS};height:${edit?'140px':'150px'};vertical-align:top" colspan="3">${
+      edit ? `<textarea id="pr-notes" style="${inpS};height:140px;resize:vertical">${esc(v.notes)}</textarea>`
+           : esc(v.notes).replace(/\n/g,'<br>')
+    }</td></tr>
   </table>`;
 
   return idBlock + ucSutun + infoBlock;
