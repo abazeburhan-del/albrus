@@ -3645,8 +3645,10 @@ async function faturalandir(id) {
 
 async function delFatura(id) {
   if (!confirm('Bu faturayı silmek istediğinizden emin misiniz?')) return;
-  await api.invoke('fatura:sil', id);
-  loadFaturalar();
+  try {
+    await api.invoke('fatura:sil', id);
+    loadFaturalar();
+  } catch (e) { alert('Silinemedi: ' + e.message); }
 }
 
 function numToWords(n) {

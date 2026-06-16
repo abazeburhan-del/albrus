@@ -793,6 +793,8 @@ ipcMain.handle('cariler:guncelle', (_, d) => {
 ipcMain.handle('cariler:sil', (_, id) => {
   const hareket = getOne('SELECT COUNT(*) as n FROM cari_hareketleri WHERE cari_id = ?', [id]).n;
   if (hareket > 0) throw new Error('Bu carinin hareketi var, silinemez.');
+  const fatura = getOne('SELECT COUNT(*) as n FROM faturalar WHERE cari_id = ?', [id]).n;
+  if (fatura > 0) throw new Error('Bu cariye ait fatura/irsaliye var, silinemez.');
   run('DELETE FROM cariler WHERE id = ?', [id]);
   saveDb();
   return true;
@@ -1164,13 +1166,17 @@ ipcMain.handle('fatura:sil', (_, id) => {
   const fatura = getOne('SELECT * FROM faturalar WHERE id = ?', [id]);
   if (!fatura) return false;
 
-  if (fatura.cari_id) {
-    const grandToplam = Math.max(0, fatura.toplam - (fatura.indirim ?? 0));
-    const cariTur = fatura.tur === 'satis' ? 'borc' : 'alacak';
-    const alan = fatura.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
+  // Cari bakiyesi yalnızca 'fatura' belge türünde işlenmişti (irsaliye/teklif cariye dokunmaz);
+  // sadece onda geri al. Cari silinmiş olabilir → null kontrolü.
+  if (fatura.cari_id && fatura.belge_turu === 'fatura') {
     const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fatura.cari_id]);
-    const delta = cariTur === 'borc' ? -grandToplam : grandToplam;
-    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fatura.cari_id]);
+    if (cari) {
+      const grandToplam = Math.max(0, fatura.toplam - (fatura.indirim ?? 0));
+      const cariTur = fatura.tur === 'satis' ? 'borc' : 'alacak';
+      const alan = fatura.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
+      const delta = cariTur === 'borc' ? -grandToplam : grandToplam;
+      run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fatura.cari_id]);
+    }
     run("DELETE FROM cari_hareketleri WHERE belge_no=? AND kaynak='fatura'", [fatura.fatura_no]);
   }
 
