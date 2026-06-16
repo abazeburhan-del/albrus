@@ -1307,6 +1307,20 @@
   </div>
 </div>
 
+<!-- Arka Kapak (Back Cover) — hakediş mali özeti Modal -->
+<div class="overlay" id="m-arkakapak">
+  <div class="modal" style="max-width:1000px;width:95vw;height:90vh;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" id="m-arkakapak-title" style="flex:0 0 auto">Arka Kapak / Mali Özet</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:0 0 auto">İşçilik + Malzeme (Genel İcmal) + İlave İşler − Kesintiler = NET hakediş tutarı. Tutarlar otomatik çekilir.</div>
+    <div style="flex:1 1 auto;overflow:auto;min-height:0" id="arkakapak-icerik"></div>
+    <div class="modal-actions" style="flex:0 0 auto">
+      <button class="btn btn-ghost" onclick="closeModal('m-arkakapak')">Kapat</button>
+      <button class="btn btn-ghost" onclick="arkaKapakPdf()">PDF</button>
+      <button class="btn btn-ghost" onclick="arkaKapakExcel()">Excel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Personel Ekle/Düzenle Modal -->
 <div class="overlay" id="m-personel">
   <div class="modal">
@@ -5944,7 +5958,7 @@ async function loadHakedisProje() {
         ${list.map(h => `<tr>
           <td><b>${h.hakedis_no}. Hakediş</b></td>
           <td>${h.tarih ? fmtDate(h.tarih) : '—'}</td>
-          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-link btn-sm" onclick="openIlave(${h.id})">İlave İşler</button><button class="btn-link btn-sm" onclick="openKesinti(${h.id})">Kesintiler</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
+          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-link btn-sm" onclick="openIlave(${h.id})">İlave İşler</button><button class="btn-link btn-sm" onclick="openKesinti(${h.id})">Kesintiler</button><button class="btn-link btn-sm" onclick="openArkaKapak(${h.id})">Arka Kapak</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
         </tr>`).join('')}
       </tbody></table>`;
   }
@@ -6910,6 +6924,109 @@ async function buildKesintiHtml() {
     </table>
     <table style="width:100%;border-collapse:collapse;text-align:center;font-size:6pt"><tbody>${head}${body}</tbody></table>
     <div style="margin-top:6px;font-size:6pt;color:#777">Toplam = Miktar × Birim Fiyat × Parite (parite boşsa 1). Bu tutarlar hakedişten düşülür.</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════
+// ARKA KAPAK / MALİ ÖZET (RAN "BACK COVER")
+//   İşçilik + Malzeme (İcmal) + İlave İşler − Kesintiler = NET
+// ══════════════════════════════════════════════════
+let _arkaData = null;
+
+async function openArkaKapak(hakedisId) {
+  const d = await api.invoke('arkakapak:getir', hakedisId);
+  if (!d) { yesilToast('Hakediş bulunamadı.'); return; }
+  _arkaData = d;
+  document.getElementById('m-arkakapak-title').textContent = `Arka Kapak / Mali Özet — ${d.hakedis.hakedis_no}. Hakediş`;
+  renderArkaKapak();
+  document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-arkakapak') o.classList.remove('open'); });
+  openModal('m-arkakapak');
+  document.getElementById('arkakapak-icerik').scrollTop = 0;
+}
+
+function _arkaSatir(bd, etiket, k, opts = {}) {
+  const neg = opts.neg ? '−' : '';
+  const bg = opts.bg ? `background:${opts.bg};` : '';
+  const fw = opts.bold ? 'font-weight:700;' : '';
+  const m = v => (v ? (neg ? '−' : '') + _icmM(Math.abs(v)) : (v === 0 ? '0' : ''));
+  return `<tr style="${bg}${fw}">
+    <td style="${bd}padding:5px 8px;text-align:left">${etiket}</td>
+    <td style="${bd}padding:5px 8px;text-align:right">${m(k.onceki)}</td>
+    <td style="${bd}padding:5px 8px;text-align:right">${m(k.bu)}</td>
+    <td style="${bd}padding:5px 8px;text-align:right">${m(k.toplam)}</td>
+  </tr>`;
+}
+
+function renderArkaKapak() {
+  const d = _arkaData; if (!d) return;
+  const bd = 'border:1px solid var(--border);';
+  const head = `<tr style="background:#d9d9d9;color:#111;font-weight:700">
+    <th style="${bd}padding:5px 8px;text-align:left">AÇIKLAMA</th>
+    <th style="${bd}padding:5px 8px">ÖNCEKİ HKD.</th>
+    <th style="${bd}padding:5px 8px">BU HAKEDİŞ</th>
+    <th style="${bd}padding:5px 8px">TOPLAM</th>
+  </tr>`;
+  const body =
+    _arkaSatir(bd, 'İşçilik Tutarı (Genel İcmal)', d.iscilik) +
+    _arkaSatir(bd, 'Malzeme Tutarı (Genel İcmal)', d.malzeme) +
+    _arkaSatir(bd, 'İlave İşler Tutarı', d.ilave) +
+    _arkaSatir(bd, 'ARA TOPLAM', d.araToplam, { bg:'#c8e6c9', bold:true }) +
+    _arkaSatir(bd, 'Kesintiler Toplamı', d.kesinti, { neg:true, bg:'#ffcdd2' }) +
+    _arkaSatir(bd, 'NET HAKEDİŞ TUTARI (KDV HARİÇ)', d.net, { bg:'#ffe082', bold:true });
+  document.getElementById('arkakapak-icerik').innerHTML =
+    `<table style="width:100%;border-collapse:collapse;text-align:center;font-size:13px"><tbody>${head}${body}</tbody></table>`;
+}
+
+async function arkaKapakPdf() {
+  const html = await buildArkaKapakHtml();
+  if (html) await api.invoke('print:pdf', html);
+}
+async function arkaKapakExcel() {
+  const html = await buildArkaKapakHtml();
+  if (html) await api.invoke('export:xls', { html, ad: 'ArkaKapak-Hkd' + (_arkaData?.hakedis?.hakedis_no || ''), sheet: 'Arka Kapak' });
+}
+
+async function buildArkaKapakHtml() {
+  const d = _arkaData; if (!d) return null;
+  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const bd = 'border:1px solid #999;';
+  const R = 'text-align:right';
+  const sat = (et, k, o = {}) => {
+    const neg = o.neg ? '−' : '';
+    const m = v => (v ? neg + _icmM(Math.abs(v)) : (v === 0 ? '0' : ''));
+    return `<tr style="${o.bg?`background:${o.bg};`:''}${o.bold?'font-weight:700;':''}font-size:9pt">
+      <td style="${bd}padding:4px 8px;text-align:left">${et}</td>
+      <td style="${bd}padding:4px 8px;${R}">${m(k.onceki)}</td>
+      <td style="${bd}padding:4px 8px;${R}">${m(k.bu)}</td>
+      <td style="${bd}padding:4px 8px;${R}">${m(k.toplam)}</td>
+    </tr>`;
+  };
+  const head = `<tr style="background:#d9d9d9;color:#111;font-size:8pt;font-weight:700">
+    <th style="${bd}padding:4px 8px;text-align:left">AÇIKLAMA<br>DESCRIPTION</th>
+    <th style="${bd}padding:4px 8px">ÖNCEKİ HKD.<br>PREVIOUS</th>
+    <th style="${bd}padding:4px 8px">BU HAKEDİŞ<br>THIS INTERIM</th>
+    <th style="${bd}padding:4px 8px">TOPLAM<br>TO DATE</th>
+  </tr>`;
+  const body =
+    sat('Gerçekleşen İşçilik Tutarı / Labor (UO)', d.iscilik) +
+    sat('Gerçekleşen Malzeme Tutarı / Material', d.malzeme) +
+    sat('İlave İşler Tutarı / Additional Works', d.ilave) +
+    sat('ARA TOPLAM / SUBTOTAL', d.araToplam, { bg:'#c8e6c9', bold:true }) +
+    sat('Kesintiler Toplamı / Total Deductions', d.kesinti, { neg:true, bg:'#ffcdd2' }) +
+    sat('NET HAKEDİŞ TUTARI (KDV HARİÇ) / NET (EXC. VAT)', d.net, { bg:'#ffe082', bold:true });
+  return `
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:18px 22px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:6px;margin-bottom:10px">
+      <div style="font-size:15px;font-weight:700;letter-spacing:.5px">HAKEDİŞ MALİ ÖZETİ / PROGRESS PAYMENT BACK COVER</div>
+      <div style="font-size:10px;font-weight:600;margin-top:3px">ALBRUS COMPANY — ${d.hakedis.hakedis_no}. Hakediş</div>
+    </div>
+    <table style="width:100%;font-size:9pt;margin-bottom:10px">
+      <tr><td style="padding:2px 6px;color:#555;width:32%">İŞİN ADI / Project</td><td style="padding:2px 6px;font-weight:600">${proje ? proje.ad : ''}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. NO / PPC NO</td><td style="padding:2px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:2px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:2px 6px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:9pt"><tbody>${head}${body}</tbody></table>
+    <div style="margin-top:10px;font-size:8pt;color:#777">Ara Toplam = İşçilik + Malzeme + İlave İşler · Net = Ara Toplam − Kesintiler. Tutarlar Genel İcmal, İlave İşler ve Kesintiler İcmali'nden otomatik çekilmiştir. KDV dahil değildir.</div>
   </div>`;
 }
 

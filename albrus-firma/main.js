@@ -2029,10 +2029,11 @@ ipcMain.handle('yesil:kaydet', (_, hakedis_id, satirlar) => {
 // Hakediş Genel İcmali (RAN "(R) REPRESENTATION" sayfası): BOQ + Yeşil Defter birleşimi
 // BOQ'dan: sıra/poz/tanım/birim/keşif miktarı/birim fiyat/keşif tutarı
 // Yeşil Defter'den: ÖNCEKİ + BU = TOPLAM miktar; tutarlar birim fiyatla çarpılır
-ipcMain.handle('icmal:getir', (_, hakedis_id, mod) => {
+// Genel İcmal hesabı (iç fonksiyon; hem icmal:getir hem arkakapak:getir kullanır)
+// mod: 'iscilik' (sadece işçilik) | 'malzeme' (sadece malzeme) | 'tum' (malzemeli + işçilik)
+function hesaplaIcmal(hakedis_id, mod) {
   const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
   if (!h) return null;
-  // mod: 'iscilik' (sadece işçilik) | 'malzeme' (sadece malzeme) | 'tum' (malzemeli + işçilik)
   mod = mod || 'iscilik';
   const pozlar = getAll('SELECT * FROM hakedis_pozlar WHERE proje_id = ? ORDER BY sira, id', [h.proje_id]);
   const buMap = {};
@@ -2058,7 +2059,9 @@ ipcMain.handle('icmal:getir', (_, hakedis_id, mod) => {
     oncekiTutar: sum('oncekiTutar'), buTutar: sum('buTutar')
   };
   return { hakedis: h, rows, toplamlar, mod };
-});
+}
+
+ipcMain.handle('icmal:getir', (_, hakedis_id, mod) => hesaplaIcmal(hakedis_id, mod));
 
 // İlave İşler İcmali (RAN "ADDITIONAL OPERATION SUMMARY"): tutanakla onaylanan sözleşme-dışı işler
 // Elle girilir (BOQ'tan çekilmez). TOPLAM TUTAR = miktar × birim fiyat × (parite varsa, yoksa 1)
@@ -2114,6 +2117,60 @@ ipcMain.handle('kesinti:kaydet', (_, hakedis_id, satirlar) => {
   });
   saveDb();
   return true;
+});
+
+// ════════════════════════════════════════════════════════════
+// ARKA KAPAK (RAN "BACK COVER"): hakediş mali özeti
+//   İşçilik + Malzeme (Genel İcmal) + İlave İşler − Kesintiler = NET
+//   Önceki / Bu Hakediş / Toplam kümülatif kolonlarıyla. KDV YOK.
+// ════════════════════════════════════════════════════════════
+
+// Bir tabloda (ilave_isler/kesintiler) o projenin verilen hakedişe kadarki
+// kümülatif tutar toplamı. once=true → yalnız önceki dönemler (hakedis_no < bu)
+function tutarToplam(tablo, proje_id, hakedis_no, sadeceOnceki) {
+  const op = sadeceOnceki ? '<' : '<=';
+  const sat = getAll(
+    `SELECT t.miktar, t.birim_fiyat, t.parite FROM ${tablo} t
+     JOIN hakedisler h ON h.id = t.hakedis_id
+     WHERE h.proje_id = ? AND h.hakedis_no ${op} ?`,
+    [proje_id, hakedis_no]);
+  return sat.reduce((a, s) => {
+    const par = Number(s.parite) || 0;
+    return a + (Number(s.miktar) || 0) * (Number(s.birim_fiyat) || 0) * (par > 0 ? par : 1);
+  }, 0);
+}
+
+ipcMain.handle('arkakapak:getir', (_, hakedis_id) => {
+  const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
+  if (!h) return null;
+  const isc = hesaplaIcmal(hakedis_id, 'iscilik').toplamlar;   // işçilik tutarları
+  const mlz = hesaplaIcmal(hakedis_id, 'malzeme').toplamlar;   // malzeme tutarları
+
+  const ilaveTop    = tutarToplam('ilave_isler', h.proje_id, h.hakedis_no, false);
+  const ilaveOnceki = tutarToplam('ilave_isler', h.proje_id, h.hakedis_no, true);
+  const kesintiTop    = tutarToplam('kesintiler', h.proje_id, h.hakedis_no, false);
+  const kesintiOnceki = tutarToplam('kesintiler', h.proje_id, h.hakedis_no, true);
+
+  // her kalem için {onceki, bu, toplam}
+  const kalem = (onceki, toplam) => ({ onceki, bu: toplam - onceki, toplam });
+  const iscilik = kalem(isc.oncekiTutar, isc.toplamTutar);
+  const malzeme = kalem(mlz.oncekiTutar, mlz.toplamTutar);
+  const ilave   = kalem(ilaveOnceki, ilaveTop);
+  const kesinti = kalem(kesintiOnceki, kesintiTop);
+
+  // Ara toplam = işçilik + malzeme + ilave ; Net = ara toplam − kesinti
+  const topla = (...ks) => ({
+    onceki: ks.reduce((a, k) => a + k.onceki, 0),
+    bu:     ks.reduce((a, k) => a + k.bu, 0),
+    toplam: ks.reduce((a, k) => a + k.toplam, 0),
+  });
+  const araToplam = topla(iscilik, malzeme, ilave);
+  const net = {
+    onceki: araToplam.onceki - kesinti.onceki,
+    bu:     araToplam.bu - kesinti.bu,
+    toplam: araToplam.toplam - kesinti.toplam,
+  };
+  return { hakedis: h, iscilik, malzeme, ilave, araToplam, kesinti, net };
 });
 
 // ════════════════════════════════════════════════════════════
