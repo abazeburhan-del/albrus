@@ -2143,34 +2143,54 @@ function tutarToplam(tablo, proje_id, hakedis_no, sadeceOnceki) {
 ipcMain.handle('arkakapak:getir', (_, hakedis_id) => {
   const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
   if (!h) return null;
+  const proje = getOne('SELECT * FROM projeler WHERE id = ?', [h.proje_id]);
   const isc = hesaplaIcmal(hakedis_id, 'iscilik').toplamlar;   // işçilik tutarları
   const mlz = hesaplaIcmal(hakedis_id, 'malzeme').toplamlar;   // malzeme tutarları
-
   const ilaveTop    = tutarToplam('ilave_isler', h.proje_id, h.hakedis_no, false);
   const ilaveOnceki = tutarToplam('ilave_isler', h.proje_id, h.hakedis_no, true);
   const kesintiTop    = tutarToplam('kesintiler', h.proje_id, h.hakedis_no, false);
   const kesintiOnceki = tutarToplam('kesintiler', h.proje_id, h.hakedis_no, true);
 
-  // her kalem için {onceki, bu, toplam}
-  const kalem = (onceki, toplam) => ({ onceki, bu: toplam - onceki, toplam });
-  const iscilik = kalem(isc.oncekiTutar, isc.toplamTutar);
-  const malzeme = kalem(mlz.oncekiTutar, mlz.toplamTutar);
-  const ilave   = kalem(ilaveOnceki, ilaveTop);
-  const kesinti = kalem(kesintiOnceki, kesintiTop);
-
-  // Ara toplam = işçilik + malzeme + ilave ; Net = ara toplam − kesinti
-  const topla = (...ks) => ({
-    onceki: ks.reduce((a, k) => a + k.onceki, 0),
-    bu:     ks.reduce((a, k) => a + k.bu, 0),
-    toplam: ks.reduce((a, k) => a + k.toplam, 0),
+  // her kalem {onceki, bu(=toplam-onceki), toplam}
+  const k = (onceki, toplam) => ({ onceki, bu: toplam - onceki, toplam });
+  const sifir = k(0, 0);
+  const topla = (...xs) => ({
+    onceki: xs.reduce((a, x) => a + x.onceki, 0),
+    bu:     xs.reduce((a, x) => a + x.bu, 0),
+    toplam: xs.reduce((a, x) => a + x.toplam, 0),
   });
-  const araToplam = topla(iscilik, malzeme, ilave);
-  const net = {
-    onceki: araToplam.onceki - kesinti.onceki,
-    bu:     araToplam.bu - kesinti.bu,
-    toplam: araToplam.toplam - kesinti.toplam,
+  const cikar = (a, b) => ({ onceki: a.onceki - b.onceki, bu: a.bu - b.bu, toplam: a.toplam - b.toplam });
+
+  // ── İŞÇİLİK ──
+  const A = k(isc.oncekiTutar, isc.toplamTutar);   // gerçekleşen işçilik (Genel İcmal)
+  const B = k(ilaveOnceki, ilaveTop);              // ilave işler
+  const C = topla(A, B);                           // toplam işçilik = A+B
+  const D = sifir;                                 // vergiler (KDV yok)
+  const F = sifir;                                 // avans kesintileri
+  const G = sifir;                                 // nakit teminat
+  const H = k(kesintiOnceki, kesintiTop);          // diğer kesintiler (Kesintiler İcmali)
+  const E = topla(F, G, H);                        // kesintiler toplamı = F+G+H
+  const J = cikar(C, E);                           // net işçilik = C-E
+  // ── MALZEME ──
+  const Kf = sifir;                                // firma faturası
+  const L1 = sifir;                                // tedarik edilen malzeme
+  const L2 = k(mlz.oncekiTutar, mlz.toplamTutar);  // imalata giren malzeme (Genel İcmal)
+  const Sa = sifir;                                // ihzarat
+  const N  = sifir;                                // avans kesintileri (malzeme)
+  const O  = sifir;                                // nakit teminat (malzeme)
+  const M  = topla(N, O);                          // malzeme kesintileri = N+O
+  const P  = cikar(L2, M);                         // net malzeme = L2-M
+  const R  = topla(J, P);                          // işçilik + malzeme toplam = J+P
+
+  // sözleşme tipi (otomatik): malzeme ve işçilik durumuna göre
+  let tip = 'iscilik';
+  if (isc.toplamTutar > 0 && mlz.toplamTutar > 0) tip = 'malzeme_iscilik';
+  else if (mlz.toplamTutar > 0) tip = 'malzeme';
+
+  return {
+    hakedis: h, proje: proje ? proje.ad : '', tip,
+    kalemler: { A, B, C, D, E, F, G, H, J, K: Kf, L1, L2, S: Sa, M, N, O, P, R }
   };
-  return { hakedis: h, iscilik, malzeme, ilave, araToplam, kesinti, net };
 });
 
 // ════════════════════════════════════════════════════════════
