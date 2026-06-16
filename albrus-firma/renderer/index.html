@@ -7331,40 +7331,98 @@ async function openProgress(hakedisId) {
   if (!d) { yesilToast('Hakediş bulunamadı.'); return; }
   _progressData = d;
   document.getElementById('m-progress-title').textContent = `Progress Report — ${d.hakedis.hakedis_no}. Hakediş`;
-  document.getElementById('progress-icerik').innerHTML = _progressFormHtml(d);
+  document.getElementById('progress-icerik').innerHTML = _progressLayout(d, true);
   document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-progress') o.classList.remove('open'); });
   openModal('m-progress');
   document.getElementById('progress-icerik').scrollTop = 0;
 }
 
-function _progressFormHtml(d) {
+// Excel "PROGRESS REPORT" yerleşimi — kenarlıklı, aynı görünüm. edit=true → girdi kutuları, false → PDF metni
+function _progressLayout(d, edit) {
   const v = d.data || {};
-  const esc = s => String(s ?? '').replace(/"/g, '&quot;');
-  const inp = "width:100%;box-sizing:border-box;background:rgba(120,160,255,.06);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:6px 8px";
+  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const bd = edit ? 'border:1px solid var(--border)' : 'border:1px solid #000';
+  const lc = edit ? 'var(--dim)' : '#222';      // etiket rengi
+  const tc = edit ? 'var(--text)' : '#000';     // değer rengi
+  const inpS = `width:100%;box-sizing:border-box;border:none;background:${edit?'rgba(120,160,255,.07)':'transparent'};color:${tc};font-family:inherit;font-size:${edit?'13px':'8pt'};padding:3px 5px;outline:none`;
+  const val = (id, num) => edit
+    ? `<input id="pr-${id}" ${num?'inputmode="decimal"':''} value="${esc(v[id])}" style="${inpS}">`
+    : (num ? (Number(v[id]) ? _icmM(Number(v[id])) : '') : esc(v[id]));
+  const area = (id) => edit
+    ? `<textarea id="pr-${id}" rows="2" style="${inpS};resize:vertical">${esc(v[id])}</textarea>`
+    : esc(v[id]).replace(/\n/g,'<br>');
   const nushaSet = new Set((v.nusha || '').split(',').filter(Boolean));
-  const alanlar = _PROGRESS_ALANLAR.map(([id, tr, en, cok, num]) => {
-    const val = esc(v[id]);
-    const field = cok
-      ? `<textarea id="pr-${id}" rows="2" style="${inp};resize:vertical">${val}</textarea>`
-      : `<input id="pr-${id}" ${num ? 'inputmode="decimal"' : ''} value="${val}" style="${inp}">`;
-    return `<div style="margin-bottom:8px">
-      <label style="display:block;font-size:11px;color:var(--dim);margin-bottom:2px">${tr} <span style="opacity:.6">/ ${en}</span></label>
-      ${field}</div>`;
-  }).join('');
-  const nusha = _PROGRESS_NUSHA.map(([id, tr, en]) =>
-    `<label style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:12px;cursor:pointer">
-      <input type="checkbox" class="pr-nusha" value="${id}" ${nushaSet.has(id) ? 'checked' : ''}> ${tr} <span style="opacity:.6">/ ${en}</span></label>`).join('');
-  const tur = _PROGRESS_TUR.map(([id, tr, en]) =>
-    `<label style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:12px;cursor:pointer">
-      <input type="radio" name="pr-tur" value="${id}" ${v.ppc_type === id ? 'checked' : ''}> ${tr} <span style="opacity:.6">/ ${en}</span></label>`).join('');
-  return `
-    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--dim)">
-      <div><b style="color:var(--text)">Hakediş No / PPC NO:</b> ${d.hakedis.hakedis_no}</div>
-      <div><b style="color:var(--text)">Tarih / PPC Date:</b> ${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</div>
-    </div>
-    <div style="margin-bottom:10px"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">HAKEDİŞ NÜSHASI / PPC Copies</div>${nusha}</div>
-    <div style="margin-bottom:12px"><div style="font-size:11px;color:var(--dim);margin-bottom:4px">HAKEDİŞ TÜRÜ / PPC Type</div>${tur}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">${alanlar}</div>`;
+  const chk = (grp, id, label) => {
+    if (edit) {
+      const inp = grp === 'nusha'
+        ? `<input type="checkbox" class="pr-nusha" value="${id}" ${nushaSet.has(id)?'checked':''}>`
+        : `<input type="radio" name="pr-tur" value="${id}" ${v.ppc_type===id?'checked':''}>`;
+      return `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px">${inp}<span>${label}</span></label>`;
+    }
+    const sel = grp === 'nusha' ? nushaSet.has(id) : v.ppc_type === id;
+    return `<span style="font-size:7.5pt">[${sel?'X':'&nbsp;&nbsp;'}] ${label}</span>`;
+  };
+  const fs = edit ? '13px' : '8pt';      // genel yazı
+  const lblS = `${bd};padding:3px 6px;color:${lc};vertical-align:middle;font-size:${edit?'11px':'7.5pt'}`;
+  const valS = `${bd};padding:0;color:${tc};font-weight:600;vertical-align:middle`;
+  const lbl = (tr, en) => `${tr} <span style="opacity:.65">/ ${en}</span>`;
+  // künye satırı: etiket | : | değer
+  const row = (tr, en, content, w) => `<tr>
+    <td style="${lblS};width:${w||34}%">${lbl(tr,en)}</td>
+    <td style="${bd};padding:3px 4px;text-align:center;color:${lc};width:3%">:</td>
+    <td style="${valS}">${content}</td></tr>`;
+
+  // ── ÜST KÜNYE ──
+  const idBlock = `<table style="width:100%;border-collapse:collapse;font-size:${fs}">
+    ${row('Taşeron Adı','Name of the Subcontractor', val('subcontractor'))}
+    ${row('İşin Adı','Name of the Works', val('works_name'))}
+    ${row('İmalat Türü','Type of Manufacturing', val('type_manuf'))}
+    ${row('Hakediş No','Progress NR', `<span style="padding:3px 5px;display:inline-block;color:${tc};font-weight:600">${d.hakedis.hakedis_no}</span>`)}
+    ${row('Hakediş Tarihi','Progress Date', `<span style="padding:3px 5px;display:inline-block;color:${tc};font-weight:600">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : ''}</span>`)}
+  </table>`;
+
+  // ── 3 SÜTUN: NÜSHA | TÜR | PPC NO/DATE ──
+  const hdrS = `${bd};padding:3px 6px;background:${edit?'rgba(255,255,255,.05)':'#d9d9d9'};color:${edit?'var(--text)':'#111'};font-weight:700;font-size:${edit?'11px':'7.5pt'};text-align:center`;
+  const cellS = `${bd};padding:3px 6px`;
+  const nushaTbl = `<table style="width:100%;height:100%;border-collapse:collapse">
+    <tr><td style="${hdrS}">HAKEDİŞ NÜSHASI / PPC Copies</td></tr>
+    ${_PROGRESS_NUSHA.map(([id,tr,en]) => `<tr><td style="${cellS}">${chk('nusha',id,lbl(tr,en))}</td></tr>`).join('')}
+  </table>`;
+  const turTbl = `<table style="width:100%;height:100%;border-collapse:collapse">
+    <tr><td style="${hdrS}">HAKEDİŞ TÜRÜ / PPC Type</td></tr>
+    ${_PROGRESS_TUR.map(([id,tr,en]) => `<tr><td style="${cellS}">${chk('tur',id,lbl(tr,en))}</td></tr>`).join('')}
+  </table>`;
+  const ppcTbl = `<table style="width:100%;border-collapse:collapse">
+    <tr><td style="${cellS};color:${lc};font-size:${edit?'11px':'7.5pt'}">Hakediş No / PPC NO</td><td style="${cellS};text-align:center;color:${lc}">:</td><td style="${cellS};font-weight:600;color:${tc}">${d.hakedis.hakedis_no}</td></tr>
+    <tr><td style="${cellS};color:${lc};font-size:${edit?'11px':'7.5pt'}">Tarih / PPC Date</td><td style="${cellS};text-align:center;color:${lc}">:</td><td style="${cellS};font-weight:600;color:${tc}">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : ''}</td></tr>
+  </table>`;
+  const ucSutun = `<table style="width:100%;border-collapse:collapse;font-size:${fs};margin-top:${edit?'8px':'4px'}">
+    <tr style="vertical-align:top">
+      <td style="${bd};padding:0;width:39%">${nushaTbl}</td>
+      <td style="${bd};padding:0;width:39%">${turTbl}</td>
+      <td style="${bd};padding:0;width:22%">${ppcTbl}</td>
+    </tr></table>`;
+
+  // ── SÖZLEŞME BİLGİLERİ ──
+  const cv = Number(v.contract_value) || 0;
+  const infoBlock = `<table style="width:100%;border-collapse:collapse;font-size:${fs};margin-top:${edit?'8px':'4px'}">
+    ${row('İşin Adı','Project Name', val('project_name'), 38)}
+    ${row('İşin Yeri','Project Location', val('project_location'), 38)}
+    ${row('Sözleşme Konusu','Scope of Contract', area('scope'), 38)}
+    ${row('İşveren & Yüklenici','Employer & Contractor', val('employer'), 38)}
+    ${row('Sözleşme No & Tarihi','Contract No & Date', val('contract_no'), 38)}
+    ${row('Yüklenici / Taşeron','Subcontractor', val('subcontractor_full'), 38)}
+    ${row('İşin Bedeli','Contract Value', edit ? val('contract_value', 1) : `<span style="padding:3px 5px;display:inline-block;font-weight:600">${cv?_icmM(cv):''}</span>`, 38)}
+    ${row('Fiyat Bedel Değişikliği','Change Order', val('change_order'), 38)}
+    ${row('Teminatlar','Guarantee', val('guarantee'), 38)}
+    ${row('Yer Teslim Tarihi','Site Delivery Date', val('site_delivery_date'), 38)}
+    ${row('İşin Süresi','Time for Completion', val('time_completion'), 38)}
+    ${row('Süre İlavesi','Additional Days', val('additional_days'), 38)}
+    <tr><td style="${lblS};width:38%" colspan="3">Not / Notes :</td></tr>
+    <tr><td style="${valS}" colspan="3">${area('notes')}</td></tr>
+  </table>`;
+
+  return idBlock + ucSutun + infoBlock;
 }
 
 function progressCollect() {
@@ -7398,47 +7456,16 @@ async function buildProgressHtml() {
   if (!_progressData) return null;
   const d = await api.invoke('progress:getir', _progressData.hakedis.id);
   if (!d) return null;
-  const v = d.data || {};
-  const nushaSet = new Set((v.nusha || '').split(',').filter(Boolean));
-  const kutu = (isim, sel) => `<span style="margin-right:12px">[${sel ? 'X' : '&nbsp;&nbsp;'}] ${isim}</span>`;
-  const nusha = _PROGRESS_NUSHA.map(([id, tr, en]) => kutu(`${tr} / ${en}`, nushaSet.has(id))).join('');
-  const tur = _PROGRESS_TUR.map(([id, tr, en]) => kutu(`${tr} / ${en}`, v.ppc_type === id)).join('');
-  const satir = (tr, en, val) => `<tr>
-    <td style="border:1px solid #999;padding:3px 6px;width:34%;color:#333">${tr} <span style="color:#888">/ ${en}</span></td>
-    <td style="border:1px solid #999;padding:3px 6px;font-weight:600">${val || ''}</td></tr>`;
-  const cv = Number(v.contract_value) || 0;
-  const bilgi = [
-    satir('Taşeron Adı', 'Name of Subcontractor', v.subcontractor),
-    satir('İşin Adı', 'Name of Works', v.works_name),
-    satir('İmalat Türü', 'Type of Manufacturing', v.type_manuf),
-    satir('İşin Adı (Proje)', 'Project Name', v.project_name),
-    satir('İşin Yeri', 'Project Location', v.project_location),
-    satir('Sözleşme Konusu', 'Scope of Contract', v.scope),
-    satir('İşveren & Yüklenici', 'Employer & Contractor', v.employer),
-    satir('Sözleşme No & Tarihi', 'Contract No & Date', v.contract_no),
-    satir('Yüklenici / Taşeron', 'Subcontractor', v.subcontractor_full),
-    satir('İşin Bedeli', 'Contract Value', cv ? _icmM(cv) : ''),
-    satir('Fiyat Bedel Değişikliği', 'Change Order', v.change_order),
-    satir('Teminatlar', 'Guarantee', v.guarantee),
-    satir('Yer Teslim Tarihi', 'Site Delivery Date', v.site_delivery_date),
-    satir('İşin Süresi', 'Time for Completion', v.time_completion),
-    satir('Süre İlavesi', 'Additional Days', v.additional_days),
-  ].join('');
   return `
   <style>@page { size: A4 portrait; margin: 12mm; }</style>
-  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:10px 14px;font-size:9pt">
-    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:5px;margin-bottom:8px">
-      <div style="font-size:14px;font-weight:700;letter-spacing:.5px">PROGRESS REPORT / HAKEDİŞ RAPORU</div>
-      <div style="font-size:9px;font-weight:600;margin-top:2px">ALBRUS COMPANY</div>
-    </div>
-    <table style="width:100%;font-size:8pt;margin-bottom:8px">
-      <tr><td style="padding:1px 6px;color:#555;width:24%">HAKEDİŞ NO / Progress NR</td><td style="padding:1px 6px;font-weight:600">${d.hakedis.hakedis_no}</td>
-          <td style="padding:1px 6px;color:#555;width:24%">TARİH / Progress Date</td><td style="padding:1px 6px;font-weight:600">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
+  <div style="font-family:'Times New Roman',Times,serif;color:#000;padding:8px 10px">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
+      <tr><td style="border:2px solid #000;padding:8px;text-align:center">
+        <div style="font-size:15px;font-weight:700;letter-spacing:.5px">PROGRESS REPORT</div>
+        <div style="font-size:10px;font-weight:700">HAKEDİŞ RAPORU — ALBRUS COMPANY</div>
+      </td></tr>
     </table>
-    <div style="font-size:8pt;margin-bottom:4px"><b>HAKEDİŞ NÜSHASI / PPC Copies:</b>&nbsp; ${nusha}</div>
-    <div style="font-size:8pt;margin-bottom:8px"><b>HAKEDİŞ TÜRÜ / PPC Type:</b>&nbsp; ${tur}</div>
-    <table style="width:100%;border-collapse:collapse;font-size:8pt">${bilgi}</table>
-    ${v.notes ? `<div style="margin-top:8px;font-size:8pt"><b>NOT / Notes:</b> ${v.notes}</div>` : ''}
+    ${_progressLayout(d, false)}
   </div>`;
 }
 
