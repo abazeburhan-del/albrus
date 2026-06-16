@@ -2838,6 +2838,7 @@ async function loadCariler() {
             <button class="btn-link" onclick="openCariTahsilat(${c.id})">Tahsilat/Öde</button>
             <button class="btn-link" onclick="openCariEkle(${JSON.stringify(c).replace(/"/g,'&quot;')})">Düzenle</button>
             <button class="btn-link" onclick="openEkstre(${c.id})">Ekstre</button>
+            <button class="btn-del" onclick="delCari(${c.id})">✕</button>
           </td>
         </tr>
       `).join('')}
@@ -3013,6 +3014,14 @@ async function saveCari() {
     closeModal('m-cari-ekle');
     loadCariler();
   } catch (e) { alert('Hata: ' + e.message); }
+}
+
+async function delCari(id) {
+  if (!confirm('Bu cari silinsin mi? (Hareketi olan cari silinemez)')) return;
+  try {
+    await api.invoke('cariler:sil', id);
+    loadCariler();
+  } catch (e) { alert(e.message); }
 }
 
 // ══════════════════════════════════════════════════

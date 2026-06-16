@@ -790,6 +790,14 @@ ipcMain.handle('cariler:guncelle', (_, d) => {
   return getOne('SELECT * FROM cariler WHERE id = ?', [d.id]);
 });
 
+ipcMain.handle('cariler:sil', (_, id) => {
+  const hareket = getOne('SELECT COUNT(*) as n FROM cari_hareketleri WHERE cari_id = ?', [id]).n;
+  if (hareket > 0) throw new Error('Bu carinin hareketi var, silinemez.');
+  run('DELETE FROM cariler WHERE id = ?', [id]);
+  saveDb();
+  return true;
+});
+
 ipcMain.handle('cari:ekstre', (_, cari_id) =>
   getAll('SELECT * FROM cari_hareketleri WHERE cari_id = ? ORDER BY tarih DESC, id DESC', [cari_id])
 );
