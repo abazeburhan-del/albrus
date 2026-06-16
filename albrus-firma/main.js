@@ -2323,8 +2323,9 @@ ipcMain.handle('progress:getir', (_, hakedis_id) => {
     data = {};
     PROGRESS_ALANLAR.forEach(a => { data[a] = onceki ? onceki[a] : ''; });
     if (!onceki) {
-      data.subcontractor = 'ALBRUS COMPANY';
-      data.subcontractor_full = 'ALBRUS COMPANY';
+      const fa = (getOne("SELECT deger FROM ayarlar WHERE anahtar = 'firma_adi'") || {}).deger || 'ALBRUS COMPANY';
+      data.subcontractor = fa;
+      data.subcontractor_full = fa;
       data.project_name = proje ? proje.ad : '';
       data.works_name = proje ? proje.ad : '';
       data.contract_value = kesifToplam;
