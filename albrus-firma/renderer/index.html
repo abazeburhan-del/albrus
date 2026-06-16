@@ -2327,8 +2327,10 @@ async function saveFis() {
 
 async function delFis(id) {
   if (!confirm('Bu fişi silmek istediğinizden emin misiniz?')) return;
-  await api.invoke('kasa:fis:sil', id);
-  loadKasa();
+  try {
+    await api.invoke('kasa:fis:sil', id);
+    loadKasa();
+  } catch (e) { alert('Silinemedi: ' + e.message); }
 }
 
 let _kasaDuzenleId = null;
@@ -2662,8 +2664,10 @@ async function printHavaleFis(id) {
 
 async function delBankaFis(id) {
   if (!confirm('Bu fişi silmek istediğinizden emin misiniz?')) return;
-  await api.invoke('banka:fis:sil', id);
-  loadBanka();
+  try {
+    await api.invoke('banka:fis:sil', id);
+    loadBanka();
+  } catch (e) { alert('Silinemedi: ' + e.message); }
 }
 
 function onBankaSecChange(sel) {

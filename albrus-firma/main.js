@@ -561,8 +561,10 @@ ipcMain.handle('kasa:fis:ekle', (_, d) => {
       [fis.cari_id, fis.tarih, cariTur, fis.tutar, kasa.para_birimi, fis.aciklama, fis.belge_no, 'kasa']);
     const alan = kasa.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
     const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fis.cari_id]);
-    const delta = cariTur === 'alacak' ? fis.tutar : -fis.tutar;
-    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fis.cari_id]);
+    if (cari) {
+      const delta = cariTur === 'alacak' ? fis.tutar : -fis.tutar;
+      run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fis.cari_id]);
+    }
   }
 
   saveDb();
@@ -574,7 +576,7 @@ ipcMain.handle('kasa:fis:sil', (_, id) => {
   if (!fis) return false;
   const kasa = getOne('SELECT * FROM kasalar WHERE id = ?', [fis.kasa_id]);
   const delta = isGiris(fis.tur) ? -fis.tutar : fis.tutar;
-  run('UPDATE kasalar SET bakiye = ? WHERE id = ?', [kasa.bakiye + delta, kasa.id]);
+  if (kasa) run('UPDATE kasalar SET bakiye = ? WHERE id = ?', [kasa.bakiye + delta, kasa.id]);
 
   // Banka transfer tersine çevir
   if (BANKA_TRANSFER_TUR.has(fis.tur)) {
@@ -592,11 +594,13 @@ ipcMain.handle('kasa:fis:sil', (_, id) => {
     }
   }
 
-  if (fis.cari_id) {
+  if (fis.cari_id && kasa) {
     const alan = kasa.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
     const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fis.cari_id]);
-    const cariDelta = isGiris(fis.tur) ? -fis.tutar : fis.tutar;
-    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + cariDelta, fis.cari_id]);
+    if (cari) {
+      const cariDelta = isGiris(fis.tur) ? -fis.tutar : fis.tutar;
+      run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + cariDelta, fis.cari_id]);
+    }
     run("DELETE FROM cari_hareketleri WHERE cari_id=? AND tutar=? AND tarih=? AND kaynak='kasa'",
       [fis.cari_id, fis.tutar, fis.tarih]);
   }
@@ -725,8 +729,10 @@ ipcMain.handle('banka:fis:ekle', (_, d) => {
       [fis.cari_id, fis.tarih, cariTur, fis.tutar, hesap.para_birimi, fis.aciklama, fis.belge_no, 'banka']);
     const alan = hesap.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
     const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fis.cari_id]);
-    const delta = cariTur === 'alacak' ? fis.tutar : -fis.tutar;
-    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fis.cari_id]);
+    if (cari) {
+      const delta = cariTur === 'alacak' ? fis.tutar : -fis.tutar;
+      run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + delta, fis.cari_id]);
+    }
   }
 
   saveDb();
@@ -738,13 +744,15 @@ ipcMain.handle('banka:fis:sil', (_, id) => {
   if (!fis) return false;
   const hesap = getOne('SELECT * FROM banka_hesaplari WHERE id = ?', [fis.hesap_id]);
   const delta = isGiris(fis.tur) ? -fis.tutar : fis.tutar;
-  run('UPDATE banka_hesaplari SET bakiye = ? WHERE id = ?', [hesap.bakiye + delta, hesap.id]);
+  if (hesap) run('UPDATE banka_hesaplari SET bakiye = ? WHERE id = ?', [hesap.bakiye + delta, hesap.id]);
 
-  if (fis.cari_id) {
+  if (fis.cari_id && hesap) {
     const alan = hesap.para_birimi === 'USD' ? 'bakiye_USD' : 'bakiye_IQD';
     const cari = getOne('SELECT * FROM cariler WHERE id = ?', [fis.cari_id]);
-    const cariDelta = isGiris(fis.tur) ? -fis.tutar : fis.tutar;
-    run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + cariDelta, fis.cari_id]);
+    if (cari) {
+      const cariDelta = isGiris(fis.tur) ? -fis.tutar : fis.tutar;
+      run(`UPDATE cariler SET ${alan} = ? WHERE id = ?`, [cari[alan] + cariDelta, fis.cari_id]);
+    }
     run("DELETE FROM cari_hareketleri WHERE cari_id=? AND tutar=? AND tarih=? AND kaynak='banka'",
       [fis.cari_id, fis.tutar, fis.tarih]);
   }
