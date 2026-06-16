@@ -330,6 +330,27 @@ async function initDb() {
       parite REAL DEFAULT 0,
       sira INTEGER DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS progress_report (
+      hakedis_id INTEGER PRIMARY KEY,
+      subcontractor TEXT DEFAULT '',
+      works_name TEXT DEFAULT '',
+      type_manuf TEXT DEFAULT '',
+      nusha TEXT DEFAULT '',
+      ppc_type TEXT DEFAULT '',
+      project_name TEXT DEFAULT '',
+      project_location TEXT DEFAULT '',
+      scope TEXT DEFAULT '',
+      employer TEXT DEFAULT '',
+      contract_no TEXT DEFAULT '',
+      subcontractor_full TEXT DEFAULT '',
+      contract_value REAL DEFAULT 0,
+      change_order TEXT DEFAULT '',
+      guarantee TEXT DEFAULT '',
+      site_delivery_date TEXT DEFAULT '',
+      time_completion TEXT DEFAULT '',
+      additional_days TEXT DEFAULT '',
+      notes TEXT DEFAULT ''
+    );
   `);
 
   // Çek / Senet
@@ -1991,6 +2012,7 @@ ipcMain.handle('hakedis:sil', (_, id) => {
   run('DELETE FROM hakedis_satirlar WHERE hakedis_id = ?', [id]);
   run('DELETE FROM ilave_isler WHERE hakedis_id = ?', [id]);
   run('DELETE FROM kesintiler WHERE hakedis_id = ?', [id]);
+  run('DELETE FROM progress_report WHERE hakedis_id = ?', [id]);
   run('DELETE FROM hakedisler WHERE id = ?', [id]);
   saveDb();
   return true;
@@ -2254,6 +2276,50 @@ ipcMain.handle('arkakapak1:getir', (_, hakedis_id) => {
     kalemler: { A, B, C, D, E, F, G, H, H1, H2, I, J, J1, J2, J3, K: Kf,
                 L, L1, L2, L3, L4, L5, L6, L7, M1, N1, M2, N2, O, P, P1, P2, R, R1, R2 }
   };
+});
+
+// ════════════════════════════════════════════════════════════
+// PROGRESS REPORT (RAN "PROGRESS REPORT"): hakediş künye/kapak sayfası — elle girilir
+// ════════════════════════════════════════════════════════════
+const PROGRESS_ALANLAR = ['subcontractor','works_name','type_manuf','nusha','ppc_type',
+  'project_name','project_location','scope','employer','contract_no','subcontractor_full',
+  'contract_value','change_order','guarantee','site_delivery_date','time_completion','additional_days','notes'];
+
+ipcMain.handle('progress:getir', (_, hakedis_id) => {
+  const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
+  if (!h) return null;
+  const proje = getOne('SELECT * FROM projeler WHERE id = ?', [h.proje_id]);
+  let data = getOne('SELECT * FROM progress_report WHERE hakedis_id = ?', [hakedis_id]);
+  const isNew = !data;
+  if (!data) {
+    // varsayılanlar: önceki hakedişin künyesini taşı (varsa), yoksa proje/BOQ'tan üret
+    const onceki = getOne(
+      `SELECT pr.* FROM progress_report pr JOIN hakedisler hh ON hh.id = pr.hakedis_id
+       WHERE hh.proje_id = ? AND hh.hakedis_no < ? ORDER BY hh.hakedis_no DESC LIMIT 1`,
+      [h.proje_id, h.hakedis_no]);
+    const kesifToplam = (hesaplaIcmal(hakedis_id, 'tum').toplamlar || {}).kesifTutar || 0;
+    data = {};
+    PROGRESS_ALANLAR.forEach(a => { data[a] = onceki ? onceki[a] : ''; });
+    if (!onceki) {
+      data.subcontractor = 'ALBRUS COMPANY';
+      data.subcontractor_full = 'ALBRUS COMPANY';
+      data.project_name = proje ? proje.ad : '';
+      data.works_name = proje ? proje.ad : '';
+      data.contract_value = kesifToplam;
+    }
+  }
+  return { hakedis: h, proje: proje ? proje.ad : '', data, isNew };
+});
+
+ipcMain.handle('progress:kaydet', (_, hakedis_id, data) => {
+  data = data || {};
+  const cols = PROGRESS_ALANLAR;
+  const vals = cols.map(a => a === 'contract_value' ? (Number(data[a]) || 0) : (data[a] ?? ''));
+  const ph = cols.map(() => '?').join(', ');
+  run('DELETE FROM progress_report WHERE hakedis_id = ?', [hakedis_id]);
+  run(`INSERT INTO progress_report (hakedis_id, ${cols.join(', ')}) VALUES (?, ${ph})`, [hakedis_id, ...vals]);
+  saveDb();
+  return true;
 });
 
 // ════════════════════════════════════════════════════════════
