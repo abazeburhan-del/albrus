@@ -7,3 +7,7 @@ dist/
 build/
 *.sqlite
 *.db
+
+# Lisans — ÖZEL ANAHTAR asla commit edilmez (sahte lisans üretimini engeller)
+lisans-ozel-anahtar.pem
+lisans-public.txt

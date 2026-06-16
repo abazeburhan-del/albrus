@@ -2,7 +2,37 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
+const { execSync } = require('child_process');
 const { readWorkbook, sheetRows } = require('./xlsx-read');
+
+// ── Lisans (Ed25519 imza doğrulama — sadece public key gömülü, anahtar üretilemez) ──
+const LISANS_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAgFk6z/Kh146yqs0C5rlRcM28az4Zfc/IeTtk6yLHKmk=
+-----END PUBLIC KEY-----`;
+
+// Bu bilgisayara özgü kimlik (Windows MachineGuid → sabit; yoksa MAC+hostname)
+function makineKimligi() {
+  try {
+    if (process.platform === 'win32') {
+      const out = execSync('reg query "HKLM\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', { encoding: 'utf8' });
+      const m = /MachineGuid\s+REG_SZ\s+([\w-]+)/i.exec(out);
+      if (m) return crypto.createHash('sha256').update(m[1]).digest('hex').slice(0, 16).toUpperCase();
+    }
+  } catch (_) {}
+  const macs = Object.values(os.networkInterfaces()).flat()
+    .filter(n => n && !n.internal && n.mac && n.mac !== '00:00:00:00:00:00').map(n => n.mac);
+  return crypto.createHash('sha256').update((macs[0] || '') + os.hostname()).digest('hex').slice(0, 16).toUpperCase();
+}
+
+// Lisans anahtarı = bu makine kimliğinin özel anahtarla imzalanmış hali (base64)
+function lisansGecerliMi(key) {
+  if (!key) return false;
+  try {
+    const sig = Buffer.from(String(key).replace(/\s+/g, ''), 'base64');
+    return crypto.verify(null, Buffer.from(makineKimligi()), LISANS_PUBLIC_KEY, sig);
+  } catch (_) { return false; }
+}
 
 let db;
 let SQL;
@@ -1832,6 +1862,19 @@ ipcMain.handle('ayar:kaydet', (_, anahtar, deger) => {
     [anahtar, String(deger)]);
   saveDb();
   return true;
+});
+
+// ── Lisans ──
+ipcMain.handle('lisans:durum', () => {
+  const key = (getOne("SELECT deger FROM ayarlar WHERE anahtar = 'lisans_key'") || {}).deger || '';
+  return { makineKimligi: makineKimligi(), aktif: lisansGecerliMi(key) };
+});
+
+ipcMain.handle('lisans:aktiflestir', (_, key) => {
+  if (!lisansGecerliMi(key)) return { ok: false, hata: 'Geçersiz lisans anahtarı (bu bilgisayar için değil).' };
+  run("INSERT INTO ayarlar (anahtar, deger) VALUES ('lisans_key', ?) ON CONFLICT(anahtar) DO UPDATE SET deger = excluded.deger", [String(key).replace(/\s+/g, '')]);
+  saveDb();
+  return { ok: true };
 });
 
 // ── Genel Mali Durum Raporu ──────────────────────────────────

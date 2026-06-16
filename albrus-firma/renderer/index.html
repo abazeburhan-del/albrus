@@ -170,6 +170,20 @@
 </head>
 <body>
 
+<!-- Lisans Kilidi -->
+<div id="lisans-screen" style="display:none;position:fixed;inset:0;z-index:10000;background:#0f1420;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px">
+  <div style="font-size:28px;font-weight:800;letter-spacing:2px;color:#fff">LİSANS GEREKLİ</div>
+  <div style="color:#8a93a6;font-size:13px;max-width:460px;text-align:center;line-height:1.6">Bu programı kullanmak için lisans anahtarı gerekir. Aşağıdaki <b>Bilgisayar Kimliği</b>'ni satıcıya iletin, size özel anahtarı girin.</div>
+  <div style="background:#161c28;border:1px solid #2a3242;border-radius:8px;padding:12px 16px;text-align:center">
+    <div style="color:#8a93a6;font-size:11px;margin-bottom:4px">BİLGİSAYAR KİMLİĞİ (kopyalayıp gönderin)</div>
+    <div id="lisans-makine" style="font-family:monospace;font-size:18px;color:#22c55e;letter-spacing:1px;user-select:all">—</div>
+  </div>
+  <textarea id="lisans-input" placeholder="Lisans anahtarını buraya yapıştırın" rows="3"
+    style="width:460px;max-width:90vw;padding:12px;border-radius:8px;border:1px solid #2a3242;background:#161c28;color:#fff;font-family:monospace;font-size:12px;outline:none;resize:vertical"></textarea>
+  <button class="btn btn-primary" onclick="lisansAktiflestir()" style="width:280px">Etkinleştir</button>
+  <div id="lisans-error" style="color:#ef4444;font-size:12px;height:16px;text-align:center"></div>
+</div>
+
 <!-- Şifre Kilidi -->
 <div id="lock-screen" style="display:none;position:fixed;inset:0;z-index:9999;background:#0f1420;align-items:center;justify-content:center;flex-direction:column;gap:16px">
   <div style="font-size:28px;font-weight:800;letter-spacing:2px;color:#fff">ALBRUS</div>
@@ -4097,7 +4111,19 @@ async function firmaSetupKaydet() {
   loadDashboard();
 }
 
-(async () => {
+async function lisansAktiflestir() {
+  const key = document.getElementById('lisans-input').value;
+  const r = await api.invoke('lisans:aktiflestir', key);
+  if (r.ok) {
+    document.getElementById('lisans-screen').style.display = 'none';
+    await uygulamaBaslat();
+  } else {
+    document.getElementById('lisans-error').textContent = r.hata || 'Geçersiz anahtar';
+  }
+}
+
+// Lisans geçtikten sonra çalışan normal açılış (firma adı + şifre + ilk kurulum)
+async function uygulamaBaslat() {
   try {
     FIRMA = (await api.invoke('ayar:getir', 'firma_adi')) || 'ALBRUS COMPANY';
     const stored = await api.invoke('ayar:getir', 'sifre_hash');
@@ -4106,10 +4132,22 @@ async function firmaSetupKaydet() {
       ls.style.display = 'flex';
       setTimeout(() => document.getElementById('lock-input').focus(), 100);
     }
-    // İlk kurulum: firma adı hiç girilmemişse in-app modal ile sor (native prompt kullanma)
     const fa = await api.invoke('ayar:getir', 'firma_adi');
     if (!fa) setTimeout(() => { openModal('m-firma-setup'); setTimeout(()=>document.getElementById('fs-ad')?.focus(), 60); }, 300);
   } catch (_) {}
+}
+
+(async () => {
+  try {
+    const lis = await api.invoke('lisans:durum');
+    if (!lis.aktif) {
+      document.getElementById('lisans-makine').textContent = lis.makineKimligi;
+      document.getElementById('lisans-screen').style.display = 'flex';
+      setTimeout(() => document.getElementById('lisans-input').focus(), 100);
+      return; // lisans alınana kadar uygulama açılmaz
+    }
+    await uygulamaBaslat();
+  } catch (_) { await uygulamaBaslat(); }
 })();
 
 loadDashboard();
