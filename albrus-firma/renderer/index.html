@@ -7341,8 +7341,8 @@ async function openProgress(hakedisId) {
 function _progressLayout(d, edit) {
   const v = d.data || {};
   const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  const lineIn  = edit ? '1px dotted var(--border)' : '1px dotted #000';  // iç kenarlık (noktalı)
-  const lineOut = edit ? '1px solid var(--border)'  : '1px solid #000';   // dış çerçeve + başlık (düz)
+  const lineIn  = edit ? '1px solid var(--border)' : '1px solid #c0c0c0';  // iç kenarlık (ince gri)
+  const lineOut = edit ? '1px solid #888'          : '1px solid #000';     // dış çerçeve + başlık (düz)
   const bd  = 'border:' + lineIn;   // iç hücreler
   const bdS = 'border:' + lineOut;  // başlık hücreleri (düz)
   const tblO = `border:${lineOut};border-collapse:collapse`;  // tablo: dış çerçeve düz, içler noktalı
@@ -7423,8 +7423,8 @@ function _progressLayout(d, edit) {
     ${row('İşin Süresi','Time for Completion', val('time_completion'), 38)}
     ${row('Süre İlavesi','Additional Days', val('additional_days'), 38)}
     <tr><td style="${lblS};width:38%" colspan="3">Not / Notes :</td></tr>
-    <tr><td style="${valS};height:${edit?'230px':'250px'};vertical-align:top" colspan="3">${
-      edit ? `<textarea id="pr-notes" style="${inpS};height:230px;resize:vertical">${esc(v.notes)}</textarea>`
+    <tr><td style="${valS};height:${edit?'340px':'360px'};vertical-align:top" colspan="3">${
+      edit ? `<textarea id="pr-notes" style="${inpS};height:340px;resize:vertical">${esc(v.notes)}</textarea>`
            : esc(v.notes).replace(/\n/g,'<br>')
     }</td></tr>
   </table>`;
@@ -7464,8 +7464,8 @@ async function buildProgressHtml() {
   const d = await api.invoke('progress:getir', _progressData.hakedis.id);
   if (!d) return null;
   return `
-  <style>@page { size: A4 portrait; margin: 12mm; }</style>
-  <div style="font-family:'Times New Roman',Times,serif;color:#000;padding:8px 10px">
+  <style>@page { size: A4 portrait; margin: 5mm; }</style>
+  <div style="font-family:'Times New Roman',Times,serif;color:#000;padding:0">
     <table style="width:100%;border-collapse:collapse;margin-bottom:4px">
       <tr><td style="border:2px solid #000;padding:8px;text-align:center">
         <div style="font-size:15px;font-weight:700;letter-spacing:.5px">PROGRESS REPORT</div>
