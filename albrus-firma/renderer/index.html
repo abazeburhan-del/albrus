@@ -1321,6 +1321,20 @@
   </div>
 </div>
 
+<!-- Arka Kapak (İşçilik) — BACK COVER (I) detay Modal -->
+<div class="overlay" id="m-arkakapak1">
+  <div class="modal" style="max-width:1060px;width:96vw;height:92vh;max-height:92vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-title" id="m-arkakapak1-title" style="flex:0 0 auto">Arka Kapak (İşçilik) / Detay</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:8px;flex:0 0 auto">İstihkak (işçilik+malzeme+ilave) − Vergi − Kesinti − Avans − Alıkonulan = Net ödenecek. Tutarlar Genel İcmal, İlave İşler ve Kesintiler İcmali'nden otomatik çekilir.</div>
+    <div style="flex:1 1 auto;overflow:auto;min-height:0" id="arkakapak1-icerik"></div>
+    <div class="modal-actions" style="flex:0 0 auto">
+      <button class="btn btn-ghost" onclick="closeModal('m-arkakapak1')">Kapat</button>
+      <button class="btn btn-ghost" onclick="arkaKapak1Pdf()">PDF</button>
+      <button class="btn btn-ghost" onclick="arkaKapak1Excel()">Excel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Personel Ekle/Düzenle Modal -->
 <div class="overlay" id="m-personel">
   <div class="modal">
@@ -5958,7 +5972,7 @@ async function loadHakedisProje() {
         ${list.map(h => `<tr>
           <td><b>${h.hakedis_no}. Hakediş</b></td>
           <td>${h.tarih ? fmtDate(h.tarih) : '—'}</td>
-          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-link btn-sm" onclick="openIlave(${h.id})">İlave İşler</button><button class="btn-link btn-sm" onclick="openKesinti(${h.id})">Kesintiler</button><button class="btn-link btn-sm" onclick="openArkaKapak(${h.id})">Arka Kapak</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
+          <td style="white-space:nowrap"><button class="btn-link btn-sm" onclick="openYesil(${h.id})">Yeşil Defter</button><button class="btn-link btn-sm" onclick="openIcmal(${h.id})">Genel İcmal</button><button class="btn-link btn-sm" onclick="openIlave(${h.id})">İlave İşler</button><button class="btn-link btn-sm" onclick="openKesinti(${h.id})">Kesintiler</button><button class="btn-link btn-sm" onclick="openArkaKapak(${h.id})">Arka Kapak</button><button class="btn-link btn-sm" onclick="openArkaKapak1(${h.id})">Arka Kapak (İşçilik)</button><button class="btn-del" onclick="hakedisSil(${h.id})">✕</button></td>
         </tr>`).join('')}
       </tbody></table>`;
   }
@@ -7078,6 +7092,181 @@ async function buildArkaKapakHtml() {
         <td style="width:33%;padding-top:24px;border-top:1px solid #555">HAZIRLAYAN / Prepared By</td>
         <td style="width:33%;padding-top:24px;border-top:1px solid #555">KONTROL / Checked By</td>
         <td style="width:33%;padding-top:24px;border-top:1px solid #555">ONAY / Approved By</td>
+      </tr>
+    </table>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════
+// ARKA KAPAK (İŞÇİLİK) — RAN "BACK COVER (I)" detay
+// ══════════════════════════════════════════════════
+let _arka1Data = null;
+
+// h:1 → bölüm başlığı satırı (k yok). Diğerlerinde no/not/tr/en/k.
+function _arka1Rows(d) {
+  const K = d.kalemler;
+  return [
+    { h:1, no:'1.',    tr:'İSTİHKAK',                                                en:'SHARE' },
+    { no:'1.1',  not:'A',          tr:'GERÇEKLEŞEN İŞÇİLİK / PROJE ve DAN. / HİZMET TUTARI', en:'LABOR (UO)',                k:K.A },
+    { no:'1.2',  not:'B',          tr:'TEDARİK EDİLEN MALZEME FATURA TUTARI',            en:'SUPPLIED MATERIAL COST',            k:K.B },
+    { no:'1.3',  not:'C',          tr:'İMALATA GİREN MALZEME TUTARI (Genel İcmal)',      en:'WORK COMPLETED MATERIALS',          k:K.C },
+    { no:'1.4',  not:'D = B − C',  tr:'İMALATA GİRMEYEN MALZEME TUTARI',                 en:'STORED MATERIAL COST',              k:K.D },
+    { no:'1.5',  not:'E',          tr:'İHZARAT TUTARI',                                  en:'ACQUISITION',                       k:K.E },
+    { no:'1.6',  not:'F = A + C',  tr:'GERÇ. İŞÇİLİK + İMALATA GİREN MALZEME TOPLAMI',   en:'LABOR + WORK COMPLETED MATERIALS',  k:K.F, bold:1, bg:'#dbeafe' },
+    { no:'1.7',  not:'G = E + F',  tr:'İHZARAT DAHİL GERÇEKLEŞEN İMALAT TUTARI',         en:'ACQUISITION + LABOR + MATERIALS',   k:K.G, bold:1, bg:'#dbeafe' },
+    { no:'1.8',  not:'H = H1 + H2', tr:'İLAVE İŞLER TUTARI',                             en:'ADDITIONAL WORKS',                  k:K.H, bold:1, bg:'#dbeafe' },
+    { no:'1.8.1', not:'H1',        tr:'MALZEME veya MALZEMELİ İŞÇİLİK',                  en:'MATERIAL or MATERIAL + LABOR',      k:K.H1, alt:1 },
+    { no:'1.8.2', not:'H2',        tr:'İŞÇİLİK (İlave İşler İcmali)',                    en:'LABOR',                             k:K.H2, alt:1 },
+    { no:'1.9',  not:'I = G + H',  tr:'FATURAYA ESAS İMALAT TUTARI',                     en:'INVOICE COST',                      k:K.I, bold:1, bg:'#c8e6c9' },
+    { no:'1.10', not:'J = J1+J2+J3', tr:'VERGİLER',                                      en:'TAXES',                             k:K.J },
+    { no:'1.10.1', not:'J1',       tr:'KATMA DEĞER VERGİSİ (KDV)',                       en:'VAT',                               k:K.J1, alt:1 },
+    { no:'1.10.2', not:'J2',       tr:'STOPAJ VERGİSİ',                                  en:'WITHHOLDING',                       k:K.J2, alt:1 },
+    { no:'1.10.3', not:'J3',       tr:'DAMGA VERGİSİ',                                   en:'STAMP TAX',                         k:K.J3, alt:1 },
+    { no:'1.11', not:'K = I + J',  tr:'FATURA TUTARI',                                   en:'AMOUNT OF INVOICE',                 k:K.K, bold:1, bg:'#c8e6c9' },
+    { h:1, no:'2.', not:'L = L1+…+L7', tr:'KESİNTİLER TOPLAMI',                          en:'DEDUCTIONS SUM',                    k:K.L, neg:1 },
+    { no:'2.1',  not:'L1',         tr:'MALZEME (Irak)',                                  en:'MATERIAL (Iraq)',                   k:K.L1, alt:1, neg:1 },
+    { no:'2.2',  not:'L2',         tr:'MALZEME (Yurtdışı)',                              en:'MATERIAL (Abroad)',                 k:K.L2, alt:1, neg:1 },
+    { no:'2.3',  not:'L3',         tr:'YEMEK-KONAKLAMA',                                 en:'MEAL & ACCOMODATION',               k:K.L3, alt:1, neg:1 },
+    { no:'2.4',  not:'L4',         tr:'PERSONEL KESİNTİLERİ',                            en:'PERSONNEL DEDUCTIONS',              k:K.L4, alt:1, neg:1 },
+    { no:'2.5',  not:'L5',         tr:'TUTANAK-CEZA',                                    en:'MINUTES - PENALTIES',               k:K.L5, alt:1, neg:1 },
+    { no:'2.6',  not:'L6',         tr:'DİĞER (Kesintiler İcmali)',                       en:'OTHER',                             k:K.L6, alt:1, neg:1 },
+    { no:'2.7',  not:'L7',         tr:'%3 IRAK VERGİSİ',                                 en:'%3 IRAQ TAXES',                     k:K.L7, alt:1, neg:1 },
+    { h:1, no:'3.', tr:'AVANS ÖDEMELERİ',                                               en:'ADVANCE PAYMENTS' },
+    { no:'3.1',  not:'M1',         tr:'İŞÇİLİK AVANS ÖDEMESİ',                           en:'ADVANCE PAYMENT FOR LABOR',         k:K.M1, alt:1 },
+    { no:'3.2',  not:'N1',         tr:'İŞÇİLİK AVANS İADESİ',                            en:'REFUND OF ADVANCE (LABOR)',         k:K.N1, alt:1 },
+    { no:'3.3',  not:'M2',         tr:'MALZEME AVANS ÖDEMESİ',                           en:'ADVANCE PAYMENT FOR MATERIAL',      k:K.M2, alt:1 },
+    { no:'3.4',  not:'N2',         tr:'MALZEME AVANS İADESİ',                            en:'REFUND OF ADVANCE (MATERIAL)',      k:K.N2, alt:1 },
+    { no:'3.5',  not:'O = M1−N1+M2−N2', tr:'BAKİYE AVANS',                               en:'REMAINING ADVANCE PAYMENT',         k:K.O, alt:1 },
+    { h:1, no:'4.', not:'P = P1 + P2', tr:'ALIKONULAN BEDEL',                            en:'RETAINED AMOUNT',                   k:K.P, neg:1 },
+    { no:'4.1',  not:'P1',         tr:'İŞÇİLİK TUTARINDAN - NAKİT TEMİNAT',              en:'FROM LABOR AMOUNT',                 k:K.P1, alt:1, neg:1 },
+    { no:'4.2',  not:'P2',         tr:'İMALATA GİREN MALZEME TUTARINDAN',                en:'FROM WORK COMPLETED MATERIALS',     k:K.P2, alt:1, neg:1 },
+    { h:1, no:'5.', not:'R = R1 + R2', tr:'NET ÖDENECEK TOPLAM TUTAR',                   en:'NET TOTAL PAYMENT',                 k:K.R, bold:1, bg:'#ffe082' },
+    { no:'5.1',  not:'R1',         tr:'NET ÖDENECEK İŞÇİLİK TUTARI',                     en:'NET LABOR PAYMENT',                 k:K.R1, alt:1 },
+    { no:'5.2',  not:'R2',         tr:'NET ÖDENECEK MALZEME TUTARI',                     en:'NET MATERIAL PAYMENT',              k:K.R2, alt:1 },
+  ];
+}
+
+async function openArkaKapak1(hakedisId) {
+  const d = await api.invoke('arkakapak1:getir', hakedisId);
+  if (!d) { yesilToast('Hakediş bulunamadı.'); return; }
+  _arka1Data = d;
+  document.getElementById('m-arkakapak1-title').textContent = `Arka Kapak (İşçilik) — ${d.hakedis.hakedis_no}. Hakediş`;
+  renderArkaKapak1();
+  document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-arkakapak1') o.classList.remove('open'); });
+  openModal('m-arkakapak1');
+  document.getElementById('arkakapak1-icerik').scrollTop = 0;
+}
+
+function renderArkaKapak1() {
+  const d = _arka1Data; if (!d) return;
+  const bd = 'border:1px solid var(--border);';
+  const m = (v, neg) => (v ? (neg ? '−' : '') + _icmM(Math.abs(v)) : '0');
+  const head = `<tr style="background:#d9d9d9;color:#111;font-weight:700;font-size:10px">
+    <th style="${bd}padding:4px 5px">NO</th>
+    <th style="${bd}padding:4px 5px;text-align:left">AÇIKLAMA / DESCRIPTION</th>
+    <th style="${bd}padding:4px 5px">FORMÜL</th>
+    <th style="${bd}padding:4px 5px">TOPLAM TUTAR<br>CERTIFIED (TO DATE)</th>
+    <th style="${bd}padding:4px 5px">BİR ÖNCEKİ<br>PREVIOUSLY</th>
+    <th style="${bd}padding:4px 5px">BU HAKEDİŞ<br>THIS PERIOD</th>
+  </tr>`;
+  const body = _arka1Rows(d).map(r => {
+    if (r.h) {
+      const span = r.k ? '' : '';
+      const vals = r.k
+        ? `<td style="${bd}padding:4px 5px;text-align:center;color:#333;font-style:italic">${r.not||''}</td>
+           <td style="${bd}padding:4px 5px;text-align:right">${m(r.k.toplam, r.neg)}</td>
+           <td style="${bd}padding:4px 5px;text-align:right">${m(r.k.onceki, r.neg)}</td>
+           <td style="${bd}padding:4px 5px;text-align:right">${m(r.k.bu, r.neg)}</td>`
+        : `<td style="${bd}padding:4px 5px" colspan="4"></td>`;
+      return `<tr style="background:#bcbcbc;color:#111;font-weight:700;font-size:10px">
+        <td style="${bd}padding:4px 5px;text-align:center">${r.no}</td>
+        <td style="${bd}padding:4px 5px;text-align:left">${r.tr} / ${r.en}</td>${vals}</tr>`;
+    }
+    const bg = r.bg ? `background:${r.bg};color:#111;` : '';
+    const fw = r.bold ? 'font-weight:700;' : '';
+    const pad = r.alt ? 'padding-left:22px;' : '';
+    return `<tr style="${bg}${fw}font-size:10px">
+      <td style="${bd}padding:3px 5px;text-align:center;color:#555">${r.no}</td>
+      <td style="${bd}padding:3px 5px;text-align:left;${pad}">${r.tr}<br><span style="color:#777;font-size:8px">${r.en}</span></td>
+      <td style="${bd}padding:3px 5px;text-align:center;color:#555;font-style:italic">${r.not||''}</td>
+      <td style="${bd}padding:3px 5px;text-align:right">${m(r.k.toplam, r.neg)}</td>
+      <td style="${bd}padding:3px 5px;text-align:right">${m(r.k.onceki, r.neg)}</td>
+      <td style="${bd}padding:3px 5px;text-align:right">${m(r.k.bu, r.neg)}</td>
+    </tr>`;
+  }).join('');
+  const ust = `<div style="font-size:12px;color:var(--text);margin-bottom:8px;line-height:1.7">
+    <div><b>YÜKLENİCİ / Subcontractor:</b> ALBRUS COMPANY &nbsp;·&nbsp; <b>HKD. NO / PPC NO:</b> ${d.hakedis.hakedis_no} &nbsp;·&nbsp; <b>TARİH / Date:</b> ${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</div>
+    <div><b>İŞİN ADI / Project:</b> ${d.proje || ''}</div>
+  </div>`;
+  document.getElementById('arkakapak1-icerik').innerHTML = ust +
+    `<table style="width:100%;border-collapse:collapse;text-align:center"><tbody>${head}${body}</tbody></table>`;
+}
+
+async function arkaKapak1Pdf() {
+  const html = await buildArkaKapak1Html();
+  if (html) await api.invoke('print:pdf', html);
+}
+async function arkaKapak1Excel() {
+  const html = await buildArkaKapak1Html();
+  if (html) await api.invoke('export:xls', { html, ad: 'ArkaKapakIscilik-Hkd' + (_arka1Data?.hakedis?.hakedis_no || ''), sheet: 'Arka Kapak Iscilik' });
+}
+
+async function buildArkaKapak1Html() {
+  const d = _arka1Data; if (!d) return null;
+  const bd = 'border:1px solid #999;';
+  const R = 'text-align:right';
+  const m = (v, neg) => (v ? (neg ? '−' : '') + _icmM(Math.abs(v)) : '0');
+  const head = `<tr style="background:#d9d9d9;color:#111;font-size:5.5pt;font-weight:700">
+    <th style="${bd}padding:2px 3px">NO</th>
+    <th style="${bd}padding:2px 3px;text-align:left">AÇIKLAMA / DESCRIPTION</th>
+    <th style="${bd}padding:2px 3px">FORMÜL</th>
+    <th style="${bd}padding:2px 3px">TOPLAM TUTAR<br>CERTIFIED (TO DATE)</th>
+    <th style="${bd}padding:2px 3px">BİR ÖNCEKİ<br>PREVIOUSLY</th>
+    <th style="${bd}padding:2px 3px">BU HAKEDİŞ<br>THIS PERIOD</th>
+  </tr>`;
+  const body = _arka1Rows(d).map(r => {
+    if (r.h) {
+      const vals = r.k
+        ? `<td style="${bd}padding:2px 3px;text-align:center;font-style:italic">${r.not||''}</td>
+           <td style="${bd}padding:2px 3px;${R}">${m(r.k.toplam, r.neg)}</td>
+           <td style="${bd}padding:2px 3px;${R}">${m(r.k.onceki, r.neg)}</td>
+           <td style="${bd}padding:2px 3px;${R}">${m(r.k.bu, r.neg)}</td>`
+        : `<td style="${bd}padding:2px 3px" colspan="4"></td>`;
+      return `<tr style="background:#bcbcbc;font-weight:700;font-size:5.5pt">
+        <td style="${bd}padding:2px 3px;text-align:center">${r.no}</td>
+        <td style="${bd}padding:2px 3px;text-align:left">${r.tr} / ${r.en}</td>${vals}</tr>`;
+    }
+    const bg = r.bg ? `background:${r.bg};` : '';
+    const fw = r.bold ? 'font-weight:700;' : '';
+    const pad = r.alt ? 'padding-left:14px;' : '';
+    return `<tr style="${bg}${fw}font-size:5.5pt">
+      <td style="${bd}padding:1px 3px;text-align:center;color:#555">${r.no}</td>
+      <td style="${bd}padding:1px 3px;text-align:left;${pad}">${r.tr} <span style="color:#777">/ ${r.en}</span></td>
+      <td style="${bd}padding:1px 3px;text-align:center;color:#555;font-style:italic">${r.not||''}</td>
+      <td style="${bd}padding:1px 3px;${R}">${m(r.k.toplam, r.neg)}</td>
+      <td style="${bd}padding:1px 3px;${R}">${m(r.k.onceki, r.neg)}</td>
+      <td style="${bd}padding:1px 3px;${R}">${m(r.k.bu, r.neg)}</td>
+    </tr>`;
+  }).join('');
+  return `
+  <style>@page { size: A4 portrait; margin: 9mm; }</style>
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:8px 12px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:4px;margin-bottom:6px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px">HAKEDİŞ ARKA KAPAĞI - İŞÇİLİK</div>
+      <div style="font-size:8.5px;font-weight:700">PROGRESS PAYMENT SUBCOVER PAGE</div>
+    </div>
+    <table style="width:100%;font-size:6.5pt;margin-bottom:5px">
+      <tr><td style="padding:1px 5px;color:#555;width:24%">YÜKLENİCİ / Subcontractor</td><td style="padding:1px 5px;font-weight:600">ALBRUS COMPANY</td>
+          <td style="padding:1px 5px;color:#555;width:18%">HKD. NO / PPC NO</td><td style="padding:1px 5px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:1px 5px;color:#555">İŞİN ADI / Project</td><td style="padding:1px 5px;font-weight:600">${d.proje || ''}</td>
+          <td style="padding:1px 5px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:1px 5px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:5.5pt"><tbody>${head}${body}</tbody></table>
+    <table style="width:100%;margin-top:18px;font-size:6.5pt;text-align:center">
+      <tr>
+        <td style="width:33%;padding-top:22px;border-top:1px solid #555">HAZIRLAYAN / Prepared By</td>
+        <td style="width:33%;padding-top:22px;border-top:1px solid #555">KONTROL / Checked By</td>
+        <td style="width:33%;padding-top:22px;border-top:1px solid #555">ONAY / Approved By</td>
       </tr>
     </table>
   </div>`;

@@ -2194,6 +2194,69 @@ ipcMain.handle('arkakapak:getir', (_, hakedis_id) => {
 });
 
 // ════════════════════════════════════════════════════════════
+// ARKA KAPAK (İŞÇİLİK) — RAN "BACK COVER (I)": detaylı işçilik özeti
+//   (R) REPRESENTATION=Genel İcmal · ADDITIONAL=İlave İşler · KESİNTİLER İCMALİ=Kesintiler
+//   Net = İstihkak (işçilik+malzeme+ilave) − Vergi(0) − Kesinti − Avans(0) − Alıkonulan(0)
+// ════════════════════════════════════════════════════════════
+ipcMain.handle('arkakapak1:getir', (_, hakedis_id) => {
+  const h = getOne('SELECT * FROM hakedisler WHERE id = ?', [hakedis_id]);
+  if (!h) return null;
+  const proje = getOne('SELECT * FROM projeler WHERE id = ?', [h.proje_id]);
+  const iscT = hesaplaIcmal(hakedis_id, 'iscilik').toplamlar;
+  const mlzT = hesaplaIcmal(hakedis_id, 'malzeme').toplamlar;
+  const ilaveTop = tutarToplam('ilave_isler', h.proje_id, h.hakedis_no, false);
+  const ilaveOnc = tutarToplam('ilave_isler', h.proje_id, h.hakedis_no, true);
+  const kesTop = tutarToplam('kesintiler', h.proje_id, h.hakedis_no, false);
+  const kesOnc = tutarToplam('kesintiler', h.proje_id, h.hakedis_no, true);
+
+  const k = (o, t) => ({ onceki: o, bu: t - o, toplam: t });
+  const z = k(0, 0);
+  const topla = (...xs) => ({
+    onceki: xs.reduce((a, x) => a + x.onceki, 0),
+    bu:     xs.reduce((a, x) => a + x.bu, 0),
+    toplam: xs.reduce((a, x) => a + x.toplam, 0),
+  });
+  const cikar = (a, b) => ({ onceki: a.onceki - b.onceki, bu: a.bu - b.bu, toplam: a.toplam - b.toplam });
+
+  // ── 1. İSTİHKAK ──
+  const A  = k(iscT.oncekiTutar, iscT.toplamTutar);  // 1.1 gerçekleşen işçilik (Genel İcmal)
+  const B  = z;                                      // 1.2 tedarik edilen malzeme fatura (izlenmez)
+  const C  = k(mlzT.oncekiTutar, mlzT.toplamTutar);  // 1.3 imalata giren malzeme (Genel İcmal)
+  const D  = z;                                      // 1.4 imalata girmeyen (stok) malzeme = 0
+  const E  = z;                                      // 1.5 ihzarat
+  const F  = topla(A, C);                            // 1.6 F = A + C
+  const G  = topla(E, F);                            // 1.7 G = E + F
+  const H1 = z;                                      // 1.8.1 malzemeli ilave
+  const H2 = k(ilaveOnc, ilaveTop);                  // 1.8.2 işçilik ilave (ADDITIONAL)
+  const H  = topla(H1, H2);                          // 1.8 H = H1 + H2
+  const I  = topla(G, H);                            // 1.9 I = G + H (faturaya esas)
+  const J1 = z, J2 = z, J3 = z;                      // 1.10.x KDV/Stopaj/Damga (KDV yok)
+  const J  = topla(J1, J2, J3);                      // 1.10 J = J1+J2+J3 (vergiler)
+  const Kf = topla(I, J);                            // 1.11 K = I + J (fatura tutarı)
+  // ── 2. KESİNTİLER ──
+  const L1 = z, L2 = z, L3 = z, L4 = z, L5 = z;      // malzeme/yemek/personel/ceza...
+  const L6 = k(kesOnc, kesTop);                      // 2.6 diğer = Kesintiler İcmali
+  const L7 = z;                                      // %3 ırak vergisi
+  const L  = topla(L1, L2, L3, L4, L5, L6, L7);      // 2. L = L1+..+L7
+  // ── 3. AVANS ── (izlenmez)
+  const M1 = z, N1 = z, M2 = z, N2 = z;
+  const O  = z;                                      // 3.5 bakiye avans = M1-N1+M2-N2
+  // ── 4. ALIKONULAN ── (izlenmez)
+  const P1 = z, P2 = z;
+  const P  = topla(P1, P2);                          // 4. P = P1 + P2
+  // ── 5. NET ──
+  const R1 = cikar(topla(A, H), L);                  // 5.1 net işçilik = (A+H) − kesinti
+  const R2 = C;                                      // 5.2 net malzeme = imalata giren malzeme
+  const R  = topla(R1, R2);                          // 5. R = R1 + R2
+
+  return {
+    hakedis: h, proje: proje ? proje.ad : '',
+    kalemler: { A, B, C, D, E, F, G, H, H1, H2, I, J, J1, J2, J3, K: Kf,
+                L, L1, L2, L3, L4, L5, L6, L7, M1, N1, M2, N2, O, P, P1, P2, R, R1, R2 }
+  };
+});
+
+// ════════════════════════════════════════════════════════════
 // ÇEK / SENET
 // ════════════════════════════════════════════════════════════
 
