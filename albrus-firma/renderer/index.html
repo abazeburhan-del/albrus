@@ -6963,7 +6963,7 @@ function _arkaRows(d) {
     { no:'10)', not:'S',         tr:'İHZARAT TUTARI',                           en:'ACQUISITION',                              k:K.S },
     { no:'11)', not:'M = N+O',   tr:'MALZEME KESİNTİLERİ TOPLAMI',              en:'TOTAL DEDUCTIONS FOR MATERIAL',            k:K.M, neg:1 },
     { no:'a)',  not:'N',         tr:'AVANS KESİNTİLERİ TOPLAMI',                en:'ADVANCE PAYMENT RECOVERY',                 k:K.N, alt:1, neg:1 },
-    { no:'b)',  not:'O = L×%5',  tr:'NAKİT TEMİNAT KESİNTİLERİ TOPLAMI',        en:'CASH COVER DEDUCTIONS SUM',                k:K.O, alt:1, neg:1 },
+    { no:'b)',  not:'O',         tr:'NAKİT TEMİNAT KESİNTİLERİ TOPLAMI',        en:'CASH COVER DEDUCTIONS SUM',                k:K.O, alt:1, neg:1 },
     { no:'12)', not:'P = L2 - M', tr:'NET MALZEME TUTARI (KDV HARİÇ)',          en:'NET MATERIAL PAY. SUM (EXC. VAT)',         k:K.P, bold:1, bg:'#c8e6c9' },
     { no:'13)', not:'R = J + P', tr:'İŞÇİLİK + MALZEME TOPLAM TUTARI (KDV HARİÇ)', en:'SUM OF LABOR+MATERIAL (EXC. VAT)',      k:K.R, bold:1, bg:'#ffe082' },
   ];
@@ -7033,54 +7033,53 @@ async function buildArkaKapakHtml() {
   const bd = 'border:1px solid #999;';
   const R = 'text-align:right';
   const m = (v, neg) => (v ? (neg ? '−' : '') + _icmM(Math.abs(v)) : '0');
-  const head = `<tr style="background:#d9d9d9;color:#111;font-size:7.5pt;font-weight:700">
-    <th style="${bd}padding:3px 4px">NO</th>
-    <th style="${bd}padding:3px 4px;text-align:left">AÇIKLAMA / DESCRIPTION</th>
-    <th style="${bd}padding:3px 4px">FORMÜL</th>
-    <th style="${bd}padding:3px 4px">TOPLAM TUTAR<br>CUMULATIVE AMOUNT</th>
-    <th style="${bd}padding:3px 4px">BİR ÖNCEKİ HKD.<br>PREVIOUS CUM.</th>
-    <th style="${bd}padding:3px 4px">BU HAKEDİŞ<br>THIS INTERIM</th>
+  const head = `<tr style="background:#d9d9d9;color:#111;font-size:6pt;font-weight:700">
+    <th style="${bd}padding:2px 3px">NO</th>
+    <th style="${bd}padding:2px 3px;text-align:left">AÇIKLAMA / DESCRIPTION</th>
+    <th style="${bd}padding:2px 3px">FORMÜL</th>
+    <th style="${bd}padding:2px 3px">TOPLAM TUTAR<br>CUMULATIVE AMOUNT</th>
+    <th style="${bd}padding:2px 3px">BİR ÖNCEKİ HKD.<br>PREVIOUS CUM.</th>
+    <th style="${bd}padding:2px 3px">BU HAKEDİŞ<br>THIS INTERIM</th>
   </tr>`;
   const body = _arkaRows(d).map(r => {
     const bg = r.bg ? `background:${r.bg};` : '';
     const fw = r.bold ? 'font-weight:700;' : '';
-    const pad = r.alt ? 'padding-left:18px;' : '';
-    return `<tr style="${bg}${fw}font-size:7.5pt">
-      <td style="${bd}padding:2px 4px;text-align:center;color:#555">${r.no}</td>
-      <td style="${bd}padding:2px 4px;text-align:left;${pad}">${r.tr} <span style="color:#777">/ ${r.en}</span></td>
-      <td style="${bd}padding:2px 4px;text-align:center;color:#555;font-style:italic">${r.not}</td>
-      <td style="${bd}padding:2px 4px;${R}">${m(r.k.toplam, r.neg)}</td>
-      <td style="${bd}padding:2px 4px;${R}">${m(r.k.onceki, r.neg)}</td>
-      <td style="${bd}padding:2px 4px;${R}">${m(r.k.bu, r.neg)}</td>
+    const pad = r.alt ? 'padding-left:14px;' : '';
+    return `<tr style="${bg}${fw}font-size:6pt">
+      <td style="${bd}padding:1px 3px;text-align:center;color:#555">${r.no}</td>
+      <td style="${bd}padding:1px 3px;text-align:left;${pad}">${r.tr} <span style="color:#777">/ ${r.en}</span></td>
+      <td style="${bd}padding:1px 3px;text-align:center;color:#555;font-style:italic">${r.not}</td>
+      <td style="${bd}padding:1px 3px;${R}">${m(r.k.toplam, r.neg)}</td>
+      <td style="${bd}padding:1px 3px;${R}">${m(r.k.onceki, r.neg)}</td>
+      <td style="${bd}padding:1px 3px;${R}">${m(r.k.bu, r.neg)}</td>
     </tr>`;
   }).join('');
   const tipKutu = ['iscilik','malzeme_iscilik','malzeme','hizmet'].map(t => {
     const s = t === d.tip, e = _ARKA_TIP[t];
-    return `<span style="margin-right:12px">[${s?'X':'&nbsp;&nbsp;'}] ${e.tr} / ${e.en}</span>`;
+    return `<span style="margin-right:10px">[${s?'X':'&nbsp;&nbsp;'}] ${e.tr} / ${e.en}</span>`;
   }).join('');
   return `
   <style>@page { size: A4 portrait; margin: 10mm; }</style>
-  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:10px 14px">
-    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:6px;margin-bottom:8px">
-      <div style="font-size:14px;font-weight:700;letter-spacing:.5px">HAKEDİŞ ARKA KAPAĞI - TOPLAM</div>
-      <div style="font-size:11px;font-weight:700">PROGRESS PAYMENT SUBCOVER PAGE - TOTAL</div>
+  <div style="font-family:'Times New Roman',Times,serif;color:#111;padding:8px 12px">
+    <div style="text-align:center;border-bottom:2px solid #555;padding-bottom:4px;margin-bottom:6px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px">HAKEDİŞ ARKA KAPAĞI - TOPLAM</div>
+      <div style="font-size:8.5px;font-weight:700">PROGRESS PAYMENT SUBCOVER PAGE - TOTAL</div>
     </div>
-    <table style="width:100%;font-size:8pt;margin-bottom:6px">
-      <tr><td style="padding:1px 6px;color:#555;width:24%">YÜKLENİCİ / Subcontractor</td><td style="padding:1px 6px;font-weight:600">ALBRUS COMPANY</td>
-          <td style="padding:1px 6px;color:#555;width:18%">HKD. NO / PPC NO</td><td style="padding:1px 6px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
-      <tr><td style="padding:1px 6px;color:#555">İŞİN ADI / Project</td><td style="padding:1px 6px;font-weight:600">${d.proje || ''}</td>
-          <td style="padding:1px 6px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:1px 6px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
+    <table style="width:100%;font-size:6.5pt;margin-bottom:5px">
+      <tr><td style="padding:1px 5px;color:#555;width:24%">YÜKLENİCİ / Subcontractor</td><td style="padding:1px 5px;font-weight:600">ALBRUS COMPANY</td>
+          <td style="padding:1px 5px;color:#555;width:18%">HKD. NO / PPC NO</td><td style="padding:1px 5px;font-weight:600">${d.hakedis.hakedis_no}</td></tr>
+      <tr><td style="padding:1px 5px;color:#555">İŞİN ADI / Project</td><td style="padding:1px 5px;font-weight:600">${d.proje || ''}</td>
+          <td style="padding:1px 5px;color:#555">HKD. TARİHİ / PPC Date</td><td style="padding:1px 5px">${d.hakedis.tarih ? fmtDate(d.hakedis.tarih) : '—'}</td></tr>
     </table>
-    <div style="font-size:8pt;margin-bottom:6px"><b>SÖZLEŞME TÜRÜ / Contract Type:</b>&nbsp; ${tipKutu}</div>
-    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:7.5pt"><tbody>${head}${body}</tbody></table>
-    <table style="width:100%;margin-top:24px;font-size:8pt;text-align:center">
+    <div style="font-size:6.5pt;margin-bottom:5px"><b>SÖZLEŞME TÜRÜ / Contract Type:</b>&nbsp; ${tipKutu}</div>
+    <table style="width:100%;border-collapse:collapse;text-align:center;font-size:6pt"><tbody>${head}${body}</tbody></table>
+    <table style="width:100%;margin-top:20px;font-size:6.5pt;text-align:center">
       <tr>
-        <td style="width:33%;padding-top:28px;border-top:1px solid #555">HAZIRLAYAN / Prepared By</td>
-        <td style="width:33%;padding-top:28px;border-top:1px solid #555">KONTROL / Checked By</td>
-        <td style="width:33%;padding-top:28px;border-top:1px solid #555">ONAY / Approved By</td>
+        <td style="width:33%;padding-top:24px;border-top:1px solid #555">HAZIRLAYAN / Prepared By</td>
+        <td style="width:33%;padding-top:24px;border-top:1px solid #555">KONTROL / Checked By</td>
+        <td style="width:33%;padding-top:24px;border-top:1px solid #555">ONAY / Approved By</td>
       </tr>
     </table>
-    <div style="margin-top:8px;font-size:7pt;color:#777">C=A+B · E=F+G+H · J=C−E · M=N+O · P=L2−M · R=J+P. Değerler Genel İcmal (işçilik=A, malzeme=L2), İlave İşler (B) ve Kesintiler İcmali (H)'nden otomatik çekilir. KDV dahil değildir.</div>
   </div>`;
 }
 
