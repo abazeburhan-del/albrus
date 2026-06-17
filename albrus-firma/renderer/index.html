@@ -194,6 +194,19 @@
   <div id="lock-error" style="color:#ef4444;font-size:12px;height:16px"></div>
 </div>
 
+<!-- Sunucu Girişi (sunucu modunda) -->
+<div id="login-screen" style="display:none;position:fixed;inset:0;z-index:9998;background:#0f1420;align-items:center;justify-content:center;flex-direction:column;gap:14px">
+  <div style="font-size:28px;font-weight:800;letter-spacing:2px;color:#fff">ALBRUS</div>
+  <div id="login-sunucu" style="color:#8a93a6;font-size:12px">Sunucu: —</div>
+  <input type="text" id="login-kullanici" placeholder="Kullanıcı adı" autocomplete="username"
+    style="width:280px;padding:11px;border-radius:8px;border:1px solid #2a3242;background:#161c28;color:#fff;font-size:15px;outline:none">
+  <input type="password" id="login-sifre" placeholder="Parola" onkeydown="if(event.key==='Enter')sunucuGiris()" autocomplete="current-password"
+    style="width:280px;padding:11px;border-radius:8px;border:1px solid #2a3242;background:#161c28;color:#fff;font-size:15px;outline:none">
+  <button class="btn btn-primary" onclick="sunucuGiris()" style="width:280px">Giriş</button>
+  <div id="login-error" style="color:#ef4444;font-size:12px;height:16px;text-align:center"></div>
+  <button class="btn-link" onclick="goPage('ayarlar');document.getElementById('login-screen').style.display='none'" style="font-size:11px;color:#8a93a6">Sunucu adresini değiştir</button>
+</div>
+
 <!-- İlk Kurulum: Firma Adı -->
 <div class="overlay" id="m-firma-setup">
   <div class="modal" style="max-width:440px">
@@ -600,6 +613,23 @@
           <input id="ayar-firma" type="text" style="width:280px" placeholder="ALBRUS COMPANY">
           <button class="btn btn-primary btn-sm" onclick="firmaAdiKaydet()">KAYDET</button>
         </div>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="margin-bottom:18px;">
+      <div class="table-head"><div class="table-head-title">Sunucu Bağlantısı (Çoklu Kullanıcı)</div></div>
+      <div style="padding:18px;">
+        <div style="font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.6;">
+          Boş bırakırsan program <b>çevrimdışı</b> (tek bilgisayar) çalışır. Sunucu adresi girersen,
+          tüm kullanıcılar aynı veriyi paylaşır (giriş gerekir). Örn: <code>http://192.168.1.42:4000</code>
+          veya uzaktan erişim adresin.
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:13px;">Sunucu Adresi:</span>
+          <input id="ayar-sunucu" type="text" style="width:340px" placeholder="(boş = çevrimdışı mod)">
+          <button class="btn btn-primary btn-sm" onclick="sunucuAdresiKaydet()">KAYDET</button>
+        </div>
+        <div id="ayar-sunucu-durum" style="font-size:12px;color:var(--dim);margin-top:10px"></div>
       </div>
     </div>
 
@@ -1721,6 +1751,24 @@
 const api = window.electronAPI;
 let FIRMA = 'ALBRUS COMPANY';  // firma adı — açılışta ayarlardan yüklenir, raporlarda kullanılır
 
+// ── Sunucu modu (çoklu kullanıcı) ──
+let SUNUCU = '';        // boş = çevrimdışı; doluysa sunucuya bağlı
+let TOKEN = '';         // giriş token'ı
+let KULLANICI = null;   // {id, ad, rol, izinler[]}
+const sunucuModu = () => !!SUNUCU;
+
+async function srv(method, yol, govde) {
+  const r = await fetch(SUNUCU.replace(/\/$/, '') + yol, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}) },
+    body: govde ? JSON.stringify(govde) : undefined,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) { TOKEN = ''; KULLANICI = null; document.getElementById('login-screen').style.display = 'flex'; throw new Error('Oturum doldu, tekrar giriş yapın.'); }
+  if (!r.ok) throw new Error(data.hata || ('Sunucu hatası (' + r.status + ')'));
+  return data;
+}
+
 // ── State ──────────────────────────────────────────
 let S = {
   kasalar: [], bankalar: [], cariler: [], projeler: [],
@@ -1923,7 +1971,7 @@ async function loadDashboard() {
 // KASA
 // ══════════════════════════════════════════════════
 async function loadKasa() {
-  const kasalar = await api.invoke('kasalar:getir');
+  const kasalar = sunucuModu() ? await srv('GET', '/api/kasalar') : await api.invoke('kasalar:getir');
   S.kasalar = kasalar;
 
   document.getElementById('kasa-cards').innerHTML = kasalar.map(k => `
@@ -1975,7 +2023,9 @@ let _kasaHareketlerList = [];
 
 async function loadKasaHareketler() {
   if (!S.secilenKasa) return;
-  let list = await api.invoke('kasa:hareketler', S.secilenKasa.id);
+  let list = sunucuModu()
+    ? await srv('GET', '/api/kasa/hareketler?kasa_id=' + S.secilenKasa.id)
+    : await api.invoke('kasa:hareketler', S.secilenKasa.id);
 
   const bas = document.getElementById('kf-bas').value;
   const bit = document.getElementById('kf-bit').value;
@@ -2358,7 +2408,8 @@ async function saveFis() {
   };
   if (!data.tarih || !data.tutar) { alert('Tarih ve tutar zorunludur.'); return; }
   try {
-    await api.invoke('kasa:fis:ekle', data);
+    if (sunucuModu()) await srv('POST', '/api/kasa/fis', data);
+    else await api.invoke('kasa:fis:ekle', data);
     closeModal('m-fis');
     loadKasa();
   } catch (e) {
@@ -4122,19 +4173,75 @@ async function lisansAktiflestir() {
   }
 }
 
-// Lisans geçtikten sonra çalışan normal açılış (firma adı + şifre + ilk kurulum)
+// Lisans geçtikten sonra çalışan normal açılış (sunucu modu VEYA çevrimdışı)
 async function uygulamaBaslat() {
   try {
     FIRMA = (await api.invoke('ayar:getir', 'firma_adi')) || 'ALBRUS COMPANY';
+    SUNUCU = (await api.invoke('ayar:getir', 'sunucu_adresi')) || '';
+
+    if (sunucuModu()) {
+      // Sunucu modu: yerel şifre kilidi yerine sunucu girişi
+      document.getElementById('login-sunucu').textContent = 'Sunucu: ' + SUNUCU;
+      document.getElementById('login-screen').style.display = 'flex';
+      setTimeout(() => document.getElementById('login-kullanici').focus(), 100);
+      return;
+    }
+
+    // Çevrimdışı mod (eskisi gibi)
+    menuYetkiSifirla();
     const stored = await api.invoke('ayar:getir', 'sifre_hash');
     if (stored) {
-      const ls = document.getElementById('lock-screen');
-      ls.style.display = 'flex';
+      document.getElementById('lock-screen').style.display = 'flex';
       setTimeout(() => document.getElementById('lock-input').focus(), 100);
     }
     const fa = await api.invoke('ayar:getir', 'firma_adi');
     if (!fa) setTimeout(() => { openModal('m-firma-setup'); setTimeout(()=>document.getElementById('fs-ad')?.focus(), 60); }, 300);
   } catch (_) {}
+}
+
+async function sunucuGiris() {
+  const kullanici = document.getElementById('login-kullanici').value.trim();
+  const sifre = document.getElementById('login-sifre').value;
+  try {
+    const r = await srv('POST', '/api/login', { kullanici, sifre });
+    TOKEN = r.token; KULLANICI = r.kullanici;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('login-sifre').value = '';
+    menuYetkiUygula();
+    goPage('dashboard');
+  } catch (e) {
+    document.getElementById('login-error').textContent = e.message;
+  }
+}
+
+// Role göre menü bölümlerini göster/gizle
+function menuYetkiUygula() {
+  if (!KULLANICI) return;
+  const admin = KULLANICI.rol === 'admin';
+  const izin = KULLANICI.izinler || [];
+  const herkes = ['dashboard', 'ayarlar'];
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => {
+    const p = n.getAttribute('data-page');
+    n.style.display = (admin || herkes.includes(p) || izin.includes(p)) ? '' : 'none';
+  });
+}
+function menuYetkiSifirla() {
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => { n.style.display = ''; });
+}
+
+async function sunucuAdresiKaydet() {
+  const adr = (document.getElementById('ayar-sunucu').value || '').trim().replace(/\/$/, '');
+  await api.invoke('ayar:kaydet', 'sunucu_adresi', adr);
+  const durum = document.getElementById('ayar-sunucu-durum');
+  if (!adr) { durum.textContent = 'Çevrimdışı moda geçildi. Uygulamayı yeniden başlatın.'; SUNUCU = ''; return; }
+  durum.textContent = 'Sunucuya bağlanılıyor...';
+  try {
+    const r = await fetch(adr.replace(/\/$/, '') + '/api/saglik');
+    const d = await r.json();
+    durum.textContent = d.ok ? '✓ Sunucuya ulaşıldı. Uygulamayı yeniden başlatın, giriş ekranı gelecek.' : 'Sunucu yanıt verdi ama beklenmedik.';
+  } catch (_) {
+    durum.textContent = '⚠ Sunucuya ulaşılamadı. Adresi ve sunucunun açık olduğunu kontrol edin. (Kaydedildi.)';
+  }
 }
 
 (async () => {
@@ -7837,6 +7944,7 @@ async function loadAyarlar() {
     const konum = await api.invoke('db:konum');
     document.getElementById('ayar-db-konum').textContent = 'Veritabanı konumu: ' + konum;
     document.getElementById('ayar-firma').value = (await api.invoke('ayar:getir', 'firma_adi')) || '';
+    document.getElementById('ayar-sunucu').value = (await api.invoke('ayar:getir', 'sunucu_adresi')) || '';
     const kur = await api.invoke('ayar:getir', 'usd_iqd_kuru');
     document.getElementById('ayar-kur').value = kur || '1310';
     const sifre = await api.invoke('ayar:getir', 'sifre_hash');
