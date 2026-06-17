@@ -476,6 +476,19 @@ ipcMain.handle('win:focus', (e) => {
   return true;
 });
 
+// Klavye odağını ZORLA web içeriğine ver (Windows'ta webContents.focus() tek başına
+// yetmiyor; native dialog kapanışındaki blur→focus turunu taklit eder). Yeşil Defter
+// ilk açılışında kutuya yazılamama sorunu için.
+ipcMain.handle('win:focus-force', (e) => {
+  const w = BrowserWindow.fromWebContents(e.sender) || mainWindow;
+  if (!w || w.isDestroyed()) return true;
+  try { w.blur(); } catch (_) {}
+  try { w.focus(); } catch (_) {}
+  try { w.focusOnWebView(); } catch (_) {}
+  w.webContents.focus();
+  return true;
+});
+
 app.whenReady().then(async () => {
   await initDb();
   createWindow();

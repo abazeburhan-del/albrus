@@ -7,7 +7,7 @@ const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, '..', 'albrus-firma', 'main.js'), 'utf8');
 
 // Electron'a özgü (sunucuda çalışamaz) — atlanır; istemci bunları yerelde çağırır
-const ELECTRON = new Set(['print:pdf', 'export:xls', 'xlsx:onizle', 'win:focus',
+const ELECTRON = new Set(['print:pdf', 'export:xls', 'xlsx:onizle', 'win:focus', 'win:focus-force',
   'db:konum', 'db:yedekle', 'db:geri-yukle', 'lisans:durum', 'lisans:aktiflestir']);
 
 // String/yorum-duyarlı: idx'teki '(' ile eşleşen ')' indexini bul

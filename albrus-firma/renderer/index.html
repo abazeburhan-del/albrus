@@ -1808,7 +1808,7 @@ async function srv(method, yol, govde) {
 }
 
 // Sunucu modunda bu kanallar YİNE YERELDE çalışır (Electron'a özel + istemci yapılandırması)
-const YEREL_KANALLAR = new Set(['print:pdf','export:xls','xlsx:onizle','win:focus',
+const YEREL_KANALLAR = new Set(['print:pdf','export:xls','xlsx:onizle','win:focus','win:focus-force',
   'db:konum','db:yedekle','db:geri-yukle','lisans:durum','lisans:aktiflestir','ayar:getir','ayar:kaydet']);
 
 // Birleşik veri erişimi: sunucu modunda HTTP, değilse yerel IPC. api.invoke yerine her yerde bu kullanılır.
@@ -1917,6 +1917,8 @@ function openModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
   el.classList.add('open');
+  // Yeşil Defter kendi odak yönetimini (ydIlkOdak) yapıyor — araya girip odak çalma.
+  if (id === 'm-yesil') return;
   // Klavye odağını içeriğe getir (Windows'ta native dialog/PDF sonrası odak kaybına karşı)
   // ve ilk girilebilir alana odaklan — yoksa modal açılır ama kutuya yazılamaz.
   try { inv('win:focus').catch(() => {}); } catch (_) {}
@@ -6579,11 +6581,23 @@ async function openYesil(hakedisId) {
   document.querySelectorAll('.overlay.open').forEach(o => { if (o.id !== 'm-yesil') o.classList.remove('open'); });
   openModal('m-yesil');
   document.getElementById('yesil-icerik').scrollTop = 0; // en üstten başla
-  // Açılır açılmaz klavye girişi çalışsın: pencereye odak ver + ilk kutuya odaklan
-  // (yoksa açılışta kutuya yazılmıyor, ancak Kaydet/PDF sonrası çalışıyordu)
-  try { await inv('win:focus'); } catch (_) {}
+  // Açılır açılmaz klavye girişi çalışsın: ilk kutuya odaklan.
+  // İlk açılışta modal CSS geçişi + pencere odağı tam oturmadan tek seferlik focus
+  // kaçırılıyordu. Bu yüzden pencereye odak verip kutuyu BİRKAÇ KEZ tekrar odaklıyoruz;
+  // odak gerçekten kutuya yerleşene kadar (document.activeElement) sürüyor.
+  ydIlkOdak();
+}
+
+// İlk BU HKD kutusuna dayanıklı odak. Sorun DOM odağı değil; Windows'ta pencere
+// görünürde odaklı olsa bile webContents klavye odağını almıyor (PDF/Kaydet sonrası
+// native dialog turu bunu düzeltiyordu). 'win:focus-force' o turu zorla yaptırır.
+async function ydIlkOdak(kalan = 6) {
   const ilk = document.getElementById('yd-0');
-  if (ilk) { ilk.focus(); ilk.select(); }
+  if (!ilk) return;
+  await inv('win:focus-force').catch(() => {});
+  ilk.focus(); ilk.select();
+  // Birkaç kez tekrar dene: pencere odağı oturana ve activeElement kutuya yerleşene kadar.
+  if (kalan > 0) setTimeout(() => { ilk.focus(); ilk.select(); if (kalan > 1) ydIlkOdak(kalan - 1); }, 60);
 }
 
 function renderYesilGrid() {
