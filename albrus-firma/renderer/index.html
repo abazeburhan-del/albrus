@@ -633,6 +633,15 @@
       </div>
     </div>
 
+    <!-- Kullanıcı Yönetimi (yalnız sunucu modu + admin) -->
+    <div class="table-wrap" style="margin-bottom:18px;display:none" id="ayar-kullanicilar-kart">
+      <div class="table-head" style="display:flex;justify-content:space-between;align-items:center">
+        <div class="table-head-title">Kullanıcı Yönetimi</div>
+        <button class="btn btn-primary btn-sm" onclick="openKullaniciEkle()">+ Yeni Kullanıcı</button>
+      </div>
+      <div style="padding:6px 0" id="ayar-kullanicilar-liste"></div>
+    </div>
+
     <div class="table-wrap" style="margin-bottom:18px;">
       <div class="table-head"><div class="table-head-title">Döviz Kuru</div></div>
       <div style="padding:18px;">
@@ -1416,6 +1425,35 @@
       <button class="btn btn-ghost" onclick="progressPdf()">PDF</button>
       <button class="btn btn-ghost" onclick="progressExcel()">Excel</button>
       <button class="btn btn-primary" onclick="progressKaydet()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Kullanıcı Ekle/Düzenle Modal (sunucu modu) -->
+<div class="overlay" id="m-kullanici">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title" id="m-kullanici-title">Yeni Kullanıcı</div>
+    <input type="hidden" id="ku-id">
+    <div class="row2">
+      <div class="fg"><label>Kullanıcı Adı</label><input type="text" id="ku-kadi" autocomplete="off"></div>
+      <div class="fg"><label>Ad Soyad</label><input type="text" id="ku-ad"></div>
+    </div>
+    <div class="row2">
+      <div class="fg"><label>Parola <span id="ku-parola-not" style="color:var(--dim);font-size:11px"></span></label><input type="password" id="ku-sifre" autocomplete="new-password"></div>
+      <div class="fg"><label>Rol</label><select id="ku-rol" onchange="kullaniciRolDegisti()">
+        <option value="kullanici">Kullanıcı (kısıtlı)</option>
+        <option value="admin">Yönetici (tüm yetki)</option>
+      </select></div>
+    </div>
+    <div class="fg" id="ku-izin-wrap">
+      <label>Erişebileceği Bölümler</label>
+      <div id="ku-izinler" style="display:flex;flex-wrap:wrap;gap:8px 16px;padding:8px 0"></div>
+      <div style="font-size:11px;color:var(--dim)">Dashboard ve Ayarlar herkese açıktır. Yönetici tüm bölümleri görür.</div>
+    </div>
+    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;margin-top:4px"><input type="checkbox" id="ku-aktif" checked> Aktif (giriş yapabilir)</label>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-kullanici')">Vazgeç</button>
+      <button class="btn btn-primary" onclick="saveKullanici()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -4242,6 +4280,76 @@ async function sunucuAdresiKaydet() {
   } catch (_) {
     durum.textContent = '⚠ Sunucuya ulaşılamadı. Adresi ve sunucunun açık olduğunu kontrol edin. (Kaydedildi.)';
   }
+}
+
+// ── Kullanıcı Yönetimi (sunucu modu + admin) ──
+const KU_MODULLER = [['kasa','Kasa'],['banka','Banka'],['faturalar','Faturalar'],['stok','Stok'],['cariler','Cariler'],['projeler','Projeler'],['personel','Personel'],['ortaklar','Ortaklar'],['cek','Çek/Senet'],['hakedis','Hakediş']];
+
+async function loadKullanicilar() {
+  const kart = document.getElementById('ayar-kullanicilar-kart');
+  if (!sunucuModu() || KULLANICI?.rol !== 'admin') { kart.style.display = 'none'; return; }
+  kart.style.display = '';
+  let liste = [];
+  try { liste = await srv('GET', '/api/kullanicilar'); } catch (e) { document.getElementById('ayar-kullanicilar-liste').innerHTML = `<div style="padding:14px;color:var(--dim)">${e.message}</div>`; return; }
+  const rolEt = r => r === 'admin' ? 'Yönetici' : 'Kullanıcı';
+  document.getElementById('ayar-kullanicilar-liste').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="color:var(--dim);text-align:left">
+        <th style="padding:8px 12px">Kullanıcı</th><th style="padding:8px 12px">Ad</th>
+        <th style="padding:8px 12px">Rol</th><th style="padding:8px 12px">Bölümler</th>
+        <th style="padding:8px 12px">Durum</th><th></th></tr></thead>
+      <tbody>${liste.map(u => `
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px 12px;font-weight:600">${u.kullanici_adi}</td>
+          <td style="padding:8px 12px">${u.ad || '—'}</td>
+          <td style="padding:8px 12px">${rolEt(u.rol)}</td>
+          <td style="padding:8px 12px;color:var(--dim);max-width:240px">${u.rol==='admin' ? 'Tümü' : (u.izinler||[]).map(i=>(KU_MODULLER.find(m=>m[0]===i)||[i,i])[1]).join(', ') || '—'}</td>
+          <td style="padding:8px 12px">${u.aktif ? '🟢 Aktif' : '🔴 Kapalı'}</td>
+          <td style="padding:8px 12px;text-align:right"><button class="btn-link btn-sm" onclick='openKullaniciEkle(${JSON.stringify(u).replace(/'/g,"&#39;")})'>Düzenle</button></td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+function kullaniciRolDegisti() {
+  const admin = document.getElementById('ku-rol').value === 'admin';
+  document.getElementById('ku-izin-wrap').style.display = admin ? 'none' : '';
+}
+
+function openKullaniciEkle(u) {
+  document.getElementById('m-kullanici-title').textContent = u ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı';
+  document.getElementById('ku-id').value = u?.id || '';
+  document.getElementById('ku-kadi').value = u?.kullanici_adi || '';
+  document.getElementById('ku-kadi').disabled = !!u;  // kullanıcı adı değiştirilemez
+  document.getElementById('ku-ad').value = u?.ad || '';
+  document.getElementById('ku-sifre').value = '';
+  document.getElementById('ku-parola-not').textContent = u ? '(boş = değiştirme)' : '';
+  document.getElementById('ku-rol').value = u?.rol || 'kullanici';
+  document.getElementById('ku-aktif').checked = u ? !!u.aktif : true;
+  const izin = new Set(u?.izinler || []);
+  document.getElementById('ku-izinler').innerHTML = KU_MODULLER.map(([k,et]) =>
+    `<label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" class="ku-izin" value="${k}" ${izin.has(k)?'checked':''}> ${et}</label>`).join('');
+  kullaniciRolDegisti();
+  openModal('m-kullanici');
+}
+
+async function saveKullanici() {
+  const id = document.getElementById('ku-id').value;
+  const d = {
+    id: id ? Number(id) : undefined,
+    kullanici_adi: document.getElementById('ku-kadi').value.trim(),
+    ad: document.getElementById('ku-ad').value.trim(),
+    sifre: document.getElementById('ku-sifre').value,
+    rol: document.getElementById('ku-rol').value,
+    aktif: document.getElementById('ku-aktif').checked ? 1 : 0,
+    izinler: [...document.querySelectorAll('.ku-izin:checked')].map(c => c.value),
+  };
+  if (!d.kullanici_adi) { alert('Kullanıcı adı zorunlu.'); return; }
+  if (!id && !d.sifre) { alert('Yeni kullanıcı için parola girin.'); return; }
+  try {
+    await srv('POST', '/api/kullanici', d);
+    closeModal('m-kullanici');
+    loadKullanicilar();
+  } catch (e) { alert('Hata: ' + e.message); }
 }
 
 (async () => {
@@ -7945,6 +8053,7 @@ async function loadAyarlar() {
     document.getElementById('ayar-db-konum').textContent = 'Veritabanı konumu: ' + konum;
     document.getElementById('ayar-firma').value = (await api.invoke('ayar:getir', 'firma_adi')) || '';
     document.getElementById('ayar-sunucu').value = (await api.invoke('ayar:getir', 'sunucu_adresi')) || '';
+    loadKullanicilar();
     const kur = await api.invoke('ayar:getir', 'usd_iqd_kuru');
     document.getElementById('ayar-kur').value = kur || '1310';
     const sifre = await api.invoke('ayar:getir', 'sifre_hash');
