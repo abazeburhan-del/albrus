@@ -1807,6 +1807,19 @@ async function srv(method, yol, govde) {
   return data;
 }
 
+// Sunucu modunda bu kanallar YİNE YERELDE çalışır (Electron'a özel + istemci yapılandırması)
+const YEREL_KANALLAR = new Set(['print:pdf','export:xls','xlsx:onizle','win:focus',
+  'db:konum','db:yedekle','db:geri-yukle','lisans:durum','lisans:aktiflestir','ayar:getir','ayar:kaydet']);
+
+// Birleşik veri erişimi: sunucu modunda HTTP, değilse yerel IPC. api.invoke yerine her yerde bu kullanılır.
+async function inv(channel, ...args) {
+  if (sunucuModu() && !YEREL_KANALLAR.has(channel)) {
+    const r = await srv('POST', '/api/invoke', { channel, args });
+    return r.sonuc;
+  }
+  return window.electronAPI.invoke(channel, ...args);
+}
+
 // ── State ──────────────────────────────────────────
 let S = {
   kasalar: [], bankalar: [], cariler: [], projeler: [],
@@ -1842,7 +1855,7 @@ function fmtTutar(n) {
 async function doldurKategori(selectId, secili) {
   const el = document.getElementById(selectId);
   if (!el) return;
-  const kats = await api.invoke('kategoriler:getir');
+  const kats = await inv('kategoriler:getir');
   const gelir = kats.filter(k => k.tur === 'gelir');
   const gider = kats.filter(k => k.tur === 'gider');
   const opt = k => `<option value="${k.id}" ${secili == k.id ? 'selected' : ''}>${k.ad}</option>`;
@@ -1906,7 +1919,7 @@ function openModal(id) {
   el.classList.add('open');
   // Klavye odağını içeriğe getir (Windows'ta native dialog/PDF sonrası odak kaybına karşı)
   // ve ilk girilebilir alana odaklan — yoksa modal açılır ama kutuya yazılamaz.
-  try { api.invoke('win:focus').catch(() => {}); } catch (_) {}
+  try { inv('win:focus').catch(() => {}); } catch (_) {}
   setTimeout(() => {
     if (!el.classList.contains('open')) return;
     const alanlar = [...el.querySelectorAll('input:not([type=hidden]):not([disabled]):not([readonly]), textarea:not([disabled])')];
@@ -1924,7 +1937,7 @@ document.querySelectorAll('.overlay').forEach(o =>
 // DASHBOARD
 // ══════════════════════════════════════════════════
 async function loadDashboard() {
-  const d = await api.invoke('dashboard:ozet');
+  const d = await inv('dashboard:ozet');
   S.kasalar  = d.kasalar;
   S.bankalar = d.bankalar;
 
@@ -1945,7 +1958,7 @@ async function loadDashboard() {
   `).join('') || '<div style="color:var(--dim);font-size:13px;">Banka hesabı yok</div>';
 
   try {
-    const u = await api.invoke('dashboard:uyarilar');
+    const u = await inv('dashboard:uyarilar');
     const kutular = [];
     if (u.dusukStok.length) {
       kutular.push(`<div class="card" style="border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.06)">
@@ -1968,7 +1981,7 @@ async function loadDashboard() {
   } catch (e) { document.getElementById('dash-uyarilar').innerHTML = ''; }
 
   try {
-    const m = await api.invoke('rapor:mali');
+    const m = await inv('rapor:mali');
     document.getElementById('dash-konsolide').innerHTML = `
       <div class="card" style="background:linear-gradient(135deg,rgba(34,197,94,.10),rgba(34,197,94,.02));border-color:rgba(34,197,94,.25)">
         <div class="card-label">Toplam Nakit Varlık (Kasa + Banka, USD bazında)</div>
@@ -2009,7 +2022,7 @@ async function loadDashboard() {
 // KASA
 // ══════════════════════════════════════════════════
 async function loadKasa() {
-  const kasalar = sunucuModu() ? await srv('GET', '/api/kasalar') : await api.invoke('kasalar:getir');
+  const kasalar = await inv('kasalar:getir');
   S.kasalar = kasalar;
 
   document.getElementById('kasa-cards').innerHTML = kasalar.map(k => `
@@ -2061,9 +2074,7 @@ let _kasaHareketlerList = [];
 
 async function loadKasaHareketler() {
   if (!S.secilenKasa) return;
-  let list = sunucuModu()
-    ? await srv('GET', '/api/kasa/hareketler?kasa_id=' + S.secilenKasa.id)
-    : await api.invoke('kasa:hareketler', S.secilenKasa.id);
+  let list = await inv('kasa:hareketler', S.secilenKasa.id);
 
   const bas = document.getElementById('kf-bas').value;
   const bit = document.getElementById('kf-bit').value;
@@ -2149,7 +2160,7 @@ async function printKasaFis(id) {
     </div>
   `;
   try {
-    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+    await inv('print:pdf', document.getElementById('print-area').innerHTML);
   } catch (e) { alert('PDF hatasi: ' + e.message); }
 }
 
@@ -2160,7 +2171,7 @@ function clearKasaFiltre() {
 }
 
 async function openKasaRapor() {
-  const kasalar = await api.invoke('kasalar:getir');
+  const kasalar = await inv('kasalar:getir');
   document.getElementById('kr-kasa').innerHTML =
     '<option value="">Tüm Kasalar</option>' +
     kasalar.map(k => `<option value="${k.id}">${k.ad} (${k.para_birimi})</option>`).join('');
@@ -2179,7 +2190,7 @@ async function kasaRaporPdf() {
   const CIKIS_TUR = new Set(['odeme', 'nakit-odeme', 'bankaya-yatirilan', 'gider', 'avans-verildi']);
   const isGiris = t => !CIKIS_TUR.has(t);
 
-  const hareketler = await api.invoke('kasa:rapor', { bas, bit, kasa_id });
+  const hareketler = await inv('kasa:rapor', { bas, bit, kasa_id });
   if (!hareketler.length) { alert('Seçili tarih aralığında hareket bulunamadı.'); return; }
 
   const kasaMap = {};
@@ -2245,11 +2256,11 @@ td{padding:4px 6px;border-bottom:1px solid #f0f0f0;font-size:8px}
 <h1>KASA RAPORU</h1>
 <div class="sub">Albrus Company &mdash; Dönem: ${donemText} &mdash; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')}</div>
 ${kasaBolumler}`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 async function openBankaRapor() {
-  const hesaplar = await api.invoke('banka:hesaplar');
+  const hesaplar = await inv('banka:hesaplar');
   document.getElementById('br-hesap').innerHTML =
     '<option value="">Tüm Hesaplar</option>' +
     hesaplar.map(h => `<option value="${h.id}">${h.banka_adi} (${h.para_birimi})</option>`).join('');
@@ -2265,7 +2276,7 @@ async function bankaRaporPdf() {
   const hVal = document.getElementById('br-hesap').value;
   const hesap_id = hVal ? Number(hVal) : null;
   const isGiris = t => t === 'giris';
-  const hareketler = await api.invoke('banka:rapor', { bas, bit, hesap_id });
+  const hareketler = await inv('banka:rapor', { bas, bit, hesap_id });
   if (!hareketler.length) { alert('Seçili tarih aralığında hareket bulunamadı.'); return; }
 
   const map = {};
@@ -2323,14 +2334,14 @@ td{padding:4px 6px;border-bottom:1px solid #f0f0f0;font-size:8px}
 <h1>BANKA RAPORU</h1>
 <div class="sub">Albrus Company &mdash; Dönem: ${donemText} &mdash; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')}</div>
 ${bolumler}`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 // ── Hesaplar Arası Transfer ─────────────────────────────────
 let _transferHesaplar = [];
 async function openTransfer(varsayilanTip) {
-  const kasalar  = (await api.invoke('kasalar:getir')).map(k => ({ tip: 'kasa', id: k.id, ad: k.ad, pb: k.para_birimi, bakiye: k.bakiye }));
-  const bankalar = (await api.invoke('banka:hesaplar')).map(b => ({ tip: 'banka', id: b.id, ad: b.banka_adi, pb: b.para_birimi, bakiye: b.bakiye }));
+  const kasalar  = (await inv('kasalar:getir')).map(k => ({ tip: 'kasa', id: k.id, ad: k.ad, pb: k.para_birimi, bakiye: k.bakiye }));
+  const bankalar = (await inv('banka:hesaplar')).map(b => ({ tip: 'banka', id: b.id, ad: b.banka_adi, pb: b.para_birimi, bakiye: b.bakiye }));
   _transferHesaplar = [...kasalar, ...bankalar];
   const opts = _transferHesaplar.map((h, idx) =>
     `<option value="${idx}">${h.tip === 'kasa' ? 'Kasa' : 'Banka'}: ${h.ad} (${h.pb}) — ${fmtTutar(Math.round(h.bakiye))}</option>`).join('');
@@ -2367,7 +2378,7 @@ async function saveTransfer() {
   if (!kaynak || !hedef) { alert('Kaynak/hedef seçin.'); return; }
   if (!tutar || tutar <= 0) { alert('Tutar sıfırdan büyük olmalıdır.'); return; }
   try {
-    await api.invoke('hesap:transfer', {
+    await inv('hesap:transfer', {
       kaynak_tip: kaynak.tip, kaynak_id: kaynak.id,
       hedef_tip: hedef.tip, hedef_id: hedef.id, tutar, tarih
     });
@@ -2386,16 +2397,16 @@ async function openFis() {
   document.getElementById('f-tarih').value = today();
   document.getElementById('f-tutar').value = '';
   document.getElementById('f-aciklama').value = '';
-  const fisNo = await api.invoke('sonraki:fis:no');
+  const fisNo = await inv('sonraki:fis:no');
   document.getElementById('f-belge').value = fisNo;
   document.getElementById('f-tur').value = 'tahsilat';
   document.getElementById('f-banka-wrap').style.display = 'none';
 
   const [cariler, projeler, bankalar, ortaklar] = await Promise.all([
-    api.invoke('cariler:getir'),
-    api.invoke('projeler:getir'),
-    api.invoke('banka:hesaplar'),
-    api.invoke('ortaklar:getir')
+    inv('cariler:getir'),
+    inv('projeler:getir'),
+    inv('banka:hesaplar'),
+    inv('ortaklar:getir')
   ]);
   S.cariler  = cariler;
   S.projeler = projeler;
@@ -2446,8 +2457,7 @@ async function saveFis() {
   };
   if (!data.tarih || !data.tutar) { alert('Tarih ve tutar zorunludur.'); return; }
   try {
-    if (sunucuModu()) await srv('POST', '/api/kasa/fis', data);
-    else await api.invoke('kasa:fis:ekle', data);
+    await inv('kasa:fis:ekle', data);
     closeModal('m-fis');
     loadKasa();
   } catch (e) {
@@ -2458,7 +2468,7 @@ async function saveFis() {
 async function delFis(id) {
   if (!confirm('Bu fişi silmek istediğinizden emin misiniz?')) return;
   try {
-    await api.invoke('kasa:fis:sil', id);
+    await inv('kasa:fis:sil', id);
     loadKasa();
   } catch (e) { alert('Silinemedi: ' + e.message); }
 }
@@ -2483,8 +2493,8 @@ async function saveKasa() {
     bakiye: parseFloat(document.getElementById('ka-bakiye').value) || 0
   };
   if (!d.ad) { alert('Kasa adı zorunludur.'); return; }
-  if (_kasaDuzenleId) await api.invoke('kasalar:guncelle', d);
-  else                await api.invoke('kasalar:ekle', d);
+  if (_kasaDuzenleId) await inv('kasalar:guncelle', d);
+  else                await inv('kasalar:ekle', d);
   closeModal('m-kasa-ekle');
   _kasaDuzenleId = null;
   loadKasa();
@@ -2493,7 +2503,7 @@ async function saveKasa() {
 async function delKasa(id) {
   if (!confirm('Bu kasa silinsin mi? (Hareketi olan kasa silinemez)')) return;
   try {
-    await api.invoke('kasalar:sil', id);
+    await inv('kasalar:sil', id);
     if (S.secilenKasa?.id === id) { S.secilenKasa = null; document.getElementById('btn-yeni-fis').disabled = true; document.getElementById('btn-personel-ode').disabled = true; }
     loadKasa();
   } catch (e) { alert(e.message); }
@@ -2503,7 +2513,7 @@ async function delKasa(id) {
 // BANKA
 // ══════════════════════════════════════════════════
 async function loadBanka() {
-  const bankalar = await api.invoke('banka:hesaplar');
+  const bankalar = await inv('banka:hesaplar');
   S.bankalar = bankalar;
 
   document.getElementById('banka-cards').innerHTML = bankalar.map(b => `
@@ -2558,7 +2568,7 @@ let _bankaHareketlerList = [];
 
 async function loadBankaHareketler() {
   if (!S.secilenBanka) return;
-  let list = await api.invoke('banka:hareketler', S.secilenBanka.id);
+  let list = await inv('banka:hareketler', S.secilenBanka.id);
 
   const bas = document.getElementById('bf-bas').value;
   const bit = document.getElementById('bf-bit').value;
@@ -2608,15 +2618,15 @@ async function openBankaFis() {
   document.getElementById('bf-tarih').value = today();
   document.getElementById('bf-tutar').value = '';
   document.getElementById('bf-aciklama').value = '';
-  const bfNo = await api.invoke('sonraki:fis:no');
+  const bfNo = await inv('sonraki:fis:no');
   document.getElementById('bf-belge').value = bfNo;
   document.getElementById('bf-tur').value = 'gelen-havale';
   document.getElementById('bf-komisyon').value = '';
   onBankaFisTurChange(document.getElementById('bf-tur'));
 
   const [cariler, ortaklar] = await Promise.all([
-    api.invoke('cariler:getir'),
-    api.invoke('ortaklar:getir')
+    inv('cariler:getir'),
+    inv('ortaklar:getir')
   ]);
   document.getElementById('bf-cari').innerHTML =
     '<option value="">— Seçiniz —</option>' +
@@ -2657,9 +2667,9 @@ async function saveBankaFis() {
   if (!data.tarih || !data.tutar) { alert('Tarih ve tutar zorunludur.'); return; }
   const komisyon = parseTutar('bf-komisyon');
   try {
-    await api.invoke('banka:fis:ekle', data);
+    await inv('banka:fis:ekle', data);
     if (komisyon > 0 && data.tur === 'gelen-havale') {
-      await api.invoke('banka:fis:ekle', {
+      await inv('banka:fis:ekle', {
         hesap_id: S.secilenBanka.id,
         tarih:    data.tarih,
         tur:      'banka-komisyon',
@@ -2681,7 +2691,7 @@ async function printBankaEkstre() {
   const b = S.secilenBanka;
   const bas = document.getElementById('bf-bas').value;
   const bit = document.getElementById('bf-bit').value;
-  let list = await api.invoke('banka:hareketler', b.id);
+  let list = await inv('banka:hareketler', b.id);
   if (bas) list = list.filter(h => h.tarih >= bas);
   if (bit) list = list.filter(h => h.tarih <= bit);
 
@@ -2748,7 +2758,7 @@ async function printBankaEkstre() {
     </div>
   `;
   try {
-    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+    await inv('print:pdf', document.getElementById('print-area').innerHTML);
   } catch (e) { alert('PDF hatası: ' + e.message); }
 }
 
@@ -2788,14 +2798,14 @@ async function printHavaleFis(id) {
     </div>
   `;
   try {
-    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+    await inv('print:pdf', document.getElementById('print-area').innerHTML);
   } catch (e) { alert('PDF hatası: ' + e.message); }
 }
 
 async function delBankaFis(id) {
   if (!confirm('Bu fişi silmek istediğinizden emin misiniz?')) return;
   try {
-    await api.invoke('banka:fis:sil', id);
+    await inv('banka:fis:sil', id);
     loadBanka();
   } catch (e) { alert('Silinemedi: ' + e.message); }
 }
@@ -2847,10 +2857,10 @@ async function saveBankaHesap() {
 
   try {
     if (id) {
-      await api.invoke('banka:hesap:guncelle', { ...d, id: Number(id) });
+      await inv('banka:hesap:guncelle', { ...d, id: Number(id) });
     } else {
       d.bakiye = parseTutar('ba-bakiye');
-      await api.invoke('banka:hesap:ekle', d);
+      await inv('banka:hesap:ekle', d);
     }
     closeModal('m-banka-ekle');
     loadBanka();
@@ -2860,7 +2870,7 @@ async function saveBankaHesap() {
 async function delBankaHesap(id) {
   if (!confirm('Bu hesabı silmek istediğinizden emin misiniz?')) return;
   try {
-    await api.invoke('banka:hesap:sil', id);
+    await inv('banka:hesap:sil', id);
     if (S.secilenBanka?.id === id) {
       S.secilenBanka = null;
       document.getElementById('banka-hareket-wrap').style.display = 'none';
@@ -2880,7 +2890,7 @@ async function cariRaporPdf() {
   const rTur    = document.getElementById('cr-tur').value;
   const cariTur = document.getElementById('cr-cari-tur').value;
 
-  let liste = await api.invoke('cariler:getir', cariTur ? { tur: cariTur } : null);
+  let liste = await inv('cariler:getir', cariTur ? { tur: cariTur } : null);
 
   if (rTur === 'borclu')    liste = liste.filter(c => c.bakiye_IQD > 0 || c.bakiye_USD > 0);
   if (rTur === 'alacakli')  liste = liste.filter(c => c.bakiye_IQD < 0 || c.bakiye_USD < 0);
@@ -2945,12 +2955,12 @@ td{padding:5px 8px;border-bottom:1px solid #efefef}
 </table>`;
 
   closeModal('m-cari-rapor');
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 async function loadCariler() {
   const tur = document.getElementById('cf-tur').value;
-  const list = await api.invoke('cariler:getir', tur ? { tur } : null);
+  const list = await inv('cariler:getir', tur ? { tur } : null);
   S.cariler = list;
   const el = document.getElementById('cariler-wrap');
   if (!list.length) { el.innerHTML = '<div class="empty">Cari bulunamadı</div>'; return; }
@@ -2983,7 +2993,7 @@ async function loadCariler() {
 let _cariEkstreData = null;
 async function openEkstre(cari_id) {
   const cari = S.cariler.find(c => c.id === cari_id);
-  const liste = await api.invoke('cari:ekstre', cari_id);
+  const liste = await inv('cari:ekstre', cari_id);
   _cariEkstreData = { cari, liste };
 
   document.getElementById('ekstre-title').textContent = `${cari.ad} — Ekstre`;
@@ -3037,11 +3047,11 @@ async function onCariTahsilatChange() {
   const tur = document.getElementById('ct-odeme-turu').value;
   const wrap = document.getElementById('ct-kaynak-wrap');
   if (tur === 'banka') {
-    const bankalar = (await api.invoke('banka:hesaplar')).filter(b => b.para_birimi === pb);
+    const bankalar = (await inv('banka:hesaplar')).filter(b => b.para_birimi === pb);
     wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px">Banka Hesabı (${pb})</label>
       <select id="ct-kaynak-id" style="width:100%">${bankalar.map(b => `<option value="${b.id}">${b.banka_adi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))}</option>`).join('') || '<option value="">— Bu para biriminde hesap yok —</option>'}</select>`;
   } else {
-    const kasalar = (await api.invoke('kasalar:getir')).filter(k => k.para_birimi === pb);
+    const kasalar = (await inv('kasalar:getir')).filter(k => k.para_birimi === pb);
     wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px">Kasa (${pb})</label>
       <select id="ct-kaynak-id" style="width:100%">${kasalar.map(k => `<option value="${k.id}">${k.ad} — Bakiye: ${fmtTutar(Math.round(k.bakiye))}</option>`).join('') || '<option value="">— Bu para biriminde kasa yok —</option>'}</select>`;
   }
@@ -3062,9 +3072,9 @@ async function saveCariTahsilat() {
   const payload = { tarih, tutar, cari_id, aciklama: document.getElementById('ct-aciklama').value.trim() };
   try {
     if (odeme_turu === 'banka') {
-      await api.invoke('banka:fis:ekle', { ...payload, hesap_id: kaynak_id, tur: islem === 'tahsilat' ? 'giris' : 'cikis' });
+      await inv('banka:fis:ekle', { ...payload, hesap_id: kaynak_id, tur: islem === 'tahsilat' ? 'giris' : 'cikis' });
     } else {
-      await api.invoke('kasa:fis:ekle', { ...payload, kasa_id: kaynak_id, tur });
+      await inv('kasa:fis:ekle', { ...payload, kasa_id: kaynak_id, tur });
     }
     closeModal('m-cari-tahsilat');
     loadCariler();
@@ -3107,7 +3117,7 @@ async function cariEkstrePdf() {
         ${cari.bakiye_IQD===0 && cari.bakiye_USD===0 ? '<tr><td style="padding:5px 8px;color:#888" colspan="2">Bakiye sıfır</td></tr>' : ''}
       </table>
     </div>`;
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 function openCariEkle(cari = null) {
@@ -3143,8 +3153,8 @@ async function saveCari() {
     d.acilis_yon = document.getElementById('c-acilis-yon').value;
   }
   try {
-    if (id) await api.invoke('cariler:guncelle', { ...d, id: Number(id) });
-    else    await api.invoke('cariler:ekle', d);
+    if (id) await inv('cariler:guncelle', { ...d, id: Number(id) });
+    else    await inv('cariler:ekle', d);
     closeModal('m-cari-ekle');
     loadCariler();
   } catch (e) { alert('Hata: ' + e.message); }
@@ -3153,7 +3163,7 @@ async function saveCari() {
 async function delCari(id) {
   if (!confirm('Bu cari silinsin mi? (Hareketi olan cari silinemez)')) return;
   try {
-    await api.invoke('cariler:sil', id);
+    await inv('cariler:sil', id);
     loadCariler();
   } catch (e) { alert(e.message); }
 }
@@ -3162,7 +3172,7 @@ async function delCari(id) {
 // PROJELER
 // ══════════════════════════════════════════════════
 async function projelerRaporPdf() {
-  const list = await api.invoke('projeler:getir');
+  const list = await inv('projeler:getir');
   if (!list.length) { alert('Proje yok.'); return; }
   const DURUM_RENK = { aktif: '#059669', tamamlandi: '#2563eb', beklemede: '#d97706', iptal: '#dc2626' };
   const satirlar = list.map((p, i) => `
@@ -3188,7 +3198,7 @@ td{padding:5px 8px;border-bottom:1px solid #f0f0f0}
   <thead><tr><th>Proje Adı</th><th>Durum</th><th>Başlangıç</th><th>Bitiş</th><th>Açıklama</th></tr></thead>
   <tbody>${satirlar}</tbody>
 </table>`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 function karZararHucre(map) {
@@ -3202,7 +3212,7 @@ function karZararHucre(map) {
 }
 
 async function loadProjeler() {
-  const list = await api.invoke('proje:ozet');
+  const list = await inv('proje:ozet');
   S.projeler = list;
   const el = document.getElementById('projeler-wrap');
   if (!list.length) { el.innerHTML = '<div class="empty">Proje yok</div>'; return; }
@@ -3262,8 +3272,8 @@ async function saveProje() {
     durum:     document.getElementById('p-durum').value
   };
   if (!d.ad) { alert('Proje adı zorunludur.'); return; }
-  if (id) await api.invoke('projeler:guncelle', Number(id), d);
-  else    await api.invoke('projeler:ekle', d);
+  if (id) await inv('projeler:guncelle', Number(id), d);
+  else    await inv('projeler:ekle', d);
   closeModal('m-proje-ekle');
   loadProjeler();
 }
@@ -3271,7 +3281,7 @@ async function saveProje() {
 async function delProje(id) {
   if (!confirm('Bu projeyi silmek istediğinizden emin misiniz?')) return;
   try {
-    await api.invoke('projeler:sil', id);
+    await inv('projeler:sil', id);
     loadProjeler();
   } catch (e) { alert(e.message); }
 }
@@ -3281,7 +3291,7 @@ async function openProjeDetay(id) {
   const p = (S.projeler || []).find(x => x.id === id);
   if (!p) return;
   _projeDetayAktif = p;
-  const har = await api.invoke('proje:hareketler', id);
+  const har = await inv('proje:hareketler', id);
   document.getElementById('m-proje-detay-title').textContent = 'Proje: ' + p.ad;
   const ozet = `
     <div class="card-grid" style="margin-bottom:14px">
@@ -3312,7 +3322,7 @@ async function openProjeDetay(id) {
 async function projeDetayPdf() {
   const p = _projeDetayAktif;
   if (!p) return;
-  const har = await api.invoke('proje:hareketler', p.id);
+  const har = await inv('proje:hareketler', p.id);
   const bugun = fmtDate(today());
   const rows = har.length ? har.map(h => {
     const giris = ['giris','tahsilat','bankadan-cekilen','gelen-havale'].includes(h.tur);
@@ -3346,7 +3356,7 @@ async function projeDetayPdf() {
         </tr></thead><tbody>${rows}</tbody>
       </table>
     </div>`;
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 // ══════════════════════════════════════════════════
@@ -3361,7 +3371,7 @@ async function loadFaturalar() {
   if (tur) f0.tur = tur;
   if (bas && bas.length === 10) f0.bas = bas;
   if (bit && bit.length === 10) f0.bit = bit;
-  const list = await api.invoke('faturalar:getir', Object.keys(f0).length ? f0 : null);
+  const list = await inv('faturalar:getir', Object.keys(f0).length ? f0 : null);
   const el = document.getElementById('faturalar-wrap');
   if (!list.length) { el.innerHTML = '<div class="empty">Kayıt bulunamadı</div>'; return; }
   const bugun = new Date(); bugun.setHours(0,0,0,0);
@@ -3415,14 +3425,14 @@ async function loadFaturalar() {
 async function teklifDonustur(id) {
   if (!confirm('Bu teklifi faturaya dönüştürmek istiyor musunuz?\nStok ve cari hareketleri oluşturulacak.')) return;
   try {
-    await api.invoke('fatura:teklif:donustur', id, 'fatura');
+    await inv('fatura:teklif:donustur', id, 'fatura');
     loadFaturalar();
   } catch (e) { alert(e.message); }
 }
 
 let _faturaTahsilatF = null;
 async function openFaturaTahsilat(id) {
-  const f = await api.invoke('fatura:getir', id);
+  const f = await inv('fatura:getir', id);
   if (!f) return;
   _faturaTahsilatF = f;
   const grand = Math.max(0, f.toplam - (f.indirim || 0));
@@ -3446,11 +3456,11 @@ async function onFaturaTahsilatChange() {
   const tur = document.getElementById('ftt-odeme-turu').value;
   const wrap = document.getElementById('ftt-kaynak-wrap');
   if (tur === 'banka') {
-    const list = (await api.invoke('banka:hesaplar')).filter(b => b.para_birimi === pb);
+    const list = (await inv('banka:hesaplar')).filter(b => b.para_birimi === pb);
     wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px">Banka Hesabı (${pb})</label>
       <select id="ftt-kaynak-id" style="width:100%">${list.map(b => `<option value="${b.id}">${b.banka_adi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))}</option>`).join('') || '<option value="">— Bu para biriminde hesap yok —</option>'}</select>`;
   } else {
-    const list = (await api.invoke('kasalar:getir')).filter(k => k.para_birimi === pb);
+    const list = (await inv('kasalar:getir')).filter(k => k.para_birimi === pb);
     wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);margin-bottom:5px">Kasa (${pb})</label>
       <select id="ftt-kaynak-id" style="width:100%">${list.map(k => `<option value="${k.id}">${k.ad} — Bakiye: ${fmtTutar(Math.round(k.bakiye))}</option>`).join('') || '<option value="">— Bu para biriminde kasa yok —</option>'}</select>`;
   }
@@ -3466,7 +3476,7 @@ async function saveFaturaTahsilat() {
   if (!tarih || tarih.length < 10) { alert('Tarih zorunludur.'); return; }
   if (!kaynak_id) { alert('Kasa/Banka seçin.'); return; }
   try {
-    await api.invoke('fatura:tahsilat', { fatura_id, tutar, tarih, odeme_turu, kaynak_id });
+    await inv('fatura:tahsilat', { fatura_id, tutar, tarih, odeme_turu, kaynak_id });
     closeModal('m-fatura-tahsilat');
     loadFaturalar();
   } catch (e) { alert(e.message); }
@@ -3644,15 +3654,15 @@ async function openFaturaEkle(tur, belge_turu = 'fatura') {
   document.getElementById('ft-indirim').value = '';
   faturaParaBirimiSec('IQD');
 
-  _stoklar = await api.invoke('stoklar:getir');
+  _stoklar = await inv('stoklar:getir');
 
-  const ftNo = await api.invoke('sonraki:fatura:no', tur);
+  const ftNo = await inv('sonraki:fatura:no', tur);
   document.getElementById('ft-no').value = ftNo;
 
   _faturaKalemler = [{ aciklama: '', marka: '', miktar: 1, birim: 'Pcs', birim_fiyat: 0, stok_id: null }];
   renderFaturaKalemler();
 
-  const cariler = await api.invoke('cariler:getir');
+  const cariler = await inv('cariler:getir');
   document.getElementById('ft-cari').innerHTML =
     '<option value="">— Seçiniz —</option>' +
     cariler.map(c => `<option value="${c.id}">${c.ad}</option>`).join('');
@@ -3663,10 +3673,10 @@ async function openFaturaEkle(tur, belge_turu = 'fatura') {
 }
 
 async function openFaturaDuzenle(id) {
-  const f = await api.invoke('fatura:getir', id);
+  const f = await inv('fatura:getir', id);
   if (!f) return;
   _faturaEditId = id;
-  _stoklar = await api.invoke('stoklar:getir');
+  _stoklar = await inv('stoklar:getir');
 
   document.getElementById('ft-tur').value = f.tur;
   document.getElementById('m-fatura-title').textContent = f.tur === 'satis' ? 'Satış Faturası — Düzenle' : 'Alış Faturası — Düzenle';
@@ -3678,7 +3688,7 @@ async function openFaturaDuzenle(id) {
   document.getElementById('ft-indirim').value = f.indirim ? fmtTutar(f.indirim) : '';
   faturaParaBirimiSec(f.para_birimi);
 
-  const cariler = await api.invoke('cariler:getir');
+  const cariler = await inv('cariler:getir');
   document.getElementById('ft-cari').innerHTML =
     '<option value="">— Seçiniz —</option>' +
     cariler.map(c => `<option value="${c.id}" ${c.id === f.cari_id ? 'selected' : ''}>${c.ad}</option>`).join('');
@@ -3715,9 +3725,9 @@ async function saveFatura() {
   if (!data.tarih) { alert('Tarih zorunludur.'); return; }
   try {
     if (_faturaEditId) {
-      await api.invoke('fatura:guncelle', _faturaEditId, data);
+      await inv('fatura:guncelle', _faturaEditId, data);
     } else {
-      await api.invoke('fatura:ekle', data);
+      await inv('fatura:ekle', data);
     }
     closeModal('m-fatura');
     loadFaturalar();
@@ -3726,7 +3736,7 @@ async function saveFatura() {
 
 async function faturaListeRaporPdf() {
   const tur = document.getElementById('ft-filtre-tur').value;
-  const list = await api.invoke('faturalar:getir', tur ? { tur } : null);
+  const list = await inv('faturalar:getir', tur ? { tur } : null);
   if (!list.length) { alert('Gösterilecek fatura yok.'); return; }
   let topSatis = {}, topAlis = {};
   const satirlar = list.map((f, i) => {
@@ -3766,13 +3776,13 @@ td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
     ${Object.entries(topAlis).map(([pb,t])=>`<tr class="tfoot"><td colspan="5">Toplam Alış (${pb})</td><td style="text-align:right;color:#dc2626" colspan="2">${fmtTutar(t)} ${pb}</td></tr>`).join('')}
   </tfoot>
 </table>`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 async function faturalandir(id) {
   if (!confirm('Bu irsaliyeyi faturaya çevirmek istiyor musunuz?\nCari hesabına borç/alacak kaydı oluşturulacak.')) return;
   try {
-    await api.invoke('fatura:faturalandir', id);
+    await inv('fatura:faturalandir', id);
     loadFaturalar();
   } catch (e) { alert('Hata: ' + e.message); }
 }
@@ -3780,7 +3790,7 @@ async function faturalandir(id) {
 async function delFatura(id) {
   if (!confirm('Bu faturayı silmek istediğinizden emin misiniz?')) return;
   try {
-    await api.invoke('fatura:sil', id);
+    await inv('fatura:sil', id);
     loadFaturalar();
   } catch (e) { alert('Silinemedi: ' + e.message); }
 }
@@ -3802,7 +3812,7 @@ function numToWords(n) {
 }
 
 async function printFatura(id) {
-  const f = await api.invoke('fatura:getir', id);
+  const f = await inv('fatura:getir', id);
   if (!f) return;
   if (f.tur === 'alis') { printFaturaAlis(f); return; }
   const pb = f.para_birimi;
@@ -3943,12 +3953,12 @@ async function printFatura(id) {
     </div>
   `;
   try {
-    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+    await inv('print:pdf', document.getElementById('print-area').innerHTML);
   } catch (e) { alert('PDF hatası: ' + e.message); }
 }
 
 async function printIrsaliye(id) {
-  const f = await api.invoke('fatura:getir', id);
+  const f = await inv('fatura:getir', id);
   if (!f) return;
   const pb = f.para_birimi;
   const isSatis = f.tur === 'satis';
@@ -4060,7 +4070,7 @@ async function printIrsaliye(id) {
     </div>
   `;
   try {
-    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+    await inv('print:pdf', document.getElementById('print-area').innerHTML);
   } catch (e) { alert('PDF hatası: ' + e.message); }
 }
 
@@ -4155,7 +4165,7 @@ async function printFaturaAlis(f) {
     </div>
   `;
   try {
-    await api.invoke('print:pdf', document.getElementById('print-area').innerHTML);
+    await inv('print:pdf', document.getElementById('print-area').innerHTML);
   } catch (e) { alert('PDF hatası: ' + e.message); }
 }
 
@@ -4180,7 +4190,7 @@ function sifreHash(s) {
   return 'h' + h.toString(16);
 }
 async function lockCheck() {
-  const stored = await api.invoke('ayar:getir', 'sifre_hash');
+  const stored = await inv('ayar:getir', 'sifre_hash');
   const val = document.getElementById('lock-input').value;
   if (sifreHash(val) === stored) {
     document.getElementById('lock-screen').style.display = 'none';
@@ -4194,7 +4204,7 @@ async function lockCheck() {
 async function firmaSetupKaydet() {
   const ad = (document.getElementById('fs-ad').value || '').trim();
   if (!ad) { document.getElementById('fs-ad').focus(); return; }
-  await api.invoke('ayar:kaydet', 'firma_adi', ad);
+  await inv('ayar:kaydet', 'firma_adi', ad);
   FIRMA = ad;
   closeModal('m-firma-setup');
   loadDashboard();
@@ -4202,7 +4212,7 @@ async function firmaSetupKaydet() {
 
 async function lisansAktiflestir() {
   const key = document.getElementById('lisans-input').value;
-  const r = await api.invoke('lisans:aktiflestir', key);
+  const r = await inv('lisans:aktiflestir', key);
   if (r.ok) {
     document.getElementById('lisans-screen').style.display = 'none';
     await uygulamaBaslat();
@@ -4214,8 +4224,8 @@ async function lisansAktiflestir() {
 // Lisans geçtikten sonra çalışan normal açılış (sunucu modu VEYA çevrimdışı)
 async function uygulamaBaslat() {
   try {
-    FIRMA = (await api.invoke('ayar:getir', 'firma_adi')) || 'ALBRUS COMPANY';
-    SUNUCU = (await api.invoke('ayar:getir', 'sunucu_adresi')) || '';
+    FIRMA = (await inv('ayar:getir', 'firma_adi')) || 'ALBRUS COMPANY';
+    SUNUCU = (await inv('ayar:getir', 'sunucu_adresi')) || '';
 
     if (sunucuModu()) {
       // Sunucu modu: yerel şifre kilidi yerine sunucu girişi
@@ -4227,12 +4237,12 @@ async function uygulamaBaslat() {
 
     // Çevrimdışı mod (eskisi gibi)
     menuYetkiSifirla();
-    const stored = await api.invoke('ayar:getir', 'sifre_hash');
+    const stored = await inv('ayar:getir', 'sifre_hash');
     if (stored) {
       document.getElementById('lock-screen').style.display = 'flex';
       setTimeout(() => document.getElementById('lock-input').focus(), 100);
     }
-    const fa = await api.invoke('ayar:getir', 'firma_adi');
+    const fa = await inv('ayar:getir', 'firma_adi');
     if (!fa) setTimeout(() => { openModal('m-firma-setup'); setTimeout(()=>document.getElementById('fs-ad')?.focus(), 60); }, 300);
   } catch (_) {}
 }
@@ -4269,7 +4279,7 @@ function menuYetkiSifirla() {
 
 async function sunucuAdresiKaydet() {
   const adr = (document.getElementById('ayar-sunucu').value || '').trim().replace(/\/$/, '');
-  await api.invoke('ayar:kaydet', 'sunucu_adresi', adr);
+  await inv('ayar:kaydet', 'sunucu_adresi', adr);
   const durum = document.getElementById('ayar-sunucu-durum');
   if (!adr) { durum.textContent = 'Çevrimdışı moda geçildi. Uygulamayı yeniden başlatın.'; SUNUCU = ''; return; }
   durum.textContent = 'Sunucuya bağlanılıyor...';
@@ -4354,7 +4364,7 @@ async function saveKullanici() {
 
 (async () => {
   try {
-    const lis = await api.invoke('lisans:durum');
+    const lis = await inv('lisans:durum');
     if (!lis.aktif) {
       document.getElementById('lisans-makine').textContent = lis.makineKimligi;
       document.getElementById('lisans-screen').style.display = 'flex';
@@ -4374,11 +4384,11 @@ loadDashboard();
 let _stoklar = [];
 
 async function loadStok() {
-  _stoklar = await api.invoke('stoklar:getir');
+  _stoklar = await inv('stoklar:getir');
   const ozetEl = document.getElementById('stok-deger-ozet');
   if (ozetEl) {
     try {
-      const ozet = await api.invoke('stok:deger');
+      const ozet = await inv('stok:deger');
       const cards = Object.entries(ozet).map(([pb, v]) => `
         <div class="card">
           <div class="card-label">Stok Değeri (${pb}) — ${v.kalem} kalem</div>
@@ -4459,7 +4469,7 @@ async function saveStokHareket() {
   };
   if (!d.miktar || d.miktar <= 0) { alert('Miktar sıfırdan büyük olmalıdır.'); return; }
   try {
-    await api.invoke('stok:hareket:ekle', d);
+    await inv('stok:hareket:ekle', d);
     closeModal('m-stok-hareket');
     loadStok();
   } catch (e) { alert(e.message); }
@@ -4468,14 +4478,14 @@ async function saveStokHareket() {
 async function stokHareketSil(id, stokId) {
   if (!confirm('Bu manuel stok hareketini silmek istiyor musunuz?\nStok miktarı geri alınır.')) return;
   try {
-    await api.invoke('stok:hareket:sil', id);
+    await inv('stok:hareket:sil', id);
     await loadStok();
     openStokHareketler(stokId);
   } catch (e) { alert(e.message); }
 }
 
 async function stoklarRaporPdf() {
-  const liste = _stoklar && _stoklar.length ? _stoklar : await api.invoke('stoklar:getir');
+  const liste = _stoklar && _stoklar.length ? _stoklar : await inv('stoklar:getir');
   if (!liste.length) { alert('Stok kaydı yok.'); return; }
   const bugun = fmtDate(today());
   const degerTop = {};
@@ -4515,7 +4525,7 @@ async function stoklarRaporPdf() {
       ${degerSatir ? `<div style="margin-top:10px;font-size:13px;text-align:right">${degerSatir}</div>` : ''}
       <div style="margin-top:8px;font-size:11px;color:#dc2626">Kırmızı = kritik seviyede (min. altında veya eşit) stok</div>
     </div>`;
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 let _stokHarData = null;
@@ -4524,7 +4534,7 @@ async function openStokHareketler(id) {
   const s = _stoklar.find(x => x.id === id);
   if (!s) return;
   document.getElementById('m-stok-har-title').textContent = `${s.ad} — Stok Hareketleri`;
-  const liste = await api.invoke('stok:hareketler', id);
+  const liste = await inv('stok:hareketler', id);
   _stokHarData = { stok: s, liste };
   const el = document.getElementById('stok-har-icerik');
   if (!liste.length) {
@@ -4626,7 +4636,7 @@ td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
     </tr>
   </tfoot>
 </table>`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 function openStokEkle() {
@@ -4684,9 +4694,9 @@ async function saveStok() {
   };
   const editId = document.getElementById('stok-edit-id').value;
   if (editId) {
-    await api.invoke('stoklar:guncelle', Number(editId), d);
+    await inv('stoklar:guncelle', Number(editId), d);
   } else {
-    await api.invoke('stoklar:ekle', d);
+    await inv('stoklar:ekle', d);
   }
   closeModal('m-stok');
   loadStok();
@@ -4694,7 +4704,7 @@ async function saveStok() {
 
 async function stokSil(id) {
   if (!confirm('Bu stok tanımını silmek istediğinizden emin misiniz?')) return;
-  await api.invoke('stoklar:sil', id);
+  await inv('stoklar:sil', id);
   loadStok();
 }
 
@@ -4705,7 +4715,7 @@ let _personeller = [];
 let _secilenPersonel = null;
 
 async function loadPersonel() {
-  _personeller = await api.invoke('personeller:getir');
+  _personeller = await inv('personeller:getir');
   renderPersonelCards();
   if (_secilenPersonel) {
     const g = _personeller.find(p => p.id === _secilenPersonel.id);
@@ -4760,7 +4770,7 @@ async function loadMaasOdemeleri() {
   const donemVal = document.getElementById('po-donem')?.value;
   if (donemVal) filter.donem = donemVal;
 
-  const list = await api.invoke('maas:odemeleri:getir', filter);
+  const list = await inv('maas:odemeleri:getir', filter);
   const tablo = document.getElementById('maas-odeme-tablo');
   const baslik = _secilenPersonel
     ? `${_secilenPersonel.ad}${_secilenPersonel.soyad ? ' ' + _secilenPersonel.soyad : ''} — Maaş Ödemeleri`
@@ -4809,7 +4819,7 @@ async function maasOdemeRaporPdf() {
   if (_secilenPersonel) filter.personel_id = _secilenPersonel.id;
   const donemVal = document.getElementById('po-donem')?.value;
   if (donemVal) filter.donem = donemVal;
-  const list = await api.invoke('maas:odemeleri:getir', filter);
+  const list = await inv('maas:odemeleri:getir', filter);
   if (!list.length) { alert('Gösterilecek ödeme yok.'); return; }
 
   let topIQD = 0, topUSD = 0;
@@ -4858,7 +4868,7 @@ td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
     <td colspan="2" style="text-align:right;color:#059669">${topUSD>0?fmtTutar(Math.round(topUSD))+' USD':''}</td>
   </tr></tfoot>
 </table>`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 function clearPersonelFiltre() {
@@ -4911,8 +4921,8 @@ async function savePersonel() {
     para_birimi: document.getElementById('personel-para').value,
   };
   const editId = document.getElementById('personel-edit-id').value;
-  if (editId) { await api.invoke('personeller:guncelle', Number(editId), d); }
-  else        { await api.invoke('personeller:ekle', d); }
+  if (editId) { await inv('personeller:guncelle', Number(editId), d); }
+  else        { await inv('personeller:ekle', d); }
   closeModal('m-personel');
   loadPersonel();
 }
@@ -4920,7 +4930,7 @@ async function savePersonel() {
 async function personelSil(id) {
   if (!confirm('Bu personeli silmek istediğinizden emin misiniz?')) return;
   try {
-    await api.invoke('personeller:sil', id);
+    await inv('personeller:sil', id);
     if (_secilenPersonel?.id === id) {
       _secilenPersonel = null;
       document.getElementById('personel-odeme-wrap').style.display = 'none';
@@ -4934,9 +4944,9 @@ let _topluOdeData = null;
 
 async function openTopluMaasOde() {
   const [liste, kasalar, bankalar] = await Promise.all([
-    api.invoke('personeller:getir'),
-    api.invoke('kasalar:getir'),
-    api.invoke('banka:hesaplar'),
+    inv('personeller:getir'),
+    inv('kasalar:getir'),
+    inv('banka:hesaplar'),
   ]);
   const aktifler = liste.filter(p => p.durum === 'aktif' && p.net_alacak > 0);
   if (aktifler.length === 0) { alert('Ödeme yapılacak personel bulunamadı (alacakları sıfır).'); return; }
@@ -5000,7 +5010,7 @@ async function saveTopluMaasOde() {
     if (!kaynakVal) { hatalar.push(`${p.ad}: kaynak seçilmedi`); continue; }
     const [odeme_turu, kaynak_id] = kaynakVal.split(':');
     try {
-      await api.invoke('maas:odeme:ekle', {
+      await inv('maas:odeme:ekle', {
         personel_id: p.id, donem, tarih,
         brut: Math.round(p.net_alacak), kesinti: 0,
         net: Math.round(p.net_alacak),
@@ -5037,7 +5047,7 @@ async function openMaasOde() {
   document.getElementById('maas-aciklama').value = '';
   // Açık avans/borç varsa bilgi olarak göster (avans mahsubunu kolaylaştırmak için)
   try {
-    const eks = await api.invoke('personel:ekstre', p.id);
+    const eks = await inv('personel:ekstre', p.id);
     const acikBorc = (eks.borc || 0) - (eks.alacak || 0);
     if (acikBorc > 0) {
       document.getElementById('m-maas-personel-bilgi').innerHTML +=
@@ -5062,14 +5072,14 @@ async function onMaasOdemeTuruChange() {
   const tur = document.getElementById('maas-odeme-turu').value;
   const wrap = document.getElementById('maas-kaynak-wrap');
   if (tur === 'banka') {
-    const bankalar = await api.invoke('banka:hesaplar');
+    const bankalar = await inv('banka:hesaplar');
     wrap.innerHTML = `
       <label style="display:block;font-size:12px;color:var(--dim);font-weight:500;margin-bottom:5px">Banka Hesabı</label>
       <select id="maas-kaynak-id" style="width:100%">
         ${bankalar.map(b => `<option value="${b.id}">${b.banka_adi} (${b.para_birimi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))})</option>`).join('')}
       </select>`;
   } else {
-    const kasalar = await api.invoke('kasalar:getir');
+    const kasalar = await inv('kasalar:getir');
     wrap.innerHTML = `
       <label style="display:block;font-size:12px;color:var(--dim);font-weight:500;margin-bottom:5px">Kasa</label>
       <select id="maas-kaynak-id" style="width:100%">
@@ -5099,7 +5109,7 @@ async function saveMaasOdeme() {
     aciklama:    document.getElementById('maas-aciklama').value.trim(),
   };
   try {
-    await api.invoke('maas:odeme:ekle', d);
+    await inv('maas:odeme:ekle', d);
     closeModal('m-maas-ode');
     loadPersonel();
     loadMaasOdemeleri();
@@ -5108,7 +5118,7 @@ async function saveMaasOdeme() {
 
 async function maasOdemeSil(id) {
   if (!confirm('Bu ödeme kaydını silmek istediğinizden emin misiniz?\nKasa/Banka bakiyesi geri alınır.')) return;
-  await api.invoke('maas:odeme:sil', id);
+  await inv('maas:odeme:sil', id);
   loadPersonel();
   loadMaasOdemeleri();
 }
@@ -5124,7 +5134,7 @@ async function openAvans(id) {
   document.getElementById('avans-aciklama').value = '';
   let bilgi = `<b>${p.ad}${p.soyad ? ' ' + p.soyad : ''}</b>${p.pozisyon ? ' — ' + p.pozisyon : ''}`;
   try {
-    const eks = await api.invoke('personel:ekstre', id);
+    const eks = await inv('personel:ekstre', id);
     const acikBorc = (eks.borc || 0) - (eks.alacak || 0);
     if (acikBorc > 0) bilgi += `<div style="margin-top:6px;color:var(--red);font-size:12px">Mevcut açık avans/borç: ${fmtTutar(Math.round(acikBorc))} ${p.para_birimi}</div>`;
   } catch (e) {}
@@ -5138,13 +5148,13 @@ async function onAvansOdemeTuruChange() {
   const tur = document.getElementById('avans-odeme-turu').value;
   const wrap = document.getElementById('avans-kaynak-wrap');
   if (tur === 'banka') {
-    const bankalar = await api.invoke('banka:hesaplar');
+    const bankalar = await inv('banka:hesaplar');
     wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);font-weight:500;margin-bottom:5px">Banka Hesabı</label>
       <select id="avans-kaynak-id" style="width:100%">
         ${bankalar.map(b => `<option value="${b.id}">${b.banka_adi} (${b.para_birimi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))})</option>`).join('')}
       </select>`;
   } else {
-    const kasalar = await api.invoke('kasalar:getir');
+    const kasalar = await inv('kasalar:getir');
     wrap.innerHTML = `<label style="display:block;font-size:12px;color:var(--dim);font-weight:500;margin-bottom:5px">Kasa</label>
       <select id="avans-kaynak-id" style="width:100%">
         ${kasalar.map(k => `<option value="${k.id}">${k.ad} (${k.para_birimi} — Bakiye: ${fmtTutar(Math.round(k.bakiye))})</option>`).join('')}
@@ -5159,7 +5169,7 @@ async function saveAvans() {
   if (!tutar || tutar <= 0) { alert('Tutar sıfırdan büyük olmalıdır.'); return; }
   if (!tarih || tarih.length < 10) { alert('Tarih zorunludur.'); return; }
   try {
-    await api.invoke('personel:avans:ekle', {
+    await inv('personel:avans:ekle', {
       personel_id: id, tutar, tarih,
       odeme_turu: document.getElementById('avans-odeme-turu').value,
       kaynak_id: Number(document.getElementById('avans-kaynak-id')?.value) || null,
@@ -5179,7 +5189,7 @@ const KAYNAK_ETIKET = {
 let _ekstreAktif = null;
 
 async function openPersonelEkstre(id) {
-  const eks = await api.invoke('personel:ekstre', id);
+  const eks = await inv('personel:ekstre', id);
   _ekstreAktif = eks;
   const p = eks.personel;
   const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
@@ -5260,12 +5270,12 @@ async function personelEkstrePdf() {
         <tr><td style="padding:6px 8px;border-top:2px solid #111;font-weight:700">${net>=0?'Kalan Alacak':'Fazla Ödeme'}</td><td style="padding:6px 8px;border-top:2px solid #111;text-align:right;font-weight:800">${fmtTutar(Math.round(Math.abs(net)))} ${p.para_birimi}</td></tr>
       </table>
     </div>`;
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 // ── BORDRO / MAAŞ PUSULASI PDF ──────────────────────────────
 async function bordroPdf(odemeId) {
-  const list = await api.invoke('maas:odemeleri:getir', {});
+  const list = await inv('maas:odemeleri:getir', {});
   const o = list.find(x => x.id === odemeId);
   if (!o) { alert('Ödeme bulunamadı.'); return; }
   const adSoyad = `${o.personel_ad}${o.personel_soyad ? ' ' + o.personel_soyad : ''}`;
@@ -5296,7 +5306,7 @@ async function bordroPdf(odemeId) {
         <div style="text-align:center">_______________________<br>Personel İmza</div>
       </div>
     </div>`;
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 // ── PUANTAJ ─────────────────────────────────────────────────
@@ -5317,7 +5327,7 @@ function openPuantaj() {
 
 async function loadPuantaj() {
   if (!_secilenPersonel) return;
-  const rows = await api.invoke('puantaj:getir', _secilenPersonel.id, _puantajYil, _puantajAy);
+  const rows = await inv('puantaj:getir', _secilenPersonel.id, _puantajYil, _puantajAy);
   _puantajData  = {};
   _puantajMesai = {};
   rows.forEach(r => {
@@ -5407,7 +5417,7 @@ async function gunDurumDegistir(gun) {
   const sira = ['', 'X', 'G', 'İ'];
   const mevcut = _puantajData[gun] || '';
   const yeni = sira[(sira.indexOf(mevcut) + 1) % sira.length];
-  await api.invoke('puantaj:guncelle', _secilenPersonel.id, _puantajYil, _puantajAy, gun, yeni);
+  await inv('puantaj:guncelle', _secilenPersonel.id, _puantajYil, _puantajAy, gun, yeni);
   if (yeni === '') { delete _puantajData[gun]; delete _puantajMesai[gun]; }
   else { _puantajData[gun] = yeni; if (mevcut === 'X') delete _puantajMesai[gun]; }
   renderPuantajGrid();
@@ -5421,7 +5431,7 @@ function gunMesaiGir(gun) {
   document.getElementById('mesai-gir-label').textContent = `${gun}. gün toplam çalışma saati:`;
   document.getElementById('mesai-gir-saat').value = mevcut || '';
   _mesaiGirCallback = async (saat) => {
-    await api.invoke('puantaj:mesai:guncelle', _secilenPersonel.id, _puantajYil, _puantajAy, gun, saat);
+    await inv('puantaj:mesai:guncelle', _secilenPersonel.id, _puantajYil, _puantajAy, gun, saat);
     if (saat === 0) delete _puantajMesai[gun]; else _puantajMesai[gun] = saat;
     renderPuantajGrid();
     loadPersonel();
@@ -5450,7 +5460,7 @@ async function puantajPdf() {
   const p = _secilenPersonel;
   const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
   const ayAd = AYLAR[_puantajAy - 1];
-  const rows = await api.invoke('puantaj:getir', p.id, _puantajYil, _puantajAy);
+  const rows = await inv('puantaj:getir', p.id, _puantajYil, _puantajAy);
   const data = {}, mesaiData = {};
   rows.forEach(r => { data[r.gun] = r.durum; if (r.mesai_saat > 0) mesaiData[r.gun] = r.mesai_saat; });
   const gunSayisi = new Date(_puantajYil, _puantajAy, 0).getDate();
@@ -5513,7 +5523,7 @@ h1{font-size:16px;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom
     <span style="font-size:22px;font-weight:800;color:#059669">${fmtTutar(net)} ${p.para_birimi}</span>
   </div>
 </div>`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 async function topluPuantajPdf() {
@@ -5523,7 +5533,7 @@ async function topluPuantajPdf() {
   const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
   const ayAd = AYLAR[m - 1];
   const gunSayisi = new Date(y, m, 0).getDate();
-  const liste = await api.invoke('puantaj:toplu:ozet', y, m);
+  const liste = await inv('puantaj:toplu:ozet', y, m);
   let topX = 0, topI = 0, topG = 0, topAlacak = {};
   let bireyselGridler = '';
 
@@ -5597,7 +5607,7 @@ h2{font-size:10px;margin:10px 0 6px;border-bottom:1px solid #d1d5db;padding-bott
 </table>
 <h2>AYLIK PUANTAJ ÇİZELGELERİ</h2>
 ${bireyselGridler}`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 // ── TOPLU PUANTAJ GİRİŞİ ────────────────────────────────────
@@ -5615,7 +5625,7 @@ async function openTopluPuantaj() {
 }
 
 async function loadTopluPuantaj() {
-  const liste = await api.invoke('puantaj:toplu:ozet', _tpYil, _tpAy);
+  const liste = await inv('puantaj:toplu:ozet', _tpYil, _tpAy);
   _tpPersoneller = liste;
   _tpData  = {};
   _tpMesai = {};
@@ -5714,7 +5724,7 @@ async function tpGunDegistir(personelId, gun) {
   const sira = ['', 'X', 'G', 'İ'];
   const mevcut = _tpData[personelId]?.[gun] || '';
   const yeni = sira[(sira.indexOf(mevcut) + 1) % sira.length];
-  await api.invoke('puantaj:guncelle', personelId, _tpYil, _tpAy, gun, yeni);
+  await inv('puantaj:guncelle', personelId, _tpYil, _tpAy, gun, yeni);
   if (!_tpData[personelId]) _tpData[personelId] = {};
   if (yeni === '') { delete _tpData[personelId][gun]; }
   else { _tpData[personelId][gun] = yeni; }
@@ -5732,7 +5742,7 @@ function tpGunMesaiGir(personelId, gun) {
   document.getElementById('mesai-gir-label').textContent = `${gun}. gün toplam çalışma saati:`;
   document.getElementById('mesai-gir-saat').value = mevcut || '';
   _mesaiGirCallback = async (saat) => {
-    await api.invoke('puantaj:mesai:guncelle', personelId, _tpYil, _tpAy, gun, saat);
+    await inv('puantaj:mesai:guncelle', personelId, _tpYil, _tpAy, gun, saat);
     if (!_tpMesai[personelId]) _tpMesai[personelId] = {};
     if (saat === 0) delete _tpMesai[personelId][gun]; else _tpMesai[personelId][gun] = saat;
     renderTopluPuantajGrid();
@@ -5757,7 +5767,7 @@ async function tpHepsiniDoldur(durum) {
       const hedef = haftaSonu ? '' : durum;
       const mevcut = _tpData[p.id]?.[g] || '';
       if (mevcut !== hedef) {
-        await api.invoke('puantaj:guncelle', p.id, _tpYil, _tpAy, g, hedef);
+        await inv('puantaj:guncelle', p.id, _tpYil, _tpAy, g, hedef);
         if (!_tpData[p.id]) _tpData[p.id] = {};
         if (hedef === '') delete _tpData[p.id][g];
         else _tpData[p.id][g] = hedef;
@@ -5773,7 +5783,7 @@ async function tpSifirla() {
   for (const p of _tpPersoneller) {
     for (let g = 1; g <= gunSayisi; g++) {
       if (_tpData[p.id]?.[g]) {
-        await api.invoke('puantaj:guncelle', p.id, _tpYil, _tpAy, g, '');
+        await inv('puantaj:guncelle', p.id, _tpYil, _tpAy, g, '');
       }
     }
     _tpData[p.id]  = {};
@@ -5894,13 +5904,13 @@ h2{font-size:8px;margin:10px 0 6px;border-bottom:1px solid #d1d5db;padding-botto
 </table>
 <h2>AYLIK PUANTAJ ÇİZELGELERİ</h2>
 ${bireyselGridler}`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 // ── PERSONEL KASA ÖDEMESİ ───────────────────────────────────
 async function openPersonelOde() {
   if (!S.secilenKasa) return;
-  const liste = await api.invoke('personeller:getir');
+  const liste = await inv('personeller:getir');
   const sel = document.getElementById('po-personel');
   sel.innerHTML = '<option value="">— Seçiniz —</option>';
   liste.forEach(p => {
@@ -5943,7 +5953,7 @@ async function savePersonelOde() {
   if (!tarih) { alert('Tarih giriniz'); return; }
   const aciklama = document.getElementById('po-aciklama').value;
 
-  await api.invoke('personel:kasa:ode', {
+  await inv('personel:kasa:ode', {
     personel_id, kasa_id: S.secilenKasa.id, tutar, tarih, aciklama
   });
 
@@ -5956,7 +5966,7 @@ let _ortaklar = [];
 let _secilenOrtak = null;
 
 async function loadOrtaklar() {
-  _ortaklar = await api.invoke('ortaklar:getir');
+  _ortaklar = await inv('ortaklar:getir');
   renderOrtakCards();
   if (_secilenOrtak) {
     const updated = _ortaklar.find(o => o.id === _secilenOrtak.id);
@@ -6009,7 +6019,7 @@ function secOrtak(id) {
 async function ortakHareketRaporPdf() {
   const filter = {};
   if (_secilenOrtak) filter.ortak_id = _secilenOrtak.id;
-  const list = await api.invoke('ortak:hareketler:getir', filter);
+  const list = await inv('ortak:hareketler:getir', filter);
   if (!list.length) { alert('Gösterilecek hareket yok.'); return; }
   const TUR_LABEL = { sermaye_girisi: '↑ Sermaye Girişi', cekim: '↓ Çekim', kar_dagilimi: '↓ Kâr Dağılımı' };
   let topGiris = {}, topCikis = {};
@@ -6051,13 +6061,13 @@ td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
     ${Object.entries(topCikis).map(([pb,t])=>`<tr class="tfoot"><td colspan="3">Toplam Çıkış (${pb})</td><td style="text-align:right;color:#dc2626" colspan="4">${fmtTutar(Math.round(t))} ${pb}</td></tr>`).join('')}
   </tfoot>
 </table>`;
-  await api.invoke('print:pdf', content);
+  await inv('print:pdf', content);
 }
 
 async function loadOrtakHareketleri() {
   const filter = {};
   if (_secilenOrtak) filter.ortak_id = _secilenOrtak.id;
-  const list = await api.invoke('ortak:hareketler:getir', filter);
+  const list = await inv('ortak:hareketler:getir', filter);
   const tablo = document.getElementById('ortak-hareketler-tablo');
   const baslik = _secilenOrtak
     ? `${_secilenOrtak.ad}${_secilenOrtak.soyad ? ' ' + _secilenOrtak.soyad : ''} — Hareketler`
@@ -6142,8 +6152,8 @@ async function saveOrtak() {
   };
   const editId = document.getElementById('ort-id').value;
   try {
-    if (editId) await api.invoke('ortaklar:guncelle', Number(editId), d);
-    else        await api.invoke('ortaklar:ekle', d);
+    if (editId) await inv('ortaklar:guncelle', Number(editId), d);
+    else        await inv('ortaklar:ekle', d);
     closeModal('m-ortak');
     loadOrtaklar();
   } catch(e) { alert(e.message); }
@@ -6152,7 +6162,7 @@ async function saveOrtak() {
 async function ortakSil(id) {
   if (!confirm('Bu ortağı silmek istediğinizden emin misiniz?')) return;
   try {
-    await api.invoke('ortaklar:sil', id);
+    await inv('ortaklar:sil', id);
     if (_secilenOrtak?.id === id) {
       _secilenOrtak = null;
       document.getElementById('ortak-hareket-wrap').style.display = 'none';
@@ -6182,14 +6192,14 @@ async function onOrtakOdemeTuruChange() {
   const tur = document.getElementById('oh-odeme-turu').value;
   const wrap = document.getElementById('ortak-kaynak-wrap');
   if (tur === 'banka') {
-    const bankalar = await api.invoke('banka:hesaplar');
+    const bankalar = await inv('banka:hesaplar');
     wrap.innerHTML = `
       <label style="display:block;font-size:12px;color:var(--dim);font-weight:500;margin-bottom:5px">Banka Hesabı</label>
       <select id="oh-kaynak-id" style="width:100%">
         ${bankalar.map(b => `<option value="${b.id}">${b.banka_adi} (${b.para_birimi} — ${fmtTutar(Math.round(b.bakiye))})</option>`).join('')}
       </select>`;
   } else {
-    const kasalar = await api.invoke('kasalar:getir');
+    const kasalar = await inv('kasalar:getir');
     wrap.innerHTML = `
       <label style="display:block;font-size:12px;color:var(--dim);font-weight:500;margin-bottom:5px">Kasa</label>
       <select id="oh-kaynak-id" style="width:100%">
@@ -6215,7 +6225,7 @@ async function saveOrtakHareket() {
     aciklama:    document.getElementById('oh-aciklama').value.trim(),
   };
   try {
-    await api.invoke('ortak:hareket:ekle', d);
+    await inv('ortak:hareket:ekle', d);
     closeModal('m-ortak-hareket');
     loadOrtaklar();
     loadOrtakHareketleri();
@@ -6224,7 +6234,7 @@ async function saveOrtakHareket() {
 
 async function ortakHareketSil(id) {
   if (!confirm('Bu hareket kaydını silmek istediğinizden emin misiniz?\nKasa/Banka bakiyesi geri alınır.')) return;
-  await api.invoke('ortak:hareket:sil', id);
+  await inv('ortak:hareket:sil', id);
   loadOrtaklar();
   loadOrtakHareketleri();
 }
@@ -6238,7 +6248,7 @@ const num = (v) => parseFloat(String(v ?? '').replace(/\./g,'').replace(',','.')
 const num2 = (v) => parseFloat(String(v ?? '').replace(',','.')) || 0; // ondalık serbest
 
 async function loadHakedis() {
-  const projeler = await api.invoke('projeler:getir');
+  const projeler = await inv('projeler:getir');
   const sel = document.getElementById('hk-proje');
   const onceki = _hkProjeId;
   sel.innerHTML = projeler.length
@@ -6259,7 +6269,7 @@ async function loadHakedis() {
 async function loadHakedisProje() {
   _hkProjeId = Number(document.getElementById('hk-proje').value);
   if (!_hkProjeId) return;
-  _hkPozlar = await api.invoke('hakedis:pozlar:getir', _hkProjeId);
+  _hkPozlar = await inv('hakedis:pozlar:getir', _hkProjeId);
   const pw = document.getElementById('hk-pozlar-wrap');
   if (!_hkPozlar.length) {
     pw.innerHTML = '<div class="empty">Poz yok — "+ Poz (Keşif)" ile iş kalemlerini ekleyin.</div>';
@@ -6283,7 +6293,7 @@ async function loadHakedisProje() {
   }
 
   // Hakediş dönemleri listesi
-  const list = await api.invoke('hakedisler:getir', _hkProjeId);
+  const list = await inv('hakedisler:getir', _hkProjeId);
   const lw = document.getElementById('hk-liste-wrap');
   if (!list.length) {
     lw.innerHTML = '<div class="empty">Hakediş dönemi yok — "+ Yeni Hakediş" ile başlayın. (Önce BOQ/poz listesi olmalı.)</div>';
@@ -6307,14 +6317,14 @@ async function hakedisEkle() {
   if (!_hkPozlar.length) { yesilToast('Önce BOQ/poz listesi ekleyin (Excel BOQ Aktar).'); return; }
   // Native confirm() KULLANMA: Windows'ta native dialog kapanınca webContents klavye
   // odağını kaybediyor → açılan Yeşil Defter kutusuna yazılamıyor. Doğrudan oluştur.
-  const r = await api.invoke('hakedis:ekle', { proje_id: _hkProjeId, tarih: today() });
+  const r = await inv('hakedis:ekle', { proje_id: _hkProjeId, tarih: today() });
   await loadHakedisProje();
   yesilToast(r.hakedis_no + '. Hakediş oluşturuldu');
   openYesil(r.id);
 }
 async function hakedisSil(id) {
   if (!confirm('Bu hakediş dönemi ve yeşil defter metrajları silinsin mi?')) return;
-  await api.invoke('hakedis:sil', id);
+  await inv('hakedis:sil', id);
   loadHakedisProje();
 }
 
@@ -6334,9 +6344,9 @@ let _boqSablon = null;
 async function boqImportBaslat() {
   if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
   let r;
-  try { r = await api.invoke('xlsx:onizle'); } catch (e) { alert(e.message); return; }
+  try { r = await inv('xlsx:onizle'); } catch (e) { alert(e.message); return; }
   if (!r || r.iptal) return;
-  try { _boqSablon = JSON.parse(await api.invoke('ayar:getir', 'boq_sablon') || 'null'); } catch (_) { _boqSablon = null; }
+  try { _boqSablon = JSON.parse(await inv('ayar:getir', 'boq_sablon') || 'null'); } catch (_) { _boqSablon = null; }
   _boqData = r;
   document.getElementById('boq-imp-dosya').textContent = 'Dosya: ' + r.dosya;
   document.getElementById('boq-imp-sheet').innerHTML = r.sheets.map((s,i)=>`<option value="${i}">${s.name}</option>`).join('');
@@ -6483,11 +6493,11 @@ async function boqImportUygula() {
   if (!sat.length) { alert('Aktarılacak satır yok. Tanım sütununu ve başlık satırını kontrol edin.'); return; }
   const temizle = document.getElementById('boq-imp-temizle').checked;
   if (!confirm(`${sat.length} poz aktarılacak${temizle?' (mevcut pozlar silinecek)':''}. Devam edilsin mi?`)) return;
-  const r = await api.invoke('hakedis:boq:import', { proje_id: _hkProjeId, satirlar: sat, temizle });
+  const r = await inv('hakedis:boq:import', { proje_id: _hkProjeId, satirlar: sat, temizle });
   // Eşlemeyi şablon olarak kaydet (sonraki aynı-format BOQ'ta otomatik gelsin)
   try {
     const sablon = { header: Number(document.getElementById('boq-imp-header').value)||1, map: boqMapSecimleri() };
-    await api.invoke('ayar:kaydet', 'boq_sablon', JSON.stringify(sablon));
+    await inv('ayar:kaydet', 'boq_sablon', JSON.stringify(sablon));
   } catch (_) {}
   closeModal('m-boq-import');
   alert(r.eklenen + ' poz aktarıldı.');
@@ -6529,21 +6539,21 @@ async function savePoz() {
     bf_malzeme: num2(document.getElementById('poz-bf-mlz').value),
   };
   const id = document.getElementById('poz-id').value;
-  if (id) await api.invoke('hakedis:poz:guncelle', Number(id), d);
-  else    await api.invoke('hakedis:poz:ekle', d);
+  if (id) await inv('hakedis:poz:guncelle', Number(id), d);
+  else    await inv('hakedis:poz:ekle', d);
   closeModal('m-poz');
   loadHakedisProje();
 }
 async function pozSil(id) {
   if (!confirm('Bu pozu silmek istiyor musunuz? İlgili hakediş satırları da silinir.')) return;
-  await api.invoke('hakedis:poz:sil', id);
+  await inv('hakedis:poz:sil', id);
   loadHakedisProje();
 }
 
 async function pozTumSil() {
   if (!_hkProjeId) { alert('Önce proje seçin.'); return; }
   if (!confirm('Bu projedeki TÜM pozlar (ve bağlı hakediş metrajları) silinecek. Emin misiniz?')) return;
-  const n = await api.invoke('hakedis:poz:tumunu:sil', _hkProjeId);
+  const n = await inv('hakedis:poz:tumunu:sil', _hkProjeId);
   await loadHakedisProje();
   alert(n + ' poz silindi.');
 }
@@ -6559,7 +6569,7 @@ let _yesilData = null;
 const _ydNum = (n) => (n||0).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
 
 async function openYesil(hakedisId) {
-  const d = await api.invoke('yesil:getir', hakedisId);
+  const d = await inv('yesil:getir', hakedisId);
   if (!d) { alert('Hakediş bulunamadı.'); return; }
   if (!d.rows.length) { alert('Bu projede poz yok. Önce BOQ/poz listesi ekleyin.'); return; }
   _yesilData = d;
@@ -6571,7 +6581,7 @@ async function openYesil(hakedisId) {
   document.getElementById('yesil-icerik').scrollTop = 0; // en üstten başla
   // Açılır açılmaz klavye girişi çalışsın: pencereye odak ver + ilk kutuya odaklan
   // (yoksa açılışta kutuya yazılmıyor, ancak Kaydet/PDF sonrası çalışıyordu)
-  try { await api.invoke('win:focus'); } catch (_) {}
+  try { await inv('win:focus'); } catch (_) {}
   const ilk = document.getElementById('yd-0');
   if (ilk) { ilk.focus(); ilk.select(); }
 }
@@ -6674,24 +6684,24 @@ async function yesilKaydet(silent) {
     r.oran = r.toplam ? (bu / r.toplam) : 0; r.esas = r.toplam * r.oran;
     return { poz_id: r.poz.id, bu };
   });
-  await api.invoke('yesil:kaydet', d.hakedis.id, satirlar);
+  await inv('yesil:kaydet', d.hakedis.id, satirlar);
   if (!silent) yesilToast('Yeşil defter kaydedildi ✓');
 }
 
 async function yesilPdf() {
   if (document.getElementById('yd-0')) await yesilKaydet(true);
   const html = await buildYesilHtml();
-  if (html) await api.invoke('print:pdf', html);
+  if (html) await inv('print:pdf', html);
 }
 async function yesilExcel() {
   if (document.getElementById('yd-0')) await yesilKaydet(true);
   const html = await buildYesilHtml();
-  if (html) await api.invoke('export:xls', { html, ad: 'YesilDefter-Hkd' + (_yesilData?.hakedis?.hakedis_no||''), sheet: 'Yesil Defter' });
+  if (html) await inv('export:xls', { html, ad: 'YesilDefter-Hkd' + (_yesilData?.hakedis?.hakedis_no||''), sheet: 'Yesil Defter' });
 }
 
 async function buildYesilHtml() {
   const d = _yesilData; if (!d) return null;
-  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const proje = (await inv('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
   const bd = 'border:1px solid #999;';
   const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:7pt">
     <th style="${bd}padding:2px 3px">S.NO</th><th style="${bd}padding:2px 3px">POZ NO<br>ITEM NO</th>
@@ -6749,7 +6759,7 @@ const _icmM = (n) => (Math.round(n||0)).toLocaleString('tr-TR');
 
 async function openIcmal(hakedisId) {
   const mod = document.getElementById('icmal-mod')?.value || 'iscilik';
-  const d = await api.invoke('icmal:getir', hakedisId, mod);
+  const d = await inv('icmal:getir', hakedisId, mod);
   if (!d) { alert('Hakediş bulunamadı.'); return; }
   if (!d.rows.length) { alert('Bu projede poz yok. Önce BOQ/poz listesi ekleyin.'); return; }
   _icmalData = d;
@@ -6765,7 +6775,7 @@ async function icmalModDegisti() {
   if (!_icmalData) return;
   const id = _icmalData.hakedis.id;
   const mod = document.getElementById('icmal-mod').value;
-  const d = await api.invoke('icmal:getir', id, mod);
+  const d = await inv('icmal:getir', id, mod);
   if (!d) return;
   _icmalData = d;
   renderIcmalGrid();
@@ -6835,11 +6845,11 @@ function renderIcmalGrid() {
 
 async function icmalPdf() {
   const html = await buildIcmalHtml();
-  if (html) await api.invoke('print:pdf', html);
+  if (html) await inv('print:pdf', html);
 }
 async function icmalExcel() {
   const html = await buildIcmalHtml();
-  if (html) await api.invoke('export:xls', { html, ad: 'GenelIcmal-Hkd' + (_icmalData?.hakedis?.hakedis_no||''), sheet: 'Genel Icmal' });
+  if (html) await inv('export:xls', { html, ad: 'GenelIcmal-Hkd' + (_icmalData?.hakedis?.hakedis_no||''), sheet: 'Genel Icmal' });
 }
 
 const _icmalModEtiket = { iscilik:'Sadece İşçilik / Labor Only', malzeme:'Sadece Malzeme / Material Only', tum:'Malzemeli + İşçilik / Material + Labor' };
@@ -6847,7 +6857,7 @@ const _icmalModEtiket = { iscilik:'Sadece İşçilik / Labor Only', malzeme:'Sad
 async function buildIcmalHtml() {
   const d = _icmalData; if (!d) return null;
   const modEt = _icmalModEtiket[d.mod] || _icmalModEtiket.iscilik;
-  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const proje = (await inv('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
   const bd = 'border:1px solid #999;';
   const R = 'text-align:right';
   const colHead = `<tr style="background:#d9d9d9;color:#111;font-size:5.5pt">
@@ -6921,7 +6931,7 @@ async function buildIcmalHtml() {
 let _ilaveData = null;
 
 async function openIlave(hakedisId) {
-  const d = await api.invoke('ilave:getir', hakedisId);
+  const d = await inv('ilave:getir', hakedisId);
   if (!d) { alert('Hakediş bulunamadı.'); return; }
   _ilaveData = { hakedis: d.hakedis, rows: d.rows.map(r => ({ ...r })) };
   if (!_ilaveData.rows.length) _ilaveData.rows.push(ilaveBosSatir());
@@ -7028,26 +7038,26 @@ async function ilaveKaydet(silent) {
   const d = _ilaveData; if (!d) return;
   ilaveCollect();
   const satirlar = d.rows.filter(r => (r.imalat_adi || '').trim() || r.miktar || r.birim_fiyat);
-  await api.invoke('ilave:kaydet', d.hakedis.id, satirlar);
+  await inv('ilave:kaydet', d.hakedis.id, satirlar);
   if (!silent) yesilToast('İlave işler kaydedildi ✓');
 }
 
 async function ilavePdf() {
   if (_ilaveData) await ilaveKaydet(true);
   const html = await buildIlaveHtml();
-  if (html) await api.invoke('print:pdf', html);
+  if (html) await inv('print:pdf', html);
 }
 async function ilaveExcel() {
   if (_ilaveData) await ilaveKaydet(true);
   const html = await buildIlaveHtml();
-  if (html) await api.invoke('export:xls', { html, ad: 'IlaveIsler-Hkd' + (_ilaveData?.hakedis?.hakedis_no || ''), sheet: 'Ilave Isler' });
+  if (html) await inv('export:xls', { html, ad: 'IlaveIsler-Hkd' + (_ilaveData?.hakedis?.hakedis_no || ''), sheet: 'Ilave Isler' });
 }
 
 async function buildIlaveHtml() {
   if (!_ilaveData) return null;
-  const d = await api.invoke('ilave:getir', _ilaveData.hakedis.id);
+  const d = await inv('ilave:getir', _ilaveData.hakedis.id);
   if (!d) return null;
-  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const proje = (await inv('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
   const bd = 'border:1px solid #999;';
   const R = 'text-align:right';
   const head = `<tr style="background:#d9d9d9;color:#111;font-size:5.5pt">
@@ -7099,7 +7109,7 @@ async function buildIlaveHtml() {
 let _kesintiData = null;
 
 async function openKesinti(hakedisId) {
-  const d = await api.invoke('kesinti:getir', hakedisId);
+  const d = await inv('kesinti:getir', hakedisId);
   if (!d) { yesilToast('Hakediş bulunamadı.'); return; }
   _kesintiData = { hakedis: d.hakedis, rows: d.rows.map(r => ({ ...r })) };
   if (!_kesintiData.rows.length) _kesintiData.rows.push(kesintiBosSatir());
@@ -7202,26 +7212,26 @@ async function kesintiKaydet(silent) {
   const d = _kesintiData; if (!d) return;
   kesintiCollect();
   const satirlar = d.rows.filter(r => (r.aciklama || '').trim() || r.miktar || r.birim_fiyat);
-  await api.invoke('kesinti:kaydet', d.hakedis.id, satirlar);
+  await inv('kesinti:kaydet', d.hakedis.id, satirlar);
   if (!silent) yesilToast('Kesintiler kaydedildi ✓');
 }
 
 async function kesintiPdf() {
   if (_kesintiData) await kesintiKaydet(true);
   const html = await buildKesintiHtml();
-  if (html) await api.invoke('print:pdf', html);
+  if (html) await inv('print:pdf', html);
 }
 async function kesintiExcel() {
   if (_kesintiData) await kesintiKaydet(true);
   const html = await buildKesintiHtml();
-  if (html) await api.invoke('export:xls', { html, ad: 'Kesintiler-Hkd' + (_kesintiData?.hakedis?.hakedis_no || ''), sheet: 'Kesintiler' });
+  if (html) await inv('export:xls', { html, ad: 'Kesintiler-Hkd' + (_kesintiData?.hakedis?.hakedis_no || ''), sheet: 'Kesintiler' });
 }
 
 async function buildKesintiHtml() {
   if (!_kesintiData) return null;
-  const d = await api.invoke('kesinti:getir', _kesintiData.hakedis.id);
+  const d = await inv('kesinti:getir', _kesintiData.hakedis.id);
   if (!d) return null;
-  const proje = (await api.invoke('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
+  const proje = (await inv('projeler:getir')).find(p => p.id === d.hakedis.proje_id);
   const bd = 'border:1px solid #999;';
   const R = 'text-align:right';
   const head = `<tr style="background:#d9d9d9;color:#111;font-size:5.5pt">
@@ -7271,7 +7281,7 @@ async function buildKesintiHtml() {
 let _arkaData = null;
 
 async function openArkaKapak(hakedisId) {
-  const d = await api.invoke('arkakapak:getir', hakedisId);
+  const d = await inv('arkakapak:getir', hakedisId);
   if (!d) { yesilToast('Hakediş bulunamadı.'); return; }
   _arkaData = d;
   document.getElementById('m-arkakapak-title').textContent = `Arka Kapak / Mali Özet — ${d.hakedis.hakedis_no}. Hakediş`;
@@ -7358,11 +7368,11 @@ function renderArkaKapak() {
 
 async function arkaKapakPdf() {
   const html = await buildArkaKapakHtml();
-  if (html) await api.invoke('print:pdf', html);
+  if (html) await inv('print:pdf', html);
 }
 async function arkaKapakExcel() {
   const html = await buildArkaKapakHtml();
-  if (html) await api.invoke('export:xls', { html, ad: 'ArkaKapak-Hkd' + (_arkaData?.hakedis?.hakedis_no || ''), sheet: 'Arka Kapak' });
+  if (html) await inv('export:xls', { html, ad: 'ArkaKapak-Hkd' + (_arkaData?.hakedis?.hakedis_no || ''), sheet: 'Arka Kapak' });
 }
 
 async function buildArkaKapakHtml() {
@@ -7470,7 +7480,7 @@ function _arka1Rows(d) {
 }
 
 async function openArkaKapak1(hakedisId) {
-  const d = await api.invoke('arkakapak1:getir', hakedisId);
+  const d = await inv('arkakapak1:getir', hakedisId);
   if (!d) { yesilToast('Hakediş bulunamadı.'); return; }
   _arka1Data = d;
   document.getElementById('m-arkakapak1-title').textContent = `Arka Kapak (İşçilik) — ${d.hakedis.hakedis_no}. Hakediş`;
@@ -7527,11 +7537,11 @@ function renderArkaKapak1() {
 
 async function arkaKapak1Pdf() {
   const html = await buildArkaKapak1Html();
-  if (html) await api.invoke('print:pdf', html);
+  if (html) await inv('print:pdf', html);
 }
 async function arkaKapak1Excel() {
   const html = await buildArkaKapak1Html();
-  if (html) await api.invoke('export:xls', { html, ad: 'ArkaKapakIscilik-Hkd' + (_arka1Data?.hakedis?.hakedis_no || ''), sheet: 'Arka Kapak Iscilik' });
+  if (html) await inv('export:xls', { html, ad: 'ArkaKapakIscilik-Hkd' + (_arka1Data?.hakedis?.hakedis_no || ''), sheet: 'Arka Kapak Iscilik' });
 }
 
 async function buildArkaKapak1Html() {
@@ -7635,7 +7645,7 @@ const _PROGRESS_TUR = [
 ];
 
 async function openProgress(hakedisId) {
-  const d = await api.invoke('progress:getir', hakedisId);
+  const d = await inv('progress:getir', hakedisId);
   if (!d) { yesilToast('Hakediş bulunamadı.'); return; }
   _progressData = d;
   document.getElementById('m-progress-title').textContent = `Progress Report — ${d.hakedis.hakedis_no}. Hakediş`;
@@ -7752,24 +7762,24 @@ function progressCollect() {
 async function progressKaydet(silent) {
   const d = _progressData; if (!d) return;
   progressCollect();
-  await api.invoke('progress:kaydet', d.hakedis.id, d.data);
+  await inv('progress:kaydet', d.hakedis.id, d.data);
   if (!silent) yesilToast('Progress Report kaydedildi ✓');
 }
 
 async function progressPdf() {
   if (_progressData) await progressKaydet(true);
   const html = await buildProgressHtml();
-  if (html) await api.invoke('print:pdf', html);
+  if (html) await inv('print:pdf', html);
 }
 async function progressExcel() {
   if (_progressData) await progressKaydet(true);
   const html = await buildProgressHtml();
-  if (html) await api.invoke('export:xls', { html, ad: 'ProgressReport-Hkd' + (_progressData?.hakedis?.hakedis_no || ''), sheet: 'Progress Report' });
+  if (html) await inv('export:xls', { html, ad: 'ProgressReport-Hkd' + (_progressData?.hakedis?.hakedis_no || ''), sheet: 'Progress Report' });
 }
 
 async function buildProgressHtml() {
   if (!_progressData) return null;
-  const d = await api.invoke('progress:getir', _progressData.hakedis.id);
+  const d = await inv('progress:getir', _progressData.hakedis.id);
   if (!d) return null;
   return `
   <style>@page { size: A4 portrait; margin: 5mm; }</style>
@@ -7788,7 +7798,7 @@ async function buildProgressHtml() {
 // RAPORLAR — Yaşlandırma + Kategori
 // ══════════════════════════════════════════════════
 async function yaslandirmaPdf() {
-  const list = await api.invoke('rapor:yaslandirma');
+  const list = await inv('rapor:yaslandirma');
   if (!list.length) { alert('Açık (ödenmemiş) fatura yok.'); return; }
   const bugun = fmtDate(today());
   const KOVA_ETIKET = { gelecek:'Vadesi Gelmemiş', '0-30':'0-30 Gün Gecikmiş', '30-60':'30-60 Gün', '60+':'60+ Gün', vadesiz:'Vadesiz' };
@@ -7826,7 +7836,7 @@ async function yaslandirmaPdf() {
       </div>
       ${bolumler}
     </div>`;
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 function openKategoriRapor() {
@@ -7839,7 +7849,7 @@ function openKategoriRapor() {
 async function kategoriRaporPdf() {
   const bas = document.getElementById('kr2-bas').value.trim();
   const bit = document.getElementById('kr2-bit').value.trim();
-  const rows = await api.invoke('rapor:kategori', { bas, bit });
+  const rows = await inv('rapor:kategori', { bas, bit });
   if (!rows.length) { alert('Bu dönemde kategorili hareket yok.'); return; }
   const CIKIS = new Set(['odeme','cikis','bankaya-yatirilan','gider']);
   const gelir = rows.filter(r => !CIKIS.has(r.hareket_tur));
@@ -7864,7 +7874,7 @@ async function kategoriRaporPdf() {
       <table style="width:100%;border-collapse:collapse;font-size:13px">${satirlar(gider,'#dc2626')}</table>
     </div>`;
   closeModal('m-kategori-rapor');
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 // ══════════════════════════════════════════════════
@@ -7877,7 +7887,7 @@ let _cekListe = [];
 async function loadCek() {
   const yon   = document.getElementById('cek-f-yon').value;
   const durum = document.getElementById('cek-f-durum').value;
-  _cekListe = await api.invoke('cek:getir', { yon: yon || undefined, durum: durum || undefined });
+  _cekListe = await inv('cek:getir', { yon: yon || undefined, durum: durum || undefined });
 
   // Özet kartları: portföydeki vadesi yaklaşan/geçen
   const bugun = new Date(); bugun.setHours(0,0,0,0);
@@ -7919,7 +7929,7 @@ async function loadCek() {
 async function openCekEkle(yon) {
   document.getElementById('m-cek-title').textContent = (yon==='alinan'?'Alınan':'Verilen') + ' Çek/Senet Ekle';
   document.getElementById('cek-yon').value = yon;
-  const cariler = await api.invoke('cariler:getir');
+  const cariler = await inv('cariler:getir');
   document.getElementById('cek-cari').innerHTML = '<option value="">— Cari yok —</option>' +
     cariler.map(c => `<option value="${c.id}">${c.ad}</option>`).join('');
   document.getElementById('cek-tip').value = 'cek';
@@ -7948,14 +7958,14 @@ async function saveCek() {
     aciklama:   document.getElementById('cek-aciklama').value.trim(),
   };
   if (!d.tutar || d.tutar <= 0) { alert('Tutar sıfırdan büyük olmalıdır.'); return; }
-  await api.invoke('cek:ekle', d);
+  await inv('cek:ekle', d);
   closeModal('m-cek-ekle');
   loadCek();
 }
 
 async function cekSil(id) {
   if (!confirm('Bu çek/senet kaydını silmek istiyor musunuz?\nTahsil/ödeme yapılmışsa kasa/banka hareketi de geri alınır.')) return;
-  try { await api.invoke('cek:sil', id); loadCek(); } catch (e) { alert(e.message); }
+  try { await inv('cek:sil', id); loadCek(); } catch (e) { alert(e.message); }
 }
 
 function openCekDurum(id) {
@@ -7985,10 +7995,10 @@ async function onCekHesapTipChange() {
   const tip = document.getElementById('cd-hesap-tip').value;
   const wrap = document.getElementById('cd-hesap-id-wrap');
   if (tip === 'banka') {
-    const list = (await api.invoke('banka:hesaplar')).filter(b => b.para_birimi === pb);
+    const list = (await inv('banka:hesaplar')).filter(b => b.para_birimi === pb);
     wrap.innerHTML = `<label>Banka Hesabı (${pb})</label><select id="cd-hesap-id" style="width:100%">${list.map(b=>`<option value="${b.id}">${b.banka_adi} — ${fmtTutar(Math.round(b.bakiye))}</option>`).join('')||'<option value="">— hesap yok —</option>'}</select>`;
   } else {
-    const list = (await api.invoke('kasalar:getir')).filter(k => k.para_birimi === pb);
+    const list = (await inv('kasalar:getir')).filter(k => k.para_birimi === pb);
     wrap.innerHTML = `<label>Kasa (${pb})</label><select id="cd-hesap-id" style="width:100%">${list.map(k=>`<option value="${k.id}">${k.ad} — ${fmtTutar(Math.round(k.bakiye))}</option>`).join('')||'<option value="">— kasa yok —</option>'}</select>`;
   }
 }
@@ -8004,14 +8014,14 @@ async function saveCekDurum() {
     if (!payload.hesap_id) { alert('Kasa/Banka seçin.'); return; }
   }
   try {
-    await api.invoke('cek:durum', payload);
+    await inv('cek:durum', payload);
     closeModal('m-cek-durum');
     loadCek();
   } catch (e) { alert(e.message); }
 }
 
 async function cekRaporPdf() {
-  const liste = _cekListe.length ? _cekListe : await api.invoke('cek:getir', {});
+  const liste = _cekListe.length ? _cekListe : await inv('cek:getir', {});
   if (!liste.length) { alert('Kayıt yok.'); return; }
   const bugun = fmtDate(today());
   const rows = liste.map(c => {
@@ -8041,7 +8051,7 @@ async function cekRaporPdf() {
         </tr></thead><tbody>${rows}</tbody>
       </table>
     </div>`;
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 // ══════════════════════════════════════════════════
@@ -8049,14 +8059,14 @@ async function cekRaporPdf() {
 // ══════════════════════════════════════════════════
 async function loadAyarlar() {
   try {
-    const konum = await api.invoke('db:konum');
+    const konum = await inv('db:konum');
     document.getElementById('ayar-db-konum').textContent = 'Veritabanı konumu: ' + konum;
-    document.getElementById('ayar-firma').value = (await api.invoke('ayar:getir', 'firma_adi')) || '';
-    document.getElementById('ayar-sunucu').value = (await api.invoke('ayar:getir', 'sunucu_adresi')) || '';
+    document.getElementById('ayar-firma').value = (await inv('ayar:getir', 'firma_adi')) || '';
+    document.getElementById('ayar-sunucu').value = (await inv('ayar:getir', 'sunucu_adresi')) || '';
     loadKullanicilar();
-    const kur = await api.invoke('ayar:getir', 'usd_iqd_kuru');
+    const kur = await inv('ayar:getir', 'usd_iqd_kuru');
     document.getElementById('ayar-kur').value = kur || '1310';
-    const sifre = await api.invoke('ayar:getir', 'sifre_hash');
+    const sifre = await inv('ayar:getir', 'sifre_hash');
     document.getElementById('ayar-sifre-durum').textContent = sifre
       ? '🔒 Parola koruması açık. Değiştirmek için yeni parola girin, kaldırmak için alanları boş bırakıp kaydedin.'
       : '🔓 Parola koruması kapalı. Parola belirlemek için aşağıya yazın.';
@@ -8068,7 +8078,7 @@ async function loadAyarlar() {
 async function firmaAdiKaydet() {
   const ad = (document.getElementById('ayar-firma').value || '').trim();
   if (!ad) { alert('Firma adı boş olamaz.'); return; }
-  await api.invoke('ayar:kaydet', 'firma_adi', ad);
+  await inv('ayar:kaydet', 'firma_adi', ad);
   FIRMA = ad;
   alert('Firma adı kaydedildi: ' + ad + '\nRaporlarda bu ad kullanılacak.');
 }
@@ -8076,7 +8086,7 @@ async function firmaAdiKaydet() {
 async function kurKaydet() {
   const v = parseFloat(document.getElementById('ayar-kur').value.replace(',', '.'));
   if (!v || v <= 0) { alert('Geçerli bir kur girin.'); return; }
-  await api.invoke('ayar:kaydet', 'usd_iqd_kuru', v);
+  await inv('ayar:kaydet', 'usd_iqd_kuru', v);
   alert('Döviz kuru kaydedildi: 1 USD = ' + v + ' IQD');
 }
 
@@ -8086,10 +8096,10 @@ async function sifreKaydet() {
   if (s1 !== s2) { alert('Parolalar eşleşmiyor.'); return; }
   if (!s1) {
     if (!confirm('Parola koruması kaldırılsın mı?')) return;
-    await api.invoke('ayar:kaydet', 'sifre_hash', '');
+    await inv('ayar:kaydet', 'sifre_hash', '');
     alert('Parola koruması kaldırıldı.');
   } else {
-    await api.invoke('ayar:kaydet', 'sifre_hash', sifreHash(s1));
+    await inv('ayar:kaydet', 'sifre_hash', sifreHash(s1));
     alert('Parola kaydedildi. Uygulama açılışında sorulacak.');
   }
   loadAyarlar();
@@ -8097,7 +8107,7 @@ async function sifreKaydet() {
 
 // ── Genel Mali Rapor PDF ──────────────────────────────────────
 async function genelMaliRaporPdf() {
-  const m = await api.invoke('rapor:mali');
+  const m = await inv('rapor:mali');
   const bugun = fmtDate(today());
   const satir = (etiket, deger, renk) =>
     `<tr><td style="padding:6px 10px;border-bottom:1px solid #eee">${etiket}</td>
@@ -8154,12 +8164,12 @@ async function genelMaliRaporPdf() {
         Bu rapor Albrus Firma Yönetim Programı tarafından ${bugun} tarihinde oluşturulmuştur.
       </div>
     </div>`;
-  await api.invoke('print:pdf', html);
+  await inv('print:pdf', html);
 }
 
 async function dbYedekle() {
   try {
-    const r = await api.invoke('db:yedekle');
+    const r = await inv('db:yedekle');
     if (r?.iptal) return;
     if (r?.ok) alert('Yedek başarıyla kaydedildi:\n' + r.path);
   } catch (e) { alert('Yedekleme hatası: ' + e.message); }
@@ -8168,7 +8178,7 @@ async function dbYedekle() {
 async function dbGeriYukle() {
   if (!confirm('DİKKAT: Geri yükleme mevcut tüm verilerinizin yerine seçtiğiniz yedeği koyar.\n(Mevcut veriniz otomatik olarak ayrıca yedeklenir.)\n\nDevam edilsin mi?')) return;
   try {
-    const r = await api.invoke('db:geri-yukle');
+    const r = await inv('db:geri-yukle');
     if (r?.iptal) return;
     if (r?.ok) {
       alert('Geri yükleme tamamlandı.\nÖnceki verileriniz şuraya yedeklendi:\n' + r.otomatikYedek + '\n\nUygulama yenileniyor.');

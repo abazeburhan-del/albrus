@@ -1,19 +1,19 @@
 // ALBRUS SUNUCU — çoklu kullanıcı / uzaktan erişim için merkezi API
-// Node built-in http + sql.js (ekstra kurulum yok). Bulutta veya ofis PC'sinde çalışır.
+// Node built-in http + sql.js. İş mantığı core.js'ten (main.js'ten üretilir → tek kaynak).
 // Çalıştırma:  node albrus-sunucu/server.js   (varsayılan port 4000)
-// Ortam değişkenleri: PORT, ALBRUS_SECRET (token imza sırrı)
 
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const initSqlJs = require('../albrus-firma/node_modules/sql.js');
+const createCore = require('./core.js');
 
 const PORT = process.env.PORT || 4000;
 const SECRET = process.env.ALBRUS_SECRET || 'albrus-degistir-bu-sirri-uretimde';
 const DB_PATH = path.join(__dirname, 'data.db');
 
-let SQL, db;
+let SQL, db, H;
 function saveDb() { fs.writeFileSync(DB_PATH, Buffer.from(db.export())); }
 function run(sql, params = []) { db.run(sql, params); }
 function getAll(sql, params = []) {
@@ -21,77 +21,86 @@ function getAll(sql, params = []) {
   while (st.step()) rows.push(st.getAsObject()); st.free(); return rows;
 }
 function getOne(sql, params = []) { const r = getAll(sql, params); return r[0] || null; }
+function insertAndGet(table, sql, params = []) {
+  db.run(sql, params);
+  const id = getOne('SELECT last_insert_rowid() AS id').id;
+  return getOne(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+}
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 
-// ── Token (imzalı, oturum saklamaya gerek yok) ──
-function tokenUret(user) {
-  const payload = Buffer.from(JSON.stringify({ uid: user.id, rol: user.rol, exp: Date.now() + 12 * 3600 * 1000 })).toString('base64url');
-  const sig = crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
-  return payload + '.' + sig;
+// ── Token ──
+function tokenUret(u) {
+  const payload = Buffer.from(JSON.stringify({ uid: u.id, rol: u.rol, exp: Date.now() + 12 * 3600 * 1000 })).toString('base64url');
+  return payload + '.' + crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
 }
-function tokenCoz(token) {
-  if (!token) return null;
-  const [payload, sig] = String(token).split('.');
-  if (!payload || !sig) return null;
-  const beklenen = crypto.createHmac('sha256', SECRET).update(payload).digest('base64url');
-  if (sig !== beklenen) return null;
-  try { const p = JSON.parse(Buffer.from(payload, 'base64url').toString()); if (p.exp < Date.now()) return null; return p; }
-  catch (_) { return null; }
+function tokenCoz(t) {
+  if (!t) return null;
+  const [p, s] = String(t).split('.');
+  if (!p || !s || s !== crypto.createHmac('sha256', SECRET).update(p).digest('base64url')) return null;
+  try { const o = JSON.parse(Buffer.from(p, 'base64url').toString()); return o.exp < Date.now() ? null : o; } catch { return null; }
 }
 
 // ── Şema + ilk kurulum ──
 function semaKur() {
-  run(`CREATE TABLE IF NOT EXISTS kullanicilar (
+  db.run(createCore.SEMA);   // main.js'ten gelen TÜM tablolar
+  for (const alt of (createCore.MIGRATIONS || [])) { try { db.run(alt); } catch (_) {} }  // sonradan eklenen kolonlar
+  db.run(`CREATE TABLE IF NOT EXISTS kullanicilar (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kullanici_adi TEXT UNIQUE NOT NULL,
     ad TEXT DEFAULT '', sifre_hash TEXT NOT NULL, rol TEXT DEFAULT 'kullanici',
     izinler TEXT DEFAULT '[]', aktif INTEGER DEFAULT 1)`);
-  run(`CREATE TABLE IF NOT EXISTS kasalar (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, ad TEXT NOT NULL, para_birimi TEXT DEFAULT 'IQD', bakiye REAL DEFAULT 0)`);
-  run(`CREATE TABLE IF NOT EXISTS kasa_hareketleri (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, kasa_id INTEGER NOT NULL, tarih TEXT, tur TEXT,
-    tutar REAL DEFAULT 0, aciklama TEXT DEFAULT '', kullanici_id INTEGER)`);
-  // ilk admin + varsayılan kasalar
   if (!getOne('SELECT 1 FROM kullanicilar LIMIT 1')) {
     run("INSERT INTO kullanicilar (kullanici_adi, ad, sifre_hash, rol, izinler) VALUES ('admin','Yönetici',?,'admin','[]')", [sha256('admin')]);
-    run("INSERT INTO kasalar (ad, para_birimi) VALUES ('IQD Kasa','IQD'), ('USD Kasa','USD')");
-    saveDb();
   }
+  if (!getOne('SELECT 1 FROM kasalar LIMIT 1')) {
+    run("INSERT INTO kasalar (ad, para_birimi) VALUES ('IQD Kasa','IQD'), ('USD Kasa','USD')");
+  }
+  if (!getOne("SELECT 1 FROM ayarlar WHERE anahtar='usd_iqd_kuru'")) {
+    run("INSERT INTO ayarlar (anahtar, deger) VALUES ('usd_iqd_kuru','1310')");
+  }
+  saveDb();
 }
 
-const TUM_MODULLER = ['kasa', 'banka', 'cariler', 'faturalar', 'stok', 'projeler', 'personel', 'ortaklar', 'cek', 'hakedis', 'raporlar', 'ayarlar'];
+// ── Kanal → modül (RBAC). null = her giriş yapana açık ──
+function kanalModul(ch) {
+  if (ch.startsWith('kasa') || ch === 'hesap:transfer' || ch === 'sonraki:fis:no') return 'kasa';
+  if (ch.startsWith('banka')) return 'banka';
+  if (ch.startsWith('cari')) return 'cariler';
+  if (ch.startsWith('fatura') || ch === 'sonraki:fatura:no') return 'faturalar';
+  if (ch.startsWith('stok')) return 'stok';
+  if (ch.startsWith('proje')) return 'projeler';
+  if (ch.startsWith('personel') || ch.startsWith('puantaj') || ch.startsWith('maas')) return 'personel';
+  if (ch.startsWith('ortak')) return 'ortaklar';
+  if (ch.startsWith('cek')) return 'cek';
+  if (/^(hakedis|yesil|icmal|ilave|kesinti|arkakapak|progress)/.test(ch)) return 'hakedis';
+  return null; // ayar, dashboard, kategoriler, rapor:* → herkese
+}
 function izinVar(user, modul) {
+  if (!modul) return true;
   if (user.rol === 'admin') return true;
-  try { return JSON.parse(user.izinler || '[]').includes(modul); } catch (_) { return false; }
+  try { return JSON.parse(user.izinler || '[]').includes(modul); } catch { return false; }
 }
+// Yazma içeren kanallar admin-dışı için ayar:kaydet'i kısıtla (firma/lisans/sunucu ayarı admin işi)
+const KORUMALI_AYAR = new Set(['firma_adi']);
 
-// ── HTTP yardımcıları ──
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS' });
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' });
   res.end(JSON.stringify(obj));
 }
-function body(req) {
-  return new Promise((resolve) => { let d = ''; req.on('data', c => d += c); req.on('end', () => { try { resolve(d ? JSON.parse(d) : {}); } catch { resolve({}); } }); });
-}
+function body(req) { return new Promise(r => { let d = ''; req.on('data', c => d += c); req.on('end', () => { try { r(d ? JSON.parse(d) : {}); } catch { r({}); } }); }); }
 function authUser(req) {
-  const h = req.headers['authorization'] || '';
-  const p = tokenCoz(h.replace(/^Bearer\s+/i, ''));
-  if (!p) return null;
-  return getOne('SELECT * FROM kullanicilar WHERE id = ? AND aktif = 1', [p.uid]);
+  const p = tokenCoz((req.headers['authorization'] || '').replace(/^Bearer\s+/i, ''));
+  return p ? getOne('SELECT * FROM kullanicilar WHERE id = ? AND aktif = 1', [p.uid]) : null;
 }
 
-// ── Sunucu ──
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 200, {});
   const url = new URL(req.url, 'http://x');
   const yol = url.pathname;
-
   try {
-    // sağlık
-    if (yol === '/api/saglik') return json(res, 200, { ok: true, sunucu: 'albrus', sürüm: 1 });
+    if (yol === '/api/saglik') return json(res, 200, { ok: true, sunucu: 'albrus', sürüm: 2 });
 
-    // giriş
     if (yol === '/api/login' && req.method === 'POST') {
       const b = await body(req);
       const u = getOne('SELECT * FROM kullanicilar WHERE kullanici_adi = ? AND aktif = 1', [b.kullanici || '']);
@@ -99,11 +108,10 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { token: tokenUret(u), kullanici: { id: u.id, ad: u.ad, kullanici_adi: u.kullanici_adi, rol: u.rol, izinler: JSON.parse(u.izinler || '[]') } });
     }
 
-    // buradan sonrası kimlik ister
     const user = authUser(req);
     if (!user) return json(res, 401, { hata: 'Giriş gerekli.' });
 
-    // kullanıcı yönetimi (sadece admin)
+    // Kullanıcı yönetimi (admin)
     if (yol === '/api/kullanicilar' && req.method === 'GET') {
       if (user.rol !== 'admin') return json(res, 403, { hata: 'Yetkiniz yok.' });
       return json(res, 200, getAll('SELECT id, kullanici_adi, ad, rol, izinler, aktif FROM kullanicilar ORDER BY id').map(u => ({ ...u, izinler: JSON.parse(u.izinler || '[]') })));
@@ -123,41 +131,30 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
-    // ── KASA (örnek modül, RBAC korumalı) ──
-    if (yol === '/api/kasalar' && req.method === 'GET') {
-      if (!izinVar(user, 'kasa')) return json(res, 403, { hata: 'Kasa yetkiniz yok.' });
-      return json(res, 200, getAll('SELECT * FROM kasalar ORDER BY id'));
-    }
-    if (yol === '/api/kasa/hareketler' && req.method === 'GET') {
-      if (!izinVar(user, 'kasa')) return json(res, 403, { hata: 'Kasa yetkiniz yok.' });
-      return json(res, 200, getAll('SELECT * FROM kasa_hareketleri WHERE kasa_id = ? ORDER BY id DESC', [Number(url.searchParams.get('kasa_id')) || 0]));
-    }
-    if (yol === '/api/kasa/fis' && req.method === 'POST') {
-      if (!izinVar(user, 'kasa')) return json(res, 403, { hata: 'Kasa yetkiniz yok.' });
-      const b = await body(req);
-      const kasa = getOne('SELECT * FROM kasalar WHERE id = ?', [b.kasa_id]);
-      if (!kasa) return json(res, 400, { hata: 'Kasa bulunamadı.' });
-      const giris = b.tur === 'tahsilat' || b.tur === 'giris';
-      const tutar = Number(b.tutar) || 0;
-      run('INSERT INTO kasa_hareketleri (kasa_id, tarih, tur, tutar, aciklama, kullanici_id) VALUES (?,?,?,?,?,?)',
-        [b.kasa_id, b.tarih || new Date().toISOString().slice(0, 10), b.tur || 'tahsilat', tutar, b.aciklama || '', user.id]);
-      run('UPDATE kasalar SET bakiye = bakiye + ? WHERE id = ?', [giris ? tutar : -tutar, b.kasa_id]);
-      saveDb();
-      return json(res, 200, { ok: true });
+    // ── Genel köprü: tüm veri kanalları (core.js handler'ları) ──
+    if (yol === '/api/invoke' && req.method === 'POST') {
+      const { channel, args } = await body(req);
+      if (!H[channel]) return json(res, 404, { hata: 'Bilinmeyen kanal: ' + channel });
+      if (!izinVar(user, kanalModul(channel))) return json(res, 403, { hata: 'Bu bölüm için yetkiniz yok.' });
+      // ayar yazımı: kritik ayarları yalnız admin değiştirsin
+      if (channel === 'ayar:kaydet' && user.rol !== 'admin' && KORUMALI_AYAR.has((args || [])[0])) return json(res, 403, { hata: 'Bu ayarı yalnız yönetici değiştirebilir.' });
+      const sonuc = H[channel](null, ...(args || []));
+      return json(res, 200, { sonuc });
     }
 
     return json(res, 404, { hata: 'Bulunamadı: ' + yol });
   } catch (e) {
-    return json(res, 500, { hata: e.message });
+    return json(res, 400, { hata: e.message });
   }
 });
 
 (async () => {
   SQL = await initSqlJs();
   db = fs.existsSync(DB_PATH) ? new SQL.Database(fs.readFileSync(DB_PATH)) : new SQL.Database();
+  H = createCore({ run, getAll, getOne, insertAndGet, saveDb });
   semaKur();
   server.listen(PORT, () => {
-    console.log(`ALBRUS sunucu çalışıyor → http://localhost:${PORT}`);
-    console.log(`İlk giriş: kullanıcı "admin", parola "admin" (sonra değiştirin).`);
+    console.log(`ALBRUS sunucu çalışıyor → http://localhost:${PORT}  (sürüm 2, ${Object.keys(H).length} kanal)`);
+    console.log(`İlk giriş: kullanıcı "admin", parola "admin".`);
   });
 })();
