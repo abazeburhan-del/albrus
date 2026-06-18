@@ -94,12 +94,29 @@ function authUser(req) {
   return p ? getOne('SELECT * FROM kullanicilar WHERE id = ? AND aktif = 1', [p.uid]) : null;
 }
 
+// ── Mobil PWA statik dosyaları (albrus-sunucu/mobil) ──
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
+  '.ico': 'image/x-icon', '.css': 'text/css; charset=utf-8' };
+function statik(res, yol) {
+  let dosya = yol === '/' ? 'index.html' : yol.replace(/^\/(mobil\/)?/, '');
+  dosya = dosya.replace(/\.\.+/g, '');                 // dizin çıkışını engelle
+  const tam = path.join(__dirname, 'mobil', dosya);
+  if (!tam.startsWith(path.join(__dirname, 'mobil')) || !fs.existsSync(tam)) return json(res, 404, { hata: 'Bulunamadı' });
+  const ext = path.extname(tam).toLowerCase();
+  res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Access-Control-Allow-Origin': '*' });
+  res.end(fs.readFileSync(tam));
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 200, {});
   const url = new URL(req.url, 'http://x');
   const yol = url.pathname;
   try {
     if (yol === '/api/saglik') return json(res, 200, { ok: true, sunucu: 'albrus', sürüm: 2 });
+    // Mobil PWA dosyaları (giriş gerektirmez; veri /api/invoke ile token'lı gelir)
+    if (req.method === 'GET' && (yol === '/' || yol === '/manifest.json' || yol === '/sw.js' || yol.startsWith('/mobil')))
+      return statik(res, yol);
 
     if (yol === '/api/login' && req.method === 'POST') {
       const b = await body(req);

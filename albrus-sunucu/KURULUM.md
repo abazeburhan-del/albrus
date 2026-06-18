@@ -40,6 +40,23 @@ http://192.168.1.42:4000
 3. **Güvenlik:** Bu yöntemde HTTPS'i ayrıca kurman gerekir (alan adı + SSL sertifikası).
    HTTPS'siz parolalar açık gider — internete açarken mutlaka HTTPS kullan.
 
+## 4) Mobil uygulama (telefon)
+Sunucu aynı zamanda bir **mobil web uygulaması** (PWA) servis eder. Ayrı kurulum gerekmez.
+
+1. Telefonun tarayıcısında sunucu adresini aç:
+   - Ofis içi:  `http://192.168.1.42:4000`
+   - Uzaktan:  Cloudflare Tunnel adresin (örn. `https://....trycloudflare.com`)
+2. **admin / admin** ile giriş yap (kendi kullanıcınla da girebilirsin).
+3. Tarayıcı menüsünden **"Ana ekrana ekle"** de → telefonda uygulama ikonu gibi açılır.
+
+Mobil sürümde olanlar: **Özet** (kasa/banka bakiye, aylık gelir-gider, uyarılar),
+**Cari** (bakiye + ekstre), **Kasa** (bakiye + hareket + yeni fiş girişi),
+**Banka** (bakiye + hareket), **Fatura** (görüntüleme). Hakediş gibi ağır işler masaüstünde.
+Kullanıcı yetkileri (RBAC) mobile de uygulanır — kullanıcı yalnız izinli bölümleri görür.
+
+> Uzaktan mobil erişim için sunucunun internete açık olması gerekir (Cloudflare Tunnel — bkz. madde 3A).
+> HTTPS olmadan parola açık gider; internete açarken mutlaka HTTPS (Cloudflare Tunnel hazır verir).
+
 ## Güvenlik notları
 - İnternete açmadan önce **admin parolasını değiştir**.
 - Mümkünse Cloudflare Tunnel kullan (HTTPS hazır gelir).

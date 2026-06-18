@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f1216">
+<link rel="manifest" href="/manifest.json">
+<title>Albrus Mobil</title>
+<style>
+  :root{
+    --bg:#0f1216; --card:#171b21; --card2:#1e242c; --border:#2a313b;
+    --text:#e6e9ee; --dim:#8b95a3; --blue:#4a90e2; --green:#22c55e; --red:#ef4444;
+    --purple:#a855f7; --head:56px; --nav:64px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:15px;
+    padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom)}
+  .hidden{display:none !important}
+  /* Üst başlık */
+  .head{position:fixed;top:env(safe-area-inset-top);left:0;right:0;height:var(--head);background:var(--card);
+    border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 14px;z-index:20}
+  .head h1{font-size:17px;margin:0;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .head .geri{font-size:22px;color:var(--blue);cursor:pointer;width:30px}
+  .head .cik{font-size:13px;color:var(--dim);cursor:pointer}
+  /* İçerik */
+  #icerik{position:fixed;top:calc(var(--head) + env(safe-area-inset-top));bottom:calc(var(--nav) + env(safe-area-inset-bottom));
+    left:0;right:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
+  /* Alt menü */
+  .nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav) + env(safe-area-inset-bottom));
+    padding-bottom:env(safe-area-inset-bottom);background:var(--card);border-top:1px solid var(--border);
+    display:flex;z-index:20}
+  .nav button{flex:1;background:none;border:none;color:var(--dim);font-size:11px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:3px;cursor:pointer;font-family:inherit}
+  .nav button .ic{font-size:20px}
+  .nav button.aktif{color:var(--blue)}
+  /* Kartlar */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+  .card.tik{cursor:pointer}
+  .card.tik:active{background:var(--card2)}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .baslik{font-size:13px;color:var(--dim);margin:14px 4px 8px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .ad{font-weight:600}
+  .alt{font-size:12px;color:var(--dim);margin-top:2px}
+  .tutar{font-weight:700;font-variant-numeric:tabular-nums}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  .pb{font-size:11px;color:var(--dim);font-weight:600}
+  .empty{text-align:center;color:var(--dim);padding:40px 10px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}
+  .b-musteri{background:rgba(74,144,226,.16);color:var(--blue)}
+  .b-tedarikci{background:rgba(168,85,247,.16);color:var(--purple)}
+  .b-diger{background:rgba(139,149,163,.16);color:var(--dim)}
+  .b-giris{background:rgba(34,197,94,.16);color:var(--green)}
+  .b-cikis{background:rgba(239,68,68,.16);color:var(--red)}
+  /* Form ögeleri */
+  input,select,button.btn{font-family:inherit;font-size:16px}
+  .inp{width:100%;padding:12px;background:var(--card2);border:1px solid var(--border);border-radius:10px;color:var(--text);margin-top:6px}
+  .lbl{font-size:12px;color:var(--dim);font-weight:600}
+  .fg{margin-bottom:14px}
+  .btn{width:100%;padding:14px;border:none;border-radius:10px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer;margin-top:6px}
+  .btn.ghost{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+  .btn.yesil{background:var(--green)} .btn.kirmizi{background:var(--red)}
+  .ara{width:100%;padding:11px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);margin-bottom:10px}
+  .seg{display:flex;gap:8px;margin:10px 0}
+  .seg button{flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--dim);font-weight:600;cursor:pointer}
+  .seg button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+  /* Giriş ekranı */
+  #giris{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;padding:28px;z-index:40;background:var(--bg)}
+  #giris .logo{text-align:center;font-size:26px;font-weight:800;letter-spacing:2px;margin-bottom:6px}
+  #giris .slogan{text-align:center;color:var(--dim);margin-bottom:28px;font-size:13px}
+  .hata{color:var(--red);font-size:13px;margin-top:10px;text-align:center;min-height:18px}
+  /* Toast */
+  #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav) + 20px);background:#000;color:#fff;
+    padding:10px 18px;border-radius:20px;font-size:13px;z-index:60;opacity:0;transition:.25s;pointer-events:none;max-width:90%}
+  #toast.show{opacity:.95}
+  /* Modal (fiş ekleme) */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:none;align-items:flex-end}
+  .overlay.open{display:flex}
+  .sheet{background:var(--card);width:100%;border-radius:18px 18px 0 0;padding:18px;max-height:92vh;overflow-y:auto;
+    border-top:1px solid var(--border)}
+  .sheet h3{margin:0 0 14px}
+</style>
+</head>
+<body>
+
+<!-- GİRİŞ -->
+<div id="giris">
+  <div class="logo" id="g-logo">ALBRUS</div>
+  <div class="slogan">Mobil • Ön Muhasebe</div>
+  <div class="fg"><div class="lbl">Kullanıcı adı</div><input class="inp" id="g-kul" autocomplete="username" autocapitalize="off"></div>
+  <div class="fg"><div class="lbl">Parola</div><input class="inp" id="g-sif" type="password" autocomplete="current-password"></div>
+  <button class="btn" id="g-btn" onclick="girisYap()">Giriş Yap</button>
+  <div class="hata" id="g-hata"></div>
+</div>
+
+<!-- UYGULAMA -->
+<div id="app" class="hidden">
+  <div class="head">
+    <div class="geri hidden" id="h-geri" onclick="geriDon()">‹</div>
+    <h1 id="h-baslik">Özet</h1>
+    <div class="cik" id="h-cik" onclick="cikisYap()">Çıkış</div>
+  </div>
+  <div id="icerik"></div>
+  <div class="nav" id="nav"></div>
+</div>
+
+<!-- FİŞ EKLEME SAYFASI -->
+<div class="overlay" id="m-fis">
+  <div class="sheet">
+    <h3>Kasa Fişi</h3>
+    <div class="seg">
+      <button id="fis-giris" class="on" onclick="fisTip('giris')">Tahsilat (Giriş)</button>
+      <button id="fis-cikis" onclick="fisTip('cikis')">Ödeme (Çıkış)</button>
+    </div>
+    <div class="fg"><div class="lbl">Kasa</div><select class="inp" id="fis-kasa"></select></div>
+    <div class="fg"><div class="lbl">Tutar</div><input class="inp" id="fis-tutar" inputmode="decimal" placeholder="0"></div>
+    <div class="fg"><div class="lbl">Cari (opsiyonel)</div><select class="inp" id="fis-cari"><option value="">— Yok —</option></select></div>
+    <div class="fg"><div class="lbl">Açıklama</div><input class="inp" id="fis-aciklama" placeholder="Açıklama"></div>
+    <div class="fg"><div class="lbl">Tarih</div><input class="inp" id="fis-tarih" type="date"></div>
+    <button class="btn yesil" onclick="fisKaydet()">Kaydet</button>
+    <button class="btn ghost" onclick="kapatFis()">Vazgeç</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let TOKEN = localStorage.getItem('albrus_token') || '';
+let KULLANICI = JSON.parse(localStorage.getItem('albrus_kullanici') || 'null');
+let aktifSekme = 'ozet';
+let _fisTip = 'giris';
+
+const num = (n) => (Number(n)||0).toLocaleString('tr-TR',{maximumFractionDigits:2});
+const bugun = () => new Date().toISOString().split('T')[0];
+const el = (id) => document.getElementById(id);
+function toast(m){ const t=el('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+
+async function api(channel, ...args){
+  const r = await fetch('/api/invoke', { method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN },
+    body: JSON.stringify({ channel, args }) });
+  if (r.status === 401){ cikisYap(); throw new Error('Oturum bitti, tekrar giriş yapın.'); }
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.hata || 'Hata');
+  return d.sonuc;
+}
+
+// ── Giriş ──
+async function girisYap(){
+  const kullanici = el('g-kul').value.trim(), sifre = el('g-sif').value;
+  el('g-hata').textContent='';
+  if (!kullanici){ el('g-hata').textContent='Kullanıcı adı girin.'; return; }
+  el('g-btn').disabled=true; el('g-btn').textContent='Giriş yapılıyor...';
+  try{
+    const r = await fetch('/api/login',{ method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ kullanici, sifre }) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.hata || 'Giriş başarısız');
+    TOKEN = d.token; KULLANICI = d.kullanici;
+    localStorage.setItem('albrus_token', TOKEN);
+    localStorage.setItem('albrus_kullanici', JSON.stringify(KULLANICI));
+    baslat();
+  }catch(e){ el('g-hata').textContent = e.message; }
+  finally{ el('g-btn').disabled=false; el('g-btn').textContent='Giriş Yap'; }
+}
+function cikisYap(){
+  TOKEN=''; KULLANICI=null;
+  localStorage.removeItem('albrus_token'); localStorage.removeItem('albrus_kullanici');
+  el('app').classList.add('hidden'); el('giris').classList.remove('hidden');
+  el('g-sif').value='';
+}
+
+// ── Sekme / menü ──
+const SEKMELER = [
+  { id:'ozet',   ad:'Özet',   ic:'▦', modul:null },
+  { id:'cari',   ad:'Cari',   ic:'◍', modul:'cariler' },
+  { id:'kasa',   ad:'Kasa',   ic:'▢', modul:'kasa' },
+  { id:'banka',  ad:'Banka',  ic:'▤', modul:'banka' },
+  { id:'fatura', ad:'Fatura', ic:'▣', modul:'faturalar' },
+];
+function yetkiVar(modul){
+  if (!modul) return true;
+  if (!KULLANICI) return false;
+  if (KULLANICI.rol === 'admin') return true;
+  return (KULLANICI.izinler||[]).includes(modul);
+}
+function menuKur(){
+  const izinli = SEKMELER.filter(s => yetkiVar(s.modul));
+  el('nav').innerHTML = izinli.map(s =>
+    `<button data-s="${s.id}" onclick="sekmeGit('${s.id}')"><span class="ic">${s.ic}</span>${s.ad}</button>`).join('');
+  if (!izinli.find(s => s.id === aktifSekme)) aktifSekme = (izinli[0]||{id:'ozet'}).id;
+}
+function sekmeGit(id){ aktifSekme=id; ciz(); }
+function navAktif(){
+  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('aktif', b.dataset.s === aktifSekme));
+}
+
+let _detay = null; // {tip, baslik, render}
+function geriDon(){ _detay=null; ciz(); }
+function detayAc(baslik, render){ _detay = { baslik, render }; ciz(); }
+
+async function ciz(){
+  navAktif();
+  el('h-geri').classList.toggle('hidden', !_detay);
+  el('h-cik').classList.toggle('hidden', !!_detay);
+  el('icerik').scrollTop = 0;
+  el('icerik').innerHTML = '<div class="empty">Yükleniyor...</div>';
+  try{
+    if (_detay){ el('h-baslik').textContent = _detay.baslik; await _detay.render(); return; }
+    const s = SEKMELER.find(x=>x.id===aktifSekme);
+    el('h-baslik').textContent = s ? s.ad : 'Albrus';
+    if (aktifSekme==='ozet') await cizOzet();
+    else if (aktifSekme==='cari') await cizCari();
+    else if (aktifSekme==='kasa') await cizKasa();
+    else if (aktifSekme==='banka') await cizBanka();
+    else if (aktifSekme==='fatura') await cizFatura();
+  }catch(e){ el('icerik').innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
+function paraSatir(ad, bakiye_IQD, bakiye_USD){
+  const parca = [];
+  if (bakiye_IQD) parca.push(`<span class="tutar ${bakiye_IQD<0?'neg':'pos'}">${num(bakiye_IQD)} <span class="pb">IQD</span></span>`);
+  if (bakiye_USD) parca.push(`<span class="tutar ${bakiye_USD<0?'neg':'pos'}">${num(bakiye_USD)} <span class="pb">USD</span></span>`);
+  return parca.join(' · ') || '<span class="alt">0</span>';
+}
+
+// ── ÖZET ──
+async function cizOzet(){
+  const [o, u] = await Promise.all([ api('dashboard:ozet'), api('dashboard:uyarilar') ]);
+  let h = '';
+  h += '<div class="baslik">Kasa</div>';
+  h += (o.kasalar||[]).map(k => `<div class="card"><div class="row"><div class="ad">${k.ad}</div>
+    <div class="tutar ${k.bakiye<0?'neg':'pos'}">${num(k.bakiye)} <span class="pb">${k.para_birimi}</span></div></div></div>`).join('') || '<div class="empty">Kasa yok</div>';
+  if ((o.bankalar||[]).length){
+    h += '<div class="baslik">Banka</div>';
+    h += o.bankalar.map(b => `<div class="card"><div class="row"><div><div class="ad">${b.banka_adi}</div><div class="alt">${b.hesap_no||''}</div></div>
+      <div class="tutar ${b.bakiye<0?'neg':'pos'}">${num(b.bakiye)} <span class="pb">${b.para_birimi}</span></div></div></div>`).join('');
+  }
+  h += '<div class="baslik">Bu Ay</div>';
+  const gelir = (o.aylikGelir||[]).map(x=>`${num(x.toplam)} ${x.para_birimi}`).join(', ') || '—';
+  const gider = (o.aylikGider||[]).map(x=>`${num(x.toplam)} ${x.para_birimi}`).join(', ') || '—';
+  h += `<div class="card"><div class="row"><div class="ad">Gelir</div><div class="tutar pos">${gelir}</div></div></div>`;
+  h += `<div class="card"><div class="row"><div class="ad">Gider</div><div class="tutar neg">${gider}</div></div></div>`;
+  if (u.acikFaturaSayisi){
+    const t = Object.entries(u.acikToplam||{}).map(([pb,v])=>`${num(v)} ${pb}`).join(', ');
+    h += '<div class="baslik">Uyarılar</div>';
+    h += `<div class="card"><div class="row"><div class="ad">Açık fatura (${u.acikFaturaSayisi})</div><div class="tutar neg">${t}</div></div></div>`;
+  }
+  if ((o.sonHareketler||[]).length){
+    h += '<div class="baslik">Son Hareketler</div>';
+    h += o.sonHareketler.map(m => `<div class="card"><div class="row">
+      <div><div class="ad">${m.cari_ad || m.aciklama || m.kasa_ad}</div><div class="alt">${m.tarih} · ${m.kasa_ad}</div></div>
+      <div class="tutar ${girisMi(m.tur)?'pos':'neg'}">${girisMi(m.tur)?'+':'−'}${num(m.tutar)} <span class="pb">${m.para_birimi}</span></div>
+    </div></div>`).join('');
+  }
+  el('icerik').innerHTML = h;
+}
+const GIRIS = new Set(['giris','tahsilat','bankadan-cekilen','gelen-havale']);
+const girisMi = (t) => GIRIS.has(t);
+
+// ── CARİ ──
+let _cariList = [];
+async function cizCari(){
+  _cariList = await api('cariler:getir', {});
+  const h = `<input class="ara" id="cari-ara" placeholder="Cari ara..." oninput="cariFiltre()">
+    <div id="cari-liste"></div>`;
+  el('icerik').innerHTML = h;
+  cariFiltre();
+}
+function cariFiltre(){
+  const q = (el('cari-ara')?.value||'').toLowerCase();
+  const list = _cariList.filter(c => !q || (c.ad||'').toLowerCase().includes(q));
+  const turCls = { musteri:'b-musteri', tedarikci:'b-tedarikci', diger:'b-diger' };
+  el('cari-liste').innerHTML = list.map(c => `<div class="card tik" onclick="cariEkstre(${c.id})">
+    <div class="row"><div><div class="ad">${c.ad}</div>
+      <span class="badge ${turCls[c.tur]||'b-diger'}">${c.tur||'diğer'}</span></div>
+      <div style="text-align:right">${paraSatir(c.ad, c.bakiye_IQD, c.bakiye_USD)}</div></div></div>`).join('')
+    || '<div class="empty">Cari bulunamadı</div>';
+}
+async function cariEkstre(id){
+  const cari = _cariList.find(c=>c.id===id);
+  detayAc(cari ? cari.ad : 'Ekstre', async ()=>{
+    const har = await api('cari:ekstre', id);
+    let h = `<div class="card"><div class="row"><div class="ad">Bakiye</div>
+      <div style="text-align:right">${paraSatir('', cari?.bakiye_IQD, cari?.bakiye_USD)}</div></div></div>`;
+    h += har.map(m => `<div class="card"><div class="row">
+      <div><div class="ad">${m.aciklama||(m.tur==='borc'?'Borç':'Alacak')}</div><div class="alt">${m.tarih} ${m.belge_no?'· '+m.belge_no:''}</div></div>
+      <div class="tutar ${m.tur==='borc'?'pos':'neg'}">${m.tur==='borc'?'+':'−'}${num(m.tutar)} <span class="pb">${m.para_birimi}</span></div>
+    </div></div>`).join('') || '<div class="empty">Hareket yok</div>';
+    el('icerik').innerHTML = h;
+  });
+}
+
+// ── KASA ──
+async function cizKasa(){
+  const kasalar = await api('kasalar:getir');
+  let h = '';
+  if (yetkiVar('kasa')) h += `<button class="btn" onclick="acFis()">+ Yeni Kasa Fişi</button><div style="height:6px"></div>`;
+  h += kasalar.map(k => `<div class="card tik" onclick="kasaHareket(${k.id},'${k.ad.replace(/'/g,"")}')">
+    <div class="row"><div class="ad">${k.ad}</div>
+    <div class="tutar ${k.bakiye<0?'neg':'pos'}">${num(k.bakiye)} <span class="pb">${k.para_birimi}</span></div></div></div>`).join('')
+    || '<div class="empty">Kasa yok</div>';
+  el('icerik').innerHTML = h;
+}
+async function kasaHareket(id, ad){
+  detayAc(ad, async ()=>{
+    const har = await api('kasa:hareketler', id);
+    el('icerik').innerHTML = har.map(m => `<div class="card"><div class="row">
+      <div><div class="ad">${m.cari_ad || m.aciklama || (girisMi(m.tur)?'Giriş':'Çıkış')}</div>
+        <div class="alt">${m.tarih} ${m.belge_no?'· '+m.belge_no:''}</div></div>
+      <div class="tutar ${girisMi(m.tur)?'pos':'neg'}">${girisMi(m.tur)?'+':'−'}${num(m.tutar)}</div>
+    </div></div>`).join('') || '<div class="empty">Hareket yok</div>';
+  });
+}
+
+// ── BANKA ──
+async function cizBanka(){
+  const hesaplar = await api('banka:hesaplar');
+  el('icerik').innerHTML = hesaplar.map(b => `<div class="card tik" onclick="bankaHareket(${b.id},'${(b.banka_adi||'').replace(/'/g,"")}')">
+    <div class="row"><div><div class="ad">${b.banka_adi}</div><div class="alt">${b.hesap_no||''}</div></div>
+    <div class="tutar ${b.bakiye<0?'neg':'pos'}">${num(b.bakiye)} <span class="pb">${b.para_birimi}</span></div></div></div>`).join('')
+    || '<div class="empty">Banka hesabı yok</div>';
+}
+async function bankaHareket(id, ad){
+  detayAc(ad, async ()=>{
+    const har = await api('banka:hareketler', id);
+    el('icerik').innerHTML = har.map(m => `<div class="card"><div class="row">
+      <div><div class="ad">${m.cari_ad || m.aciklama || (girisMi(m.tur)?'Giriş':'Çıkış')}</div>
+        <div class="alt">${m.tarih} ${m.belge_no?'· '+m.belge_no:''}</div></div>
+      <div class="tutar ${girisMi(m.tur)?'pos':'neg'}">${girisMi(m.tur)?'+':'−'}${num(m.tutar)}</div>
+    </div></div>`).join('') || '<div class="empty">Hareket yok</div>';
+  });
+}
+
+// ── FATURA ──
+async function cizFatura(){
+  const list = await api('faturalar:getir', {});
+  el('icerik').innerHTML = list.map(f => `<div class="card"><div class="row">
+    <div><div class="ad">${f.fatura_no || '—'}</div><div class="alt">${f.cari_ad||''} · ${f.tarih||''}</div>
+      <span class="badge ${f.tur==='satis'?'b-giris':'b-cikis'}">${f.tur==='satis'?'Satış':'Alış'}</span></div>
+    <div class="tutar">${num(f.toplam)} <span class="pb">${f.para_birimi||''}</span></div></div></div>`).join('')
+    || '<div class="empty">Fatura yok</div>';
+}
+
+// ── KASA FİŞİ EKLEME ──
+async function acFis(){
+  try{
+    const [kasalar] = await Promise.all([ api('kasalar:getir') ]);
+    if (!kasalar.length){ toast('Önce kasa oluşturun (masaüstü).'); return; }
+    el('fis-kasa').innerHTML = kasalar.map(k=>`<option value="${k.id}">${k.ad} (${k.para_birimi})</option>`).join('');
+    if (yetkiVar('cariler')){
+      const cariler = await api('cariler:getir', {});
+      el('fis-cari').innerHTML = '<option value="">— Yok —</option>' + cariler.map(c=>`<option value="${c.id}">${c.ad}</option>`).join('');
+    }
+    el('fis-tutar').value=''; el('fis-aciklama').value=''; el('fis-cari').value='';
+    el('fis-tarih').value = bugun(); fisTip('giris');
+    el('m-fis').classList.add('open');
+  }catch(e){ toast(e.message); }
+}
+function kapatFis(){ el('m-fis').classList.remove('open'); }
+function fisTip(t){ _fisTip=t; el('fis-giris').classList.toggle('on',t==='giris'); el('fis-cikis').classList.toggle('on',t==='cikis'); }
+async function fisKaydet(){
+  const tutar = parseFloat((el('fis-tutar').value||'').replace(',','.'));
+  if (!tutar || tutar<=0){ toast('Tutar girin.'); return; }
+  const d = { kasa_id: Number(el('fis-kasa').value), tutar,
+    tur: _fisTip==='giris'?'tahsilat':'odeme', tarih: el('fis-tarih').value || bugun(),
+    aciklama: el('fis-aciklama').value, cari_id: el('fis-cari').value ? Number(el('fis-cari').value) : null };
+  try{
+    await api('kasa:fis:ekle', d);
+    kapatFis(); toast('Fiş kaydedildi ✓'); ciz();
+  }catch(e){ toast(e.message); }
+}
+
+// ── Başlangıç ──
+async function baslat(){
+  el('giris').classList.add('hidden'); el('app').classList.remove('hidden');
+  try{ const ad = await api('ayar:getir','firma_adi'); if (ad) el('g-logo').textContent = String(ad).toUpperCase(); }catch(_){}
+  menuKur(); ciz();
+}
+if (TOKEN && KULLANICI) baslat();
+el('g-sif').addEventListener('keydown', e=>{ if(e.key==='Enter') girisYap(); });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+</script>
+</body>
+</html>

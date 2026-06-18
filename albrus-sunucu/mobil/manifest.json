@@ -1,0 +1,15 @@
+{
+  "name": "Albrus Mobil",
+  "short_name": "Albrus",
+  "description": "Albrus ön muhasebe — mobil",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1216",
+  "theme_color": "#0f1216",
+  "lang": "tr",
+  "icons": [
+    { "src": "/mobil/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
