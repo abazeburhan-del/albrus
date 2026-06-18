@@ -23,14 +23,20 @@ http://192.168.1.42:4000
 İnternetten erişim için iki yol var:
 
 ### A) Cloudflare Tunnel — ÖNERİLEN (ücretsiz, modem ayarı yok, otomatik HTTPS)
-1. `cloudflared` indir: https://github.com/cloudflare/cloudflared/releases (Windows .exe)
-2. Cloudflare hesabı aç (ücretsiz) ve bir alan adı bağla (ya da geçici deneme URL'si kullan).
-3. Tüneli başlat:
-   ```
-   cloudflared tunnel --url http://localhost:4000
-   ```
-   Sana `https://....trycloudflare.com` gibi bir adres verir. Kullanıcılar bunu yazar.
-4. Kalıcı kullanım için adlandırılmış tünel + kendi alan adın (cloudflared dokümanı).
+
+**EN KOLAY — tek tık:** `albrus-sunucu\uzaktan-baslat.bat` dosyasına çift tıkla.
+- Sunucuyu ve tüneli birlikte başlatır.
+- Pencerede `https://....trycloudflare.com` gibi bir adres çıkar → bu adresi telefonun
+  tarayıcısına yaz, **admin / admin** ile gir.
+- **İki pencereyi de (Sunucu + Tunnel) kapatma**; kapatınca erişim durur.
+- (`cloudflared.exe` aynı klasörde hazır gelir. Yoksa:
+  https://github.com/cloudflare/cloudflared/releases — `cloudflared-windows-amd64.exe`
+  indirip `cloudflared.exe` adıyla `albrus-sunucu` klasörüne koy.)
+
+> **DİKKAT — adres her başlatmada değişir.** Bu ücretsiz "deneme" tüneli her açılışta
+> farklı bir `trycloudflare.com` adresi verir. Sabit/kalıcı adres istiyorsan: Cloudflare
+> hesabı (ücretsiz) + kendi alan adın ile **adlandırılmış tünel** kur (cloudflared dokümanı).
+> İstersen bunu birlikte ayarlarız.
 
 **Avantaj:** Modemde port açmaya gerek yok, dinamik IP sorunu yok, HTTPS hazır gelir.
 

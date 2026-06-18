@@ -11,3 +11,6 @@ build/
 # Lisans — ÖZEL ANAHTAR asla commit edilmez (sahte lisans üretimini engeller)
 lisans-ozel-anahtar.pem
 lisans-public.txt
+
+# Cloudflare Tunnel ikilisi (52MB — her makinede yeniden indirilir)
+cloudflared.exe
