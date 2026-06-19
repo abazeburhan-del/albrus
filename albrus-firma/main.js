@@ -2042,9 +2042,9 @@ ipcMain.handle('hakedis:poz:tumunu:sil', (_, proje_id) => {
 // Excel teklif/keşif dosyasını seç ve önizle (sayfa adları + ham satırlar)
 ipcMain.handle('xlsx:onizle', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
-    title: 'Teklif / Keşif Excel Dosyası Seç',
+    title: 'Excel Dosyası Seç (xlsx / xlsm)',
     properties: ['openFile'],
-    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+    filters: [{ name: 'Excel', extensions: ['xlsx', 'xlsm'] }]
   });
   if (canceled || !filePaths?.length) return { ok: false, iptal: true };
   try {
