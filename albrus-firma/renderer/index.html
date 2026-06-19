@@ -492,6 +492,7 @@
       <div class="page-title" style="margin:0">Stok Tanımları</div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-ghost" onclick="stoklarRaporPdf()">Rapor PDF</button>
+        <button class="btn btn-ghost" onclick="stokImportBaslat()">Excel'den Aktar</button>
         <button class="btn btn-primary" onclick="openStokEkle()">+ Stok Ekle</button>
       </div>
     </div>
@@ -1313,6 +1314,31 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-boq-import')">İptal</button>
       <button class="btn btn-primary" onclick="boqImportUygula()">Aktar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Excel'den Stok Aktar -->
+<div class="overlay" id="m-stok-import">
+  <div class="modal" style="max-width:900px;width:94vw">
+    <div class="modal-title">Excel'den Stok Aktar</div>
+    <div id="stok-imp-dosya" style="font-size:12px;color:var(--dim);margin-bottom:10px"></div>
+    <div class="row3">
+      <div class="fg"><label>Sayfa</label><select id="stok-imp-sheet" onchange="stokImportSheetChange()"></select></div>
+      <div class="fg"><label>Başlık Satırı (no)</label><input type="number" id="stok-imp-header" value="1" min="1" oninput="stokImportRender()"></div>
+      <div class="fg"><label style="display:block">&nbsp;</label>
+        <label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="stok-imp-para-iqd" onchange="stokImportRender()"> Fiyatlar IQD (varsayılan USD)</label>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--dim);margin:6px 0">Her alan için Excel sütununu seç (Stok Adı zorunlu):</div>
+    <div class="row3" id="stok-imp-maps"></div>
+    <div style="font-size:12px;font-weight:600;margin:12px 0 4px">Önizleme (ilk 8 satır)</div>
+    <div style="overflow:auto;max-height:30vh;border:1px solid var(--border);border-radius:6px">
+      <table style="width:100%;border-collapse:collapse;font-size:11px" id="stok-imp-preview"></table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-stok-import')">İptal</button>
+      <button class="btn btn-primary" onclick="stokImportUygula()">Aktar</button>
     </div>
   </div>
 </div>
@@ -6504,6 +6530,121 @@ async function boqImportUygula() {
   closeModal('m-boq-import');
   alert(r.eklenen + ' poz aktarıldı.');
   loadHakedisProje();
+}
+
+// — Excel'den Stok Aktar —
+let _stokImpData = null;
+const STOK_ALANLAR = [
+  { key:'ad',          lbl:'Stok Adı *' },
+  { key:'kod',         lbl:'Kod / Stok No' },
+  { key:'birim',       lbl:'Birim' },
+  { key:'kategori',    lbl:'Kategori' },
+  { key:'alis_fiyat',  lbl:'Alış Fiyatı' },
+  { key:'satis_fiyat', lbl:'Satış Fiyatı' },
+  { key:'mevcut_miktar',lbl:'Miktar (stok)' },
+];
+async function stokImportBaslat() {
+  let r;
+  try { r = await inv('xlsx:onizle'); } catch (e) { alert(e.message); return; }
+  if (!r || r.iptal) return;
+  _stokImpData = r;
+  document.getElementById('stok-imp-dosya').textContent = 'Dosya: ' + r.dosya;
+  document.getElementById('stok-imp-sheet').innerHTML = r.sheets.map((s,i)=>`<option value="${i}">${s.name}</option>`).join('');
+  document.getElementById('stok-imp-para-iqd').checked = false;
+  stokImportSheetChange();
+  openModal('m-stok-import');
+}
+function stokImpAktifRows() {
+  const si = Number(document.getElementById('stok-imp-sheet').value) || 0;
+  return _stokImpData.sheets[si]?.rows || [];
+}
+function stokImportSheetChange() {
+  const rows = stokImpAktifRows();
+  // Başlık satırını tahmin et: en çok metin içeren ilk satır
+  let best = 1, bestScore = 0;
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const textCells = (rows[i]||[]).filter(c => c && isNaN(parseFloat(String(c).replace(/[^\d.,-]/g,''))) && String(c).trim().length > 1).length;
+    if (textCells > bestScore) { bestScore = textCells; best = i + 1; }
+  }
+  document.getElementById('stok-imp-header').value = best;
+  const maxCols = rows.reduce((m,r)=>Math.max(m, (r||[]).length), 0);
+  const headerRow = rows[best-1] || [];
+  const opts = ['<option value="-1">— yok —</option>'].concat(
+    Array.from({length:maxCols}, (_,c) => `<option value="${c}">${sutunHarf(c)} — ${(headerRow[c]||'').slice(0,24)}</option>`)
+  ).join('');
+  const guess = (keywords, exc=[]) => {
+    for (let c=0;c<maxCols;c++){ const h=(headerRow[c]||'').toLowerCase();
+      if(exc.some(k=>h.includes(k))) continue;
+      if(keywords.some(k=>h.includes(k))) return c; }
+    return -1;
+  };
+  const tahmin = {
+    ad:           guess(['stok ad','malzeme','ürün','urun','mal ad','description','tanım','item name','name','ad','isim']),
+    kod:          guess(['stok kod','kod','code','sku','barkod','no']),
+    birim:        guess(['birim','unit','uom','br']),
+    kategori:     guess(['kategori','grup','category','tür','tur']),
+    alis_fiyat:   guess(['alış','alis','maliyet','cost','purchase','buy']),
+    satis_fiyat:  guess(['satış','satis','sale','sell','price','fiyat']),
+    // 'stok' tek başına 'Stok Adı' sütununa kapılıyordu — ad/isim içeren sütunları hariç tut
+    mevcut_miktar:guess(['miktar','adet','qty','quantity','mevcut','stok mik','stok adet'], ['ad','adı','isim','name']),
+  };
+  const gecerli = (x) => x != null && x >= 0 && x < maxCols;
+  document.getElementById('stok-imp-maps').innerHTML = STOK_ALANLAR.map(a => {
+    const sec = gecerli(tahmin[a.key]) ? tahmin[a.key] : -1;
+    return `<div class="fg"><label>${a.lbl}</label>
+      <select id="stok-map-${a.key}" onchange="stokImportRender()">${opts.replace(`value="${sec}"`, `value="${sec}" selected`)}</select>
+    </div>`;
+  }).join('');
+  stokImportRender();
+}
+function stokMapSecimleri() {
+  const m = {};
+  STOK_ALANLAR.forEach(a => { const v = Number(document.getElementById('stok-map-'+a.key)?.value); m[a.key] = isNaN(v)?-1:v; });
+  return m;
+}
+function stokSatirlariCikar() {
+  const rows = stokImpAktifRows();
+  const header = Math.max(1, Number(document.getElementById('stok-imp-header').value)||1);
+  const m = stokMapSecimleri();
+  const para = document.getElementById('stok-imp-para-iqd')?.checked ? 'IQD' : 'USD';
+  const al = (r, idx) => idx>=0 ? (r[idx] ?? '') : '';
+  const sayi = (v) => parseFloat(String(v).replace(/[^\d.,-]/g,'').replace(/\.(?=\d{3}\b)/g,'').replace(',','.')) || 0;
+  const out = [];
+  for (let i = header; i < rows.length; i++) {
+    const r = rows[i] || [];
+    const ad = String(al(r, m.ad)).trim();
+    if (!ad) continue;
+    out.push({ ad, kod: String(al(r, m.kod)).trim(),
+      birim: String(al(r, m.birim)).trim() || 'Pcs', kategori: String(al(r, m.kategori)).trim(),
+      alis_fiyat: sayi(al(r, m.alis_fiyat)), satis_fiyat: sayi(al(r, m.satis_fiyat)),
+      mevcut_miktar: sayi(al(r, m.mevcut_miktar)), para_birimi: para });
+  }
+  return out;
+}
+function stokImportRender() {
+  const sat = stokSatirlariCikar();
+  const head = `<thead><tr style="background:rgba(0,0,0,.05)">
+    <th style="padding:4px 6px;text-align:left">Kod</th><th style="padding:4px 6px;text-align:left">Stok Adı</th>
+    <th style="padding:4px 6px">Birim</th><th style="padding:4px 6px;text-align:left">Kategori</th>
+    <th style="padding:4px 6px;text-align:right">Alış</th><th style="padding:4px 6px;text-align:right">Satış</th>
+    <th style="padding:4px 6px;text-align:right">Miktar</th></tr></thead>`;
+  const body = sat.slice(0,8).map(s=>`<tr style="border-top:1px solid var(--border)">
+    <td style="padding:3px 6px">${s.kod||'—'}</td><td style="padding:3px 6px">${s.ad}</td>
+    <td style="padding:3px 6px;text-align:center">${s.birim}</td><td style="padding:3px 6px;font-size:10px;color:var(--dim)">${s.kategori||'—'}</td>
+    <td style="padding:3px 6px;text-align:right">${fmtTutar(Math.round(s.alis_fiyat))}</td><td style="padding:3px 6px;text-align:right">${fmtTutar(Math.round(s.satis_fiyat))}</td>
+    <td style="padding:3px 6px;text-align:right">${s.mevcut_miktar}</td>
+  </tr>`).join('');
+  document.getElementById('stok-imp-preview').innerHTML = head + `<tbody>${body || '<tr><td colspan="7" style="padding:8px;color:var(--dim)">Eşleşen satır yok — Stok Adı sütununu ve başlık satırını kontrol edin.</td></tr>'}</tbody>`
+    + `<tfoot><tr><td colspan="7" style="padding:6px;font-size:11px;color:var(--dim)">Toplam ${sat.length} stok</td></tr></tfoot>`;
+}
+async function stokImportUygula() {
+  const sat = stokSatirlariCikar();
+  if (!sat.length) { alert('Aktarılacak stok yok. Stok Adı sütununu ve başlık satırını kontrol edin.'); return; }
+  if (!confirm(`${sat.length} stok tanımı aktarılacak. Devam edilsin mi?`)) return;
+  const r = await inv('stoklar:import', { satirlar: sat });
+  closeModal('m-stok-import');
+  alert(r.eklenen + ' stok aktarıldı.');
+  loadStok();
 }
 
 // — Poz CRUD —

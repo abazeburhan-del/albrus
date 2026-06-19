@@ -630,6 +630,24 @@ function cekHareketGeriAl(cs) {
   saveDb();
   return r;
 };
+  H["stoklar:import"] = (_, { satirlar }) => {
+  let eklenen = 0;
+  for (const s of (satirlar || [])) {
+    if (!s.ad || !String(s.ad).trim()) continue;
+    const miktar = Number(s.mevcut_miktar) || 0;
+    const r = insertAndGet('stoklar',
+      'INSERT INTO stoklar (kod, ad, barkod, birim, kategori, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [s.kod ?? '', String(s.ad).trim(), '', s.birim || 'Pcs', s.kategori ?? '', miktar, 0,
+       Number(s.alis_fiyat) || 0, Number(s.satis_fiyat) || 0, s.para_birimi || 'USD', '']);
+    if (miktar > 0) {
+      run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [r.id, new Date().toISOString().split('T')[0], 'giris', miktar, 0, miktar, 'Excel açılış miktarı']);
+    }
+    eklenen++;
+  }
+  saveDb();
+  return { ok: true, eklenen };
+};
   H["stoklar:guncelle"] = (_, id, d) => {
   // mevcut_miktar düzenlemesini stok hareketi olarak işle (manuel düzeltme)
   const eski = getOne('SELECT mevcut_miktar FROM stoklar WHERE id = ?', [id]);
