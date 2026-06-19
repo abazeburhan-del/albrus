@@ -618,6 +618,26 @@
     </div>
 
     <div class="table-wrap" style="margin-bottom:18px;">
+      <div class="table-head"><div class="table-head-title">Banka Bilgileri (Fatura PDF)</div></div>
+      <div style="padding:18px;">
+        <div style="font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.6;">
+          Satış faturası PDF'inin sol altında görünür. Boş bırakırsan yazılmaz.
+        </div>
+        <div style="display:grid;grid-template-columns:120px 320px;gap:10px 12px;align-items:center;">
+          <span style="font-size:13px;">Banka Adı:</span>
+          <input id="ayar-banka-ad" type="text" placeholder="BANK NAME">
+          <span style="font-size:13px;">Hesap No:</span>
+          <input id="ayar-banka-hesap" type="text" placeholder="ACCOUNT NO">
+          <span style="font-size:13px;">SWIFT:</span>
+          <input id="ayar-banka-swift" type="text" placeholder="SWIFT CODE">
+          <span style="font-size:13px;">IBAN:</span>
+          <input id="ayar-banka-iban" type="text" placeholder="IQ61...">
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:14px" onclick="bankaBilgileriKaydet()">KAYDET</button>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="margin-bottom:18px;">
       <div class="table-head"><div class="table-head-title">Sunucu Bağlantısı (Çoklu Kullanıcı)</div></div>
       <div style="padding:18px;">
         <div style="font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.6;">
@@ -3847,6 +3867,16 @@ async function printFatura(id) {
   const indirim = f.indirim ?? 0;
   const grandTotal = Math.max(0, f.toplam - indirim);
 
+  let bb = {}; try { bb = JSON.parse((await inv('ayar:getir', 'banka_bilgileri')) || '{}'); } catch (_) {}
+  const bankaBlok = (bb.ad || bb.hesap_no || bb.swift || bb.iban) ? `
+    <div style="margin-top:14px;font-family:Arial,sans-serif;font-size:9px;line-height:1.75;color:#000;border-top:1px solid #999;padding-top:8px;max-width:360px">
+      <div style="font-weight:700;margin-bottom:2px">${FIRMA}</div>
+      ${bb.ad ? `<div><b>BANK NAME&nbsp;&nbsp;&nbsp;:</b> ${bb.ad}</div>` : ''}
+      ${bb.hesap_no ? `<div><b>ACCOUNT NO&nbsp;:</b> ${bb.hesap_no}</div>` : ''}
+      ${bb.swift ? `<div><b>SWIFT CODE&nbsp;:</b> ${bb.swift}</div>` : ''}
+      ${bb.iban ? `<div><b>IBAN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</b> ${bb.iban}</div>` : ''}
+    </div>` : '';
+
   const logoSvg = _logoDataUri
     ? `<img src="${_logoDataUri}" style="height:110px;width:auto;display:block;border:none;outline:none">`
     : `<svg width="56" height="80" viewBox="0 0 56 80" xmlns="http://www.w3.org/2000/svg"><text x="28" y="50" font-family="Arial Black" font-weight="900" font-size="24" fill="#000" text-anchor="middle">A</text></svg>`;
@@ -3972,6 +4002,8 @@ async function printFatura(id) {
           </tr>
         </table>
       </div>
+
+      ${bankaBlok}
 
       ${_logoDataUri ? `
       <div style="position:absolute;top:61%;left:50%;transform:translate(-50%,-50%);opacity:0.04;pointer-events:none;z-index:0;overflow:hidden;height:490px">
@@ -8217,6 +8249,11 @@ async function loadAyarlar() {
     const konum = await inv('db:konum');
     document.getElementById('ayar-db-konum').textContent = 'Veritabanı konumu: ' + konum;
     document.getElementById('ayar-firma').value = (await inv('ayar:getir', 'firma_adi')) || '';
+    let bb = {}; try { bb = JSON.parse((await inv('ayar:getir', 'banka_bilgileri')) || '{}'); } catch (_) {}
+    document.getElementById('ayar-banka-ad').value = bb.ad || '';
+    document.getElementById('ayar-banka-hesap').value = bb.hesap_no || '';
+    document.getElementById('ayar-banka-swift').value = bb.swift || '';
+    document.getElementById('ayar-banka-iban').value = bb.iban || '';
     document.getElementById('ayar-sunucu').value = (await inv('ayar:getir', 'sunucu_adresi')) || '';
     loadKullanicilar();
     const kur = await inv('ayar:getir', 'usd_iqd_kuru');
@@ -8236,6 +8273,17 @@ async function firmaAdiKaydet() {
   await inv('ayar:kaydet', 'firma_adi', ad);
   FIRMA = ad;
   alert('Firma adı kaydedildi: ' + ad + '\nRaporlarda bu ad kullanılacak.');
+}
+
+async function bankaBilgileriKaydet() {
+  const bb = {
+    ad:       (document.getElementById('ayar-banka-ad').value || '').trim(),
+    hesap_no: (document.getElementById('ayar-banka-hesap').value || '').trim(),
+    swift:    (document.getElementById('ayar-banka-swift').value || '').trim(),
+    iban:     (document.getElementById('ayar-banka-iban').value || '').trim(),
+  };
+  await inv('ayar:kaydet', 'banka_bilgileri', JSON.stringify(bb));
+  alert('Banka bilgileri kaydedildi. Satış faturası PDF\'inin sol altında görünecek.');
 }
 
 async function kurKaydet() {
