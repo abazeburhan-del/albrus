@@ -1125,12 +1125,21 @@
 
 <!-- Proje Hareketleri / Detay -->
 <div class="overlay" id="m-proje-detay">
-  <div class="modal" style="max-width:760px">
+  <div class="modal" style="max-width:920px">
     <div class="modal-title" id="m-proje-detay-title">Proje Detayı</div>
-    <div id="proje-detay-icerik" style="max-height:65vh;overflow-y:auto"></div>
-    <div class="modal-actions">
+    <div id="proje-detay-tabs" style="display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" id="ptab-hareketler" onclick="projeDetayTab('hareketler')">Hareketler</button>
+      <button class="btn btn-sm" id="ptab-elektrik" onclick="projeDetayTab('elektrik')">Elektrik</button>
+      <button class="btn btn-sm" id="ptab-mekanik" onclick="projeDetayTab('mekanik')">Mekanik</button>
+      <button class="btn btn-sm" id="ptab-insaat" onclick="projeDetayTab('insaat')">İnşaat</button>
+    </div>
+    <div id="proje-detay-icerik" style="max-height:62vh;overflow-y:auto"></div>
+    <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btn btn-ghost" onclick="closeModal('m-proje-detay')">Kapat</button>
-      <button class="btn btn-ghost" onclick="projeDetayPdf()">PDF Rapor</button>
+      <button class="btn btn-ghost" onclick="projeDetayPdf()" id="btn-proje-detay-pdf">PDF Rapor</button>
+      <button class="btn btn-ghost" id="btn-kesif-kaydet" style="display:none" onclick="kesifKaydet()">Kaydet</button>
+      <button class="btn btn-ghost" id="btn-kesif-pdf" style="display:none" onclick="kesifPdf()">PDF</button>
+      <button class="btn btn-ghost" id="btn-kesif-excel" style="display:none" onclick="kesifExcel()">Excel</button>
     </div>
   </div>
 </div>
@@ -3335,12 +3344,43 @@ async function delProje(id) {
 }
 
 let _projeDetayAktif = null;
+let _kesifAktifTur = 'elektrik';
+let _kesifData = [];
+
 async function openProjeDetay(id) {
   const p = (S.projeler || []).find(x => x.id === id);
   if (!p) return;
   _projeDetayAktif = p;
-  const har = await inv('proje:hareketler', id);
   document.getElementById('m-proje-detay-title').textContent = 'Proje: ' + p.ad;
+  openModal('m-proje-detay');
+  projeDetayTab('hareketler');
+}
+
+async function projeDetayTab(tab) {
+  const tabs = ['hareketler', 'elektrik', 'mekanik', 'insaat'];
+  tabs.forEach(t => {
+    const btn = document.getElementById('ptab-' + t);
+    if (btn) btn.style.opacity = t === tab ? '1' : '0.6';
+  });
+
+  const kesifBtns = ['btn-kesif-kaydet', 'btn-kesif-pdf', 'btn-kesif-excel'];
+  kesifBtns.forEach(bid => {
+    const b = document.getElementById(bid);
+    if (b) b.style.display = tab === 'hareketler' ? 'none' : 'inline-flex';
+  });
+  document.getElementById('btn-proje-detay-pdf').style.display = tab === 'hareketler' ? 'inline-flex' : 'none';
+
+  if (tab === 'hareketler') {
+    await openProjeHareketler();
+  } else {
+    _kesifAktifTur = tab;
+    await openKesifTab(tab);
+  }
+}
+
+async function openProjeHareketler() {
+  const p = _projeDetayAktif;
+  const har = await inv('proje:hareketler', p.id);
   const ozet = `
     <div class="card-grid" style="margin-bottom:14px">
       <div class="card"><div class="card-label">Gelir</div><div class="card-val pos" style="font-size:18px">${karZararHucre(p.gelir)}</div></div>
@@ -3364,7 +3404,141 @@ async function openProjeDetay(id) {
       }).join('')}
     </tbody></table>` : '<div class="empty">Bu projeye bağlı hareket yok</div>';
   document.getElementById('proje-detay-icerik').innerHTML = ozet + tablo;
-  openModal('m-proje-detay');
+}
+
+async function openKesifTab(tur) {
+  const data = await inv('kesif:getir', _projeDetayAktif.id, tur);
+  _kesifData = data.rows || [];
+  renderKesifGrid();
+}
+
+function renderKesifGrid() {
+  const rows = _kesifData;
+  const gridRows = rows.map((s, i) => `
+    <tr>
+      <td style="padding:6px;"><input type="text" class="kesif-poz-no" value="${s.poz_no || ''}" style="width:70px"></td>
+      <td style="padding:6px;"><input type="text" class="kesif-ad" value="${s.ad || ''}" style="width:100%"></td>
+      <td style="padding:6px;"><input type="text" class="kesif-birim" value="${s.birim || 'Adet'}" style="width:70px"></td>
+      <td style="padding:6px;"><input type="number" class="kesif-miktar" value="${s.miktar || 0}" style="width:80px" onchange="renderKesifGrid()"></td>
+      <td style="padding:6px;"><input type="number" class="kesif-bf" value="${s.birim_fiyat || 0}" style="width:90px" onchange="renderKesifGrid()"></td>
+      <td style="padding:6px;"><select class="kesif-pb" style="width:80px"><option ${s.para_birimi==='USD'?'selected':''}>USD</option><option ${s.para_birimi==='TRY'?'selected':''}>TRY</option><option ${s.para_birimi==='IQD'?'selected':''}>IQD</option></select></td>
+      <td style="padding:6px;text-align:right;min-width:100px;font-weight:600">${fmt((Number(s.miktar)||0) * (Number(s.birim_fiyat)||0), s.para_birimi || 'USD')}</td>
+      <td style="padding:6px;text-align:center"><button class="btn-del" onclick="kesifSatirSil(${i})">×</button></td>
+    </tr>
+  `).join('');
+
+  const genelToplam = _kesifData.reduce((a, s) => a + (Number(s.miktar)||0) * (Number(s.birim_fiyat)||0), 0);
+  const html = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:rgba(0,0,0,.05)">
+        <th style="padding:6px;text-align:left;width:70px">Poz No</th>
+        <th style="padding:6px;text-align:left">Malzeme</th>
+        <th style="padding:6px;text-align:left;width:70px">Birim</th>
+        <th style="padding:6px;text-align:right;width:80px">Miktar</th>
+        <th style="padding:6px;text-align:right;width:90px">Birim Fiyat</th>
+        <th style="padding:6px;text-align:left;width:80px">Para Birimi</th>
+        <th style="padding:6px;text-align:right;min-width:100px">Tutar</th>
+        <th style="padding:6px;width:40px"></th>
+      </tr></thead>
+      <tbody>${gridRows}</tbody>
+      <tfoot><tr style="background:rgba(0,0,0,.08);font-weight:700">
+        <td colspan="6" style="padding:8px;text-align:right">Genel Toplam:</td>
+        <td style="padding:8px;text-align:right">${fmt(genelToplam, 'USD')}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+    <button class="btn btn-sm" style="margin-top:10px" onclick="kesifSatirEkle()">+ Satır Ekle</button>
+  `;
+  document.getElementById('proje-detay-icerik').innerHTML = html;
+}
+
+function kesifSatirEkle() {
+  _kesifData.push({ poz_no: '', ad: '', birim: 'Adet', miktar: 0, birim_fiyat: 0, para_birimi: 'USD' });
+  renderKesifGrid();
+}
+
+function kesifSatirSil(idx) {
+  _kesifData.splice(idx, 1);
+  renderKesifGrid();
+}
+
+function kesifSatirOku() {
+  const trs = document.querySelectorAll('#proje-detay-icerik table tbody tr');
+  const rows = Array.from(trs).map((tr, i) => ({
+    poz_no: tr.querySelector('.kesif-poz-no').value,
+    ad: tr.querySelector('.kesif-ad').value,
+    birim: tr.querySelector('.kesif-birim').value,
+    miktar: Number(tr.querySelector('.kesif-miktar').value) || 0,
+    birim_fiyat: Number(tr.querySelector('.kesif-bf').value) || 0,
+    para_birimi: tr.querySelector('.kesif-pb').value
+  }));
+  return rows;
+}
+
+async function kesifKaydet() {
+  const rows = kesifSatirOku();
+  await inv('kesif:kaydet', _projeDetayAktif.id, _kesifAktifTur, rows);
+  _kesifData = rows;
+  yesilToast('Keşif kaydedildi');
+}
+
+async function buildKesifHtml(rows, tur, projeAd) {
+  const turAd = { 'elektrik': 'Elektrik', 'mekanik': 'Mekanik', 'insaat': 'İnşaat' }[tur] || tur;
+  const bugun = fmtDate(today());
+  const genelToplam = rows.reduce((a, s) => a + (Number(s.miktar)||0) * (Number(s.birim_fiyat)||0), 0);
+  const rowsHtml = rows.map(s => {
+    const tutar = (Number(s.miktar)||0) * (Number(s.birim_fiyat)||0);
+    return `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.poz_no}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${s.ad}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${s.birim}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(s.miktar)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(s.birim_fiyat)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${s.para_birimi}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmt(tutar, s.para_birimi)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div style="padding:30px 36px;font-family:'Segoe UI',sans-serif;color:#111">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:12px">
+        <div><div style="font-size:22px;font-weight:800">${FIRMA}</div>
+          <div style="font-size:13px;color:#666">${turAd} Keşfi</div></div>
+        <div style="text-align:right;font-size:12px;color:#666">Tarih: ${bugun}</div>
+      </div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px">${projeAd}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#f3f3f3">
+          <th style="padding:6px 8px;text-align:left">Poz No</th>
+          <th style="padding:6px 8px;text-align:left">Malzeme</th>
+          <th style="padding:6px 8px;text-align:center">Birim</th>
+          <th style="padding:6px 8px;text-align:right">Miktar</th>
+          <th style="padding:6px 8px;text-align:right">Birim Fiyat</th>
+          <th style="padding:6px 8px;text-align:center">Para Birimi</th>
+          <th style="padding:6px 8px;text-align:right">Tutar</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr style="background:#f9f9f9;font-weight:700">
+          <td colspan="6" style="padding:8px;text-align:right">Toplam:</td>
+          <td style="padding:8px;text-align:right">${fmt(genelToplam)}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+  `;
+}
+
+async function kesifPdf() {
+  const rows = kesifSatirOku();
+  const html = await buildKesifHtml(rows, _kesifAktifTur, _projeDetayAktif.ad);
+  await inv('print:pdf', html);
+}
+
+async function kesifExcel() {
+  const rows = kesifSatirOku();
+  const turAd = { 'elektrik': 'Elektrik', 'mekanik': 'Mekanik', 'insaat': 'İnşaat' }[_kesifAktifTur] || _kesifAktifTur;
+  const html = await buildKesifHtml(rows, _kesifAktifTur, _projeDetayAktif.ad);
+  const stamp = new Date().toISOString().slice(0, 10);
+  await inv('export:xls', { html, ad: `Kesif-${turAd}-${_projeDetayAktif.ad}-${stamp}`, sheet: turAd + ' Keşfi' });
 }
 
 async function projeDetayPdf() {

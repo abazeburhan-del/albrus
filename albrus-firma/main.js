@@ -401,6 +401,19 @@ async function initDb() {
       hesap_id INTEGER,
       aciklama TEXT DEFAULT ''
     );
+
+    CREATE TABLE IF NOT EXISTS proje_kesif (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      proje_id INTEGER NOT NULL,
+      tur TEXT NOT NULL DEFAULT 'elektrik',
+      poz_no TEXT DEFAULT '',
+      ad TEXT NOT NULL DEFAULT '',
+      birim TEXT DEFAULT 'Adet',
+      miktar REAL DEFAULT 0,
+      birim_fiyat REAL DEFAULT 0,
+      para_birimi TEXT DEFAULT 'USD',
+      sira INTEGER DEFAULT 0
+    );
   `);
 
   const katSayisi = getOne('SELECT COUNT(*) as n FROM kategoriler').n;
@@ -927,6 +940,26 @@ ipcMain.handle('proje:hareketler', (_, proje_id) =>
     ) ORDER BY tarih DESC
   `, [proje_id, proje_id])
 );
+
+ipcMain.handle('kesif:getir', (_, proje_id, tur) => {
+  const rows = getAll(
+    'SELECT * FROM proje_kesif WHERE proje_id=? AND tur=? ORDER BY sira,id',
+    [proje_id, tur]
+  ).map(s => ({ ...s, tutar: (Number(s.miktar)||0) * (Number(s.birim_fiyat)||0) }));
+  const genelToplam = rows.reduce((a,r) => a + r.tutar, 0);
+  return { rows, genelToplam };
+});
+
+ipcMain.handle('kesif:kaydet', (_, proje_id, tur, satirlar) => {
+  run('DELETE FROM proje_kesif WHERE proje_id=? AND tur=?', [proje_id, tur]);
+  (satirlar||[]).forEach((s,i) =>
+    run('INSERT INTO proje_kesif (proje_id,tur,poz_no,ad,birim,miktar,birim_fiyat,para_birimi,sira) VALUES (?,?,?,?,?,?,?,?,?)',
+      [proje_id, tur, s.poz_no||'', s.ad||'', s.birim||'Adet',
+       Number(s.miktar)||0, Number(s.birim_fiyat)||0, s.para_birimi||'USD', i+1])
+  );
+  saveDb();
+  return true;
+});
 
 // ════════════════════════════════════════════════════════════
 // FATURA
