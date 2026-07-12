@@ -1009,6 +1009,7 @@
       <div class="fg"><label>Vergi No (opsiyonel)</label><input type="text" id="c-vergino" placeholder="Vergi / TC No"></div>
       <div class="fg"><label>Adres (opsiyonel)</label><input type="text" id="c-adres" placeholder="Adres"></div>
     </div>
+    <div class="fg"><label>Fatura No Serisi (opsiyonel)</label><input type="text" id="c-fatura-prefix" placeholder="Örn: E-2026140" style="font-family:monospace"></div>
     <div id="c-acilis-wrap" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
       <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:6px">Açılış Bakiyesi (opsiyonel) — mevcut borç/alacak</label>
       <div class="row3">
@@ -1921,7 +1922,7 @@
     <div class="row2">
       <div class="fg">
         <label>Cari</label>
-        <select id="ft-cari"><option value="">— Seçiniz —</option></select>
+        <select id="ft-cari" onchange="updateFaturanoByCari()"><option value="">— Seçiniz —</option></select>
       </div>
       <div class="fg">
         <label>Para Birimi</label>
@@ -3298,6 +3299,7 @@ function openCariEkle(cari = null) {
   document.getElementById('c-tel').value     = cari?.telefon ?? '';
   document.getElementById('c-adres').value   = cari?.adres ?? '';
   document.getElementById('c-vergino').value = cari?.vergi_no ?? '';
+  document.getElementById('c-fatura-prefix').value = cari?.fatura_no_prefix ?? '';
   // Açılış bakiyesi yalnızca yeni cari eklerken görünür
   document.getElementById('c-acilis').value = '';
   document.getElementById('c-acilis-pb').value = 'USD';
@@ -3310,11 +3312,12 @@ function openCariEkle(cari = null) {
 async function saveCari() {
   const id = document.getElementById('c-id').value;
   const d = {
-    ad:       document.getElementById('c-ad').value,
-    tur:      document.getElementById('c-tur').value,
-    telefon:  document.getElementById('c-tel').value,
-    adres:    document.getElementById('c-adres').value,
-    vergi_no: document.getElementById('c-vergino').value
+    ad:                document.getElementById('c-ad').value,
+    tur:               document.getElementById('c-tur').value,
+    telefon:           document.getElementById('c-tel').value,
+    adres:             document.getElementById('c-adres').value,
+    vergi_no:          document.getElementById('c-vergino').value,
+    fatura_no_prefix:  document.getElementById('c-fatura-prefix').value || ''
   };
   if (!d.ad) { alert('Ad zorunludur.'); return; }
   if (!id) {
@@ -4168,6 +4171,19 @@ function faturaParaBirimiSec(pb) {
   } else {
     usd.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:2px solid var(--green);background:var(--green);color:#fff;font-weight:700;cursor:pointer';
     iqd.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--dim);font-weight:700;cursor:pointer';
+  }
+}
+
+async function updateFaturanoByCari() {
+  const cariId = document.getElementById('ft-cari').value;
+  const tur = document.getElementById('ft-tur').value;
+  const ftNoEl = document.getElementById('ft-no');
+  if (!ftNoEl) return;
+  try {
+    const ftNo = await inv('sonraki:fatura:no', tur, cariId ? parseInt(cariId) : null);
+    ftNoEl.value = ftNo;
+  } catch (e) {
+    console.error('Fatura numarası güncellemesi başarısız:', e);
   }
 }
 

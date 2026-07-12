@@ -302,6 +302,7 @@ async function initDb() {
   try { db.run("ALTER TABLE maas_odemeleri ADD COLUMN kesinti_neden TEXT DEFAULT ''"); } catch (_) {}
   try { db.run("ALTER TABLE stoklar ADD COLUMN barkod TEXT DEFAULT ''"); } catch (_) {}
   try { db.run("ALTER TABLE stoklar ADD COLUMN alis_fiyat REAL DEFAULT 0"); } catch (_) {}
+  try { db.run("ALTER TABLE cariler ADD COLUMN fatura_no_prefix TEXT DEFAULT ''"); } catch (_) {}
   try { db.run("ALTER TABLE stoklar ADD COLUMN satis_fiyat REAL DEFAULT 0"); } catch (_) {}
   try { db.run("ALTER TABLE stoklar ADD COLUMN para_birimi TEXT DEFAULT 'USD'"); } catch (_) {}
   try { db.run("ALTER TABLE faturalar ADD COLUMN odenen REAL DEFAULT 0"); } catch (_) {}
@@ -880,8 +881,8 @@ ipcMain.handle('cariler:getir', (_, f) => {
 
 ipcMain.handle('cariler:ekle', (_, d) => {
   const r = insertAndGet('cariler',
-    'INSERT INTO cariler (ad, tur, telefon, adres, vergi_no) VALUES (?, ?, ?, ?, ?)',
-    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '']
+    'INSERT INTO cariler (ad, tur, telefon, adres, vergi_no, fatura_no_prefix) VALUES (?, ?, ?, ?, ?, ?)',
+    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '', d.fatura_no_prefix ?? '']
   );
   // Açılış bakiyesi — borç: cari bize borçlu (+), alacak: biz cariye borçluyuz (−)
   const acilis = Math.abs(Number(d.acilis) || 0);
@@ -899,8 +900,8 @@ ipcMain.handle('cariler:ekle', (_, d) => {
 });
 
 ipcMain.handle('cariler:guncelle', (_, d) => {
-  run('UPDATE cariler SET ad = ?, tur = ?, telefon = ?, adres = ?, vergi_no = ? WHERE id = ?',
-    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '', d.id]);
+  run('UPDATE cariler SET ad = ?, tur = ?, telefon = ?, adres = ?, vergi_no = ?, fatura_no_prefix = ? WHERE id = ?',
+    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '', d.fatura_no_prefix ?? '', d.id]);
   saveDb();
   return getOne('SELECT * FROM cariler WHERE id = ?', [d.id]);
 });
@@ -1314,7 +1315,25 @@ ipcMain.handle('dwg:parseDxf', async (_, filePath) => {
 // FATURA
 // ════════════════════════════════════════════════════════════
 
-ipcMain.handle('sonraki:fatura:no', (_, tur) => {
+ipcMain.handle('sonraki:fatura:no', (_, tur, cari_id) => {
+  // Cari özel prefix'i varsa onu kullan
+  if (cari_id) {
+    const cari = getOne('SELECT fatura_no_prefix FROM cariler WHERE id = ?', [cari_id]);
+    if (cari?.fatura_no_prefix) {
+      const prefix = cari.fatura_no_prefix;
+      const baseNum = parseInt(prefix.replace(/\D/g, '')) || 0;
+      const rows = getAll('SELECT fatura_no FROM faturalar WHERE cari_id = ?', [cari_id]);
+      let max = baseNum;
+      for (const r of rows) {
+        const m = /(\d+)\s*$/.exec(r.fatura_no || '');
+        if (m) max = Math.max(max, parseInt(m[1], 10));
+      }
+      const nextNum = max + 1;
+      const letters = prefix.replace(/\d/g, '');
+      return letters + nextNum;
+    }
+  }
+  // Default global numara
   const prefix = tur === 'satis' ? 'SAT' : 'AL';
   const rows = getAll('SELECT fatura_no FROM faturalar WHERE tur = ?', [tur]);
   let max = 0;
