@@ -1,0 +1,15 @@
+{
+  "name": "3d-tasarim",
+  "version": "1.0.0",
+  "description": "Elektrik Keşfi 3D Konumlandırma Uygulaması",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "electron": "^25.9.8"
+  }
+}

@@ -456,6 +456,15 @@ async function initDb() {
       olusturma_tarihi TEXT DEFAULT CURRENT_TIMESTAMP,
       guncelleme_tarihi TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS proje_3d_editor (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      proje_id INTEGER NOT NULL,
+      nesneler_json TEXT DEFAULT '[]',
+      tur TEXT DEFAULT 'elektrik',
+      olusturma_tarihi TEXT DEFAULT CURRENT_TIMESTAMP,
+      guncelleme_tarihi TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   const katSayisi = getOne('SELECT COUNT(*) as n FROM kategoriler').n;
@@ -1085,6 +1094,29 @@ ipcMain.handle('depo:getir', (_, proje_id) => {
   return {
     nesneler: row.nesneler_json ? JSON.parse(row.nesneler_json) : [],
     katmanlar: row.katmanlar_json ? JSON.parse(row.katmanlar_json) : []
+  };
+});
+
+ipcMain.handle('editor3d:kaydet', (_, proje_id, data) => {
+  const existing = getOne('SELECT id FROM proje_3d_editor WHERE proje_id=?', [proje_id]);
+  const nesnelerJson = JSON.stringify(data.nesneler || []);
+
+  if (existing) {
+    run('UPDATE proje_3d_editor SET nesneler_json=?, tur=?, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE proje_id=?',
+      [nesnelerJson, data.tur || 'elektrik', proje_id]);
+  } else {
+    run('INSERT INTO proje_3d_editor (proje_id, nesneler_json, tur) VALUES (?,?,?)',
+      [proje_id, nesnelerJson, data.tur || 'elektrik']);
+  }
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('editor3d:getir', (_, proje_id) => {
+  const row = getOne('SELECT * FROM proje_3d_editor WHERE proje_id=?', [proje_id]);
+  if (!row) return { nesneler: [] };
+  return {
+    nesneler: row.nesneler_json ? JSON.parse(row.nesneler_json) : []
   };
 });
 

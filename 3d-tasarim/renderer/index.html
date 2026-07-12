@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Tasarım - Elektrik Keşfi</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #f5f5f5;
+      --fg: #333;
+      --border: #ddd;
+      --accent: #007bff;
+      --danger: #dc3545;
+      --success: #28a745;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      overflow: hidden;
+    }
+
+    .header {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      font-size: 24px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .main {
+      display: flex;
+      height: calc(100vh - 60px);
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .projects-panel {
+      width: 280px;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .projects-panel h3 {
+      margin-bottom: 12px;
+      font-size: 14px;
+      text-transform: uppercase;
+      color: #666;
+    }
+
+    .project-item {
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: #f9f9f9;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .project-item:hover {
+      background: #f0f0f0;
+      border-color: var(--accent);
+    }
+
+    .project-item.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .project-item-name {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .project-item-desc {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-bottom: 6px;
+    }
+
+    .project-item-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .btn {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: white;
+      color: var(--fg);
+      cursor: pointer;
+      font-size: 14px;
+      transition: 0.2s;
+    }
+
+    .btn:hover {
+      background: #f0f0f0;
+      border-color: var(--accent);
+    }
+
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .btn-primary:hover {
+      background: #0056b3;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+      border-color: var(--danger);
+    }
+
+    .btn-danger:hover {
+      background: #c82333;
+    }
+
+    .content-area {
+      flex: 1;
+      display: flex;
+      gap: 12px;
+    }
+
+    .kesif-panel {
+      width: 400px;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .kesif-panel h3 {
+      margin-bottom: 12px;
+      font-size: 14px;
+      text-transform: uppercase;
+    }
+
+    .kesif-grid {
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .kesif-grid table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+    }
+
+    .kesif-grid th {
+      background: #f0f0f0;
+      padding: 6px;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .kesif-grid td {
+      padding: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .kesif-grid input {
+      width: 100%;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-size: 12px;
+    }
+
+    .kesif-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .viewer-area {
+      flex: 1;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      position: relative;
+    }
+
+    #canvas3d {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .viewer-info {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      max-width: 300px;
+      z-index: 10;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      min-width: 400px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--success);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 4px;
+      z-index: 200;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>3D Tasarım - Elektrik Keşfi</h1>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="openProjeEkleModal()">+ Yeni Proje</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="projects-panel">
+      <h3>Projeler</h3>
+      <div id="projects-list"></div>
+    </div>
+
+    <div class="content-area">
+      <div class="kesif-panel hidden" id="kesif-panel">
+        <h3>Keşif Verisi</h3>
+        <div class="kesif-actions">
+          <button class="btn btn-sm" onclick="kesifYapistir()">Yapıştır</button>
+          <button class="btn btn-sm btn-primary" onclick="kesifKaydet()">Kaydet</button>
+        </div>
+        <div class="kesif-grid" id="kesif-grid"></div>
+        <button class="btn btn-sm" onclick="kesifSatirEkle()">+ Satır Ekle</button>
+      </div>
+
+      <div class="viewer-area">
+        <canvas id="canvas3d"></canvas>
+        <div class="viewer-info" id="viewer-info">
+          <strong>Kontrol:</strong><br>
+          Sol Tıkla + Sürükle: Malzeme taşı<br>
+          Sağ Tıkla + Sürükle: Kamera döndür<br>
+          Scroll: Zoom<br>
+          Delete: Seçili nesneyi sil
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proje Ekleme Modal -->
+  <div class="modal" id="proje-ekle-modal">
+    <div class="modal-content">
+      <div class="modal-title">Yeni Proje Oluştur</div>
+      <div class="form-group">
+        <label>Proje Adı</label>
+        <input type="text" id="proje-ad-input" placeholder="Proje adı gir...">
+      </div>
+      <div class="form-group">
+        <label>Açıklama (İsteğe Bağlı)</label>
+        <input type="text" id="proje-aciklama-input" placeholder="Açıklama gir...">
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeProjeEkleModal()">İptal</button>
+        <button class="btn btn-primary" onclick="projeEkle()">Oluştur</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <script>
+    let projeAktif = null;
+    let _kesifData = [];
+    let scene, camera, renderer, controls;
+    let malzemeKupleri = {};
+
+    // 3D konumlandırma
+    let raycaster, mouse, draggedObject, dragPlane, dragOffset;
+    const dragPlaneNormal = new THREE.Vector3(0, 1, 0);
+
+    async function projeListeYukle() {
+      const projeler = await inv('proje:getir');
+      const html = projeler.map(p => `
+        <div class="project-item ${projeAktif?.id === p.id ? 'active' : ''}" onclick="projeAc(${p.id})">
+          <div class="project-item-name">${p.ad}</div>
+          ${p.aciklama ? `<div class="project-item-desc">${p.aciklama}</div>` : ''}
+          <div class="project-item-actions">
+            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); projeSil(${p.id})">Sil</button>
+          </div>
+        </div>
+      `).join('');
+      document.getElementById('projects-list').innerHTML = html;
+    }
+
+    async function projeAc(id) {
+      const projeler = await inv('proje:getir');
+      projeAktif = projeler.find(p => p.id === id);
+      document.getElementById('kesif-panel').classList.remove('hidden');
+      await kesifYukle();
+      projeListeYukle();
+      init3d();
+    }
+
+    async function projeSil(id) {
+      if (confirm('Bu projeyi silmek istediğin emin misin?')) {
+        await inv('proje:sil', id);
+        projeAktif = null;
+        document.getElementById('kesif-panel').classList.add('hidden');
+        projeListeYukle();
+        init3d();
+      }
+    }
+
+    async function kesifYukle() {
+      if (!projeAktif) return;
+      const result = await inv('kesif:getir', projeAktif.id);
+      _kesifData = result.rows;
+      renderKesifGrid();
+    }
+
+    async function kesifYapistir() {
+      try {
+        const text = await navigator.clipboard.readText();
+        const satirlar = text.trim().split('\n').map(line => {
+          const cols = line.split('\t').map(c => c.trim());
+          if (cols.length < 2) return null;
+          return {
+            poz_no: cols[0] || '',
+            ad: cols[1] || '',
+            birim: cols[2] || 'Adet',
+            miktar: Number(cols[3]) || 0,
+            birim_fiyat: Number(cols[4]) || 0,
+            para_birimi: cols[5] || 'USD'
+          };
+        }).filter(s => s && s.ad);
+        _kesifData.push(...satirlar);
+        renderKesifGrid();
+        toast(`Yapıştırıldı: ${satirlar.length} malzeme`);
+      } catch (e) {
+        alert('Clipboard erişim hatası: ' + e.message);
+      }
+    }
+
+    function renderKesifGrid() {
+      const malzemeTurleri = {};
+      _kesifData.forEach((s, i) => {
+        const key = s.ad;
+        if (!malzemeTurleri[key]) malzemeTurleri[key] = [];
+        malzemeTurleri[key].push(i);
+      });
+
+      const html = `
+        <table>
+          <thead>
+            <tr>
+              <th>Poz</th>
+              <th>Malzeme</th>
+              <th>Birim</th>
+              <th>Miktar</th>
+              <th>Birim Fiyat</th>
+              <th>Para</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${_kesifData.map((s, i) => `
+              <tr>
+                <td><input type="text" value="${s.poz_no}" onchange="_kesifData[${i}].poz_no=this.value"></td>
+                <td><input type="text" value="${s.ad}" onchange="_kesifData[${i}].ad=this.value"></td>
+                <td><input type="text" value="${s.birim}" onchange="_kesifData[${i}].birim=this.value" size="8"></td>
+                <td><input type="number" value="${s.miktar}" onchange="_kesifData[${i}].miktar=Number(this.value)"></td>
+                <td><input type="number" value="${s.birim_fiyat}" onchange="_kesifData[${i}].birim_fiyat=Number(this.value)" step="0.01"></td>
+                <td><input type="text" value="${s.para_birimi}" onchange="_kesifData[${i}].para_birimi=this.value" size="6"></td>
+                <td><button class="btn btn-sm btn-danger" onclick="kesifSatirSil(${i})">×</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      document.getElementById('kesif-grid').innerHTML = html;
+    }
+
+    function kesifSatirEkle() {
+      _kesifData.push({
+        poz_no: '',
+        ad: '',
+        birim: 'Adet',
+        miktar: 0,
+        birim_fiyat: 0,
+        para_birimi: 'USD'
+      });
+      renderKesifGrid();
+    }
+
+    function kesifSatirSil(i) {
+      _kesifData.splice(i, 1);
+      renderKesifGrid();
+    }
+
+    async function kesifKaydet() {
+      if (!projeAktif) return;
+      await inv('kesif:kaydet', projeAktif.id, _kesifData);
+      toast('Keşif verisi kaydedildi');
+      await kesifYukle();
+      init3d();
+    }
+
+    function openProjeEkleModal() {
+      document.getElementById('proje-ekle-modal').classList.add('active');
+    }
+
+    function closeProjeEkleModal() {
+      document.getElementById('proje-ekle-modal').classList.remove('active');
+      document.getElementById('proje-ad-input').value = '';
+      document.getElementById('proje-aciklama-input').value = '';
+    }
+
+    async function projeEkle() {
+      const ad = document.getElementById('proje-ad-input').value.trim();
+      if (!ad) {
+        alert('Proje adı gerekli');
+        return;
+      }
+      const aciklama = document.getElementById('proje-aciklama-input').value.trim();
+      await inv('proje:ekle', ad, aciklama);
+      toast('Proje oluşturuldu');
+      closeProjeEkleModal();
+      projeListeYukle();
+    }
+
+    function toast(msg) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2000);
+    }
+
+    function init3d() {
+      if (!document.getElementById('canvas3d')) return;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xcccccc);
+
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+      camera.position.set(10, 10, 10);
+
+      renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas3d'), antialias: true });
+      renderer.setSize(window.innerWidth - 300, window.innerHeight - 60);
+      renderer.shadowMap.enabled = true;
+
+      // Grid
+      const gridHelper = new THREE.GridHelper(20, 20);
+      scene.add(gridHelper);
+
+      // Işık
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(10, 10, 10);
+      light.castShadow = true;
+      scene.add(light);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+
+      // Malzeme küpleri ekle
+      malzemeKupleri = {};
+      const renkler = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0x95e1d3, 0xf38181, 0xaa96da];
+      _kesifData.forEach((s, i) => {
+        const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+        const material = new THREE.MeshStandardMaterial({ color: renkler[i % renkler.length] });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(Math.random() * 15 - 7.5, 0.4, Math.random() * 15 - 7.5);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData = { kesifId: s.id, ad: s.ad };
+        scene.add(mesh);
+        malzemeKupleri[s.id] = mesh;
+      });
+
+      // Kontroller
+      if (window.OrbitControls) {
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.autoRotate = false;
+        controls.enableRotate = true;
+      }
+
+      // Raycasting başlat
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+      dragPlane = new THREE.Plane(dragPlaneNormal, 0);
+      dragOffset = new THREE.Vector3();
+      draggedObject = null;
+
+      // Event listeners
+      const canvas = renderer.domElement;
+      canvas.addEventListener('mousedown', onMouseDown, false);
+      canvas.addEventListener('mousemove', onMouseMove, false);
+      canvas.addEventListener('mouseup', onMouseUp, false);
+      document.addEventListener('keydown', onKeyDown, false);
+
+      function animate() {
+        requestAnimationFrame(animate);
+        if (controls) controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function onMouseDown(e) {
+      if (!projeAktif || e.button !== 0) return; // Sol tıkla
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const objects = Object.values(malzemeKupleri);
+      const intersects = raycaster.intersectObjects(objects);
+
+      if (intersects.length > 0) {
+        draggedObject = intersects[0].object;
+        dragPlane.setFromNormalAndCoplanarPoint(
+          camera.getWorldDirection(new THREE.Vector3()).normalize().negate(),
+          draggedObject.position
+        );
+
+        const dragPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(dragPlane, dragPoint);
+        dragOffset.copy(dragPoint).sub(draggedObject.position);
+        draggedObject.material.emissive.setHex(0x444444);
+
+        // OrbitControls'ü devre dışı bırak
+        if (controls) controls.enabled = false;
+      }
+    }
+
+    function onMouseMove(e) {
+      if (!draggedObject) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const dragPoint = new THREE.Vector3();
+      raycaster.ray.intersectPlane(dragPlane, dragPoint);
+
+      dragPoint.sub(dragOffset);
+      dragPoint.y = 0.4; // Yükseklik sabit
+      dragPoint.x = Math.max(-9, Math.min(9, dragPoint.x));
+      dragPoint.z = Math.max(-9, Math.min(9, dragPoint.z));
+
+      draggedObject.position.copy(dragPoint);
+    }
+
+    async function onMouseUp(e) {
+      if (draggedObject) {
+        draggedObject.material.emissive.setHex(0x000000);
+        const kesifId = draggedObject.userData.kesifId;
+        const x = draggedObject.position.x;
+        const y = draggedObject.position.y;
+        const z = draggedObject.position.z;
+        await inv('3d:kaydet', kesifId, x, y, z, 0, 0, 0, 1);
+        toast('Konum kaydedildi');
+        draggedObject = null;
+
+        // OrbitControls'ü etkinleştir
+        if (controls) controls.enabled = true;
+      }
+    }
+
+    function onKeyDown(e) {
+      if (e.key === 'Delete' && draggedObject) {
+        scene.remove(draggedObject);
+        const kesifId = draggedObject.userData.kesifId;
+        delete malzemeKupleri[kesifId];
+        draggedObject = null;
+      }
+    }
+
+    // İlk yükleme
+    window.addEventListener('load', () => {
+      projeListeYukle();
+      init3d();
+    });
+
+    window.addEventListener('resize', () => {
+      if (renderer) {
+        renderer.setSize(window.innerWidth - 300, window.innerHeight - 60);
+        camera.aspect = (window.innerWidth - 300) / (window.innerHeight - 60);
+        camera.updateProjectionMatrix();
+      }
+    });
+  </script>
+
+  <!-- OrbitControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@r128/examples/js/controls/OrbitControls.js"></script>
+</body>
+</html>

@@ -1208,44 +1208,51 @@
   </div>
 </div>
 
-<!-- 3D Depo Tasarımı (Isometric) -->
+<!-- 3D Tasarım Editörü (Three.js) -->
 <div class="overlay" id="m-3d-depo">
-  <div class="modal" style="max-width:95vw;max-height:90vh;width:95vw;height:90vh;display:flex;flex-direction:column">
-    <div class="modal-title">3D Depo Tasarımı - İzometrik Görünüm</div>
-    <div style="flex:1;display:flex;gap:12px;margin-bottom:12px">
-      <!-- Sol Panel: İzometrik Canvas -->
-      <div style="flex:1;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden">
-        <div style="padding:12px;background:#f5f5f5;border-bottom:1px solid var(--border);font-size:12px">
-          <strong>Depo Planı</strong> — Malzemeyi seç, grid'e tıkla | Scroll: Zoom | Sağ Tıkla + Sürükle: Pan
+  <div class="modal" style="max-width:98vw;max-height:95vh;width:98vw;height:95vh;display:flex;flex-direction:column">
+    <div class="modal-title">3D Tasarım Editörü - Ölçekli Objeler (XYZ Döndürme)</div>
+    <div style="flex:1;display:flex;gap:8px;margin-bottom:8px;overflow:hidden">
+
+      <!-- Sol Panel: Malzeme Seçimi -->
+      <div style="width:220px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden;background:#fafafa">
+        <div style="padding:10px;background:#f0f0f0;border-bottom:1px solid var(--border);font-weight:bold;font-size:13px">Malzeme Kategorileri</div>
+        <div id="editor-malzeme-list" style="flex:1;overflow-y:auto;padding:6px;border-bottom:1px solid var(--border)">
+          <!-- Dinamik olarak doldurulacak -->
         </div>
-        <canvas id="canvas-3d-depo" style="flex:1;background:#e8f4f8;display:block;cursor:crosshair"></canvas>
+        <div style="padding:10px;border-top:1px solid var(--border);background:#f0f0f0;font-size:11px">
+          <button class="btn btn-sm" onclick="editor3dAddObject()" style="width:100%;margin-bottom:6px">+ Nesne Ekle</button>
+          <button class="btn btn-sm" onclick="editor3dDeleteObject()" style="width:100%">🗑️ Seçiliyi Sil</button>
+        </div>
       </div>
 
-      <!-- Sağ Panel: Malzeme ve Katmanlar -->
-      <div style="width:300px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden;background:#fafafa">
-        <div style="padding:12px;background:#f0f0f0;border-bottom:1px solid var(--border);font-weight:bold">Malzeme Türleri</div>
-        <div id="depo-malzeme-list" style="max-height:200px;overflow-y:auto;padding:8px;border-bottom:1px solid var(--border)">
-          <!-- Dinamik olarak doldurulacak -->
+      <!-- Orta Panel: 3D Canvas -->
+      <div style="flex:1;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden">
+        <div style="padding:8px;background:#f5f5f5;border-bottom:1px solid var(--border);font-size:11px">
+          <strong>3D Tasarım</strong> | Sol Tıkla+Sürükle: Nesne taşı | Sağ Tıkla+Sürükle: Kamera döndür | Scroll: Zoom | Delete: Sil
         </div>
+        <canvas id="canvas-3d-editor" style="flex:1;background:#1a1a1a;display:block"></canvas>
+      </div>
 
-        <div style="padding:12px;background:#f0f0f0;border-bottom:1px solid var(--border);font-weight:bold">Katmanlar</div>
-        <div id="depo-katman-list" style="flex:1;overflow-y:auto;padding:8px">
-          <!-- Dinamik olarak doldurulacak -->
+      <!-- Sağ Panel: Nesne Özellikleri -->
+      <div style="width:240px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden;background:#fafafa">
+        <div style="padding:10px;background:#f0f0f0;border-bottom:1px solid var(--border);font-weight:bold;font-size:13px">Nesne Özellikleri</div>
+        <div id="editor-properties" style="flex:1;overflow-y:auto;padding:10px;font-size:12px">
+          <p style="color:#999">Nesne seçmek için 3D alanda tıkla</p>
         </div>
-
-        <div style="padding:12px;border-top:1px solid var(--border);background:#f0f0f0">
-          <label style="display:block;margin-bottom:8px;font-size:12px">
-            <input type="number" id="depo-zoom" value="50" min="10" max="100" style="width:50px"> % Zoom
+        <div style="padding:10px;border-top:1px solid var(--border);background:#f0f0f0">
+          <label style="display:block;margin-bottom:6px;font-size:11px">
+            <strong>Görünürlük</strong><br>
+            <input type="checkbox" id="editor-show-grid" checked onchange="editor3dToggleGrid()"> Grid göster
           </label>
-          <button class="btn btn-sm" onclick="depoYeniKatman()" style="width:100%">+ Katman Ekle</button>
         </div>
       </div>
     </div>
 
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-3d-depo')">Kapat</button>
-      <button class="btn btn-ghost" onclick="depoExcel()">Excel</button>
-      <button class="btn btn-primary" onclick="depoKaydet()">Kaydet</button>
+      <button class="btn btn-ghost" onclick="editor3dScreenshot()">📸 Ekran Görüntüsü</button>
+      <button class="btn btn-primary" onclick="editor3dKaydet()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -9240,263 +9247,288 @@ function katPlaniPdf() {
   alert('PDF çıktısı çok yakında');
 }
 
-// ─── 3D Depo Tasarımı (İzometrik) ─────────────────────────
-let canvasDepo, ctxDepo;
-let _depoObjeler = [];
-let _depoSecilenMalzeme = null;
-let _depoKatmanlar = [{ no: 1, ad: 'Kat 1', zYuksekligi: 0 }];
-let _depoAktifKatman = 0;
-let _depoPan = { x: 0, y: 0 };
-let _depoZoom = 50;
-let _depoDrag = null;
+// ─── 3D Tasarım Editörü (Three.js - Ölçekli Objeler & XYZ Döndürme) ────────────
+let sceneEditor3d, cameraEditor3d, rendererEditor3d, controlsEditor3d;
+let raycasterEditor3d, mouseEditor3d;
+let _editor3dObjeler = [];
+let _editor3dSecilenObj = null;
+let _editor3dSecilenMalzeme = null;
+let _editor3dShowGrid = true;
+let gridHelperEditor3d;
 
-const DEPO_MALZEME = {
+const EDITOR3D_MALZEME = {
   elektrik: [
-    { id: 'pano', ad: '📦 Kontrol Panosu', w: 1, h: 1, renk: '#E74C3C' },
-    { id: 'transformator', ad: '⚡ Trafo', w: 2, h: 1, renk: '#3498DB' },
-    { id: 'kablo', ad: '📍 Kablo Sarı', w: 1, h: 1, renk: '#F39C12' }
+    { id: 'pano', ad: '📦 Pano', renk: '#E74C3C', w: 0.6, h: 0.8, d: 0.2 },
+    { id: 'trafo', ad: '⚡ Trafo', renk: '#3498DB', w: 0.8, h: 0.8, d: 0.6 },
+    { id: 'kablo', ad: '📍 Kablo Sarı', renk: '#F39C12', w: 0.1, h: 0.1, d: 2 }
   ],
   mekanik: [
-    { id: 'motor', ad: '⚙️ Motor', w: 1, h: 1, renk: '#95A5A6' },
-    { id: 'pompa', ad: '💧 Pompa', w: 1, h: 2, renk: '#16A085' },
-    { id: 'kompressor', ad: '💨 Kompressor', w: 2, h: 2, renk: '#8E44AD' }
+    { id: 'motor', ad: '⚙️ Motor', renk: '#95A5A6', w: 0.5, h: 0.5, d: 0.5 },
+    { id: 'pompa', ad: '💧 Pompa', renk: '#16A085', w: 0.4, h: 0.8, d: 0.4 },
+    { id: 'kompressor', ad: '💨 Kompressor', renk: '#8E44AD', w: 1, h: 1, d: 1 }
   ],
   insaat: [
-    { id: 'cement', ad: '🧱 Çimento', w: 1, h: 1, renk: '#D2B48C' },
-    { id: 'demirler', ad: '🔗 Demir Çubuklar', w: 1, h: 3, renk: '#7F8C8D' },
-    { id: 'sac', ad: '🏗️ Yapı Demiri', w: 2, h: 2, renk: '#34495E' }
+    { id: 'cement', ad: '🧱 Çimento', renk: '#D2B48C', w: 0.5, h: 0.5, d: 0.5 },
+    { id: 'demir', ad: '🔗 Demir', renk: '#7F8C8D', w: 0.2, h: 0.2, d: 3 },
+    { id: 'sac', ad: '🏗️ Sac', renk: '#34495E', w: 1, h: 0.05, d: 1 }
   ]
 };
 
 function openDepo3d() {
-  _depoObjeler = [];
-  _depoKatmanlar = [{ no: 1, ad: 'Kat 1', zYuksekligi: 0 }];
-  _depoAktifKatman = 0;
-  _depoPan = { x: 0, y: 0 };
-  _depoZoom = 50;
+  _editor3dObjeler = [];
+  _editor3dSecilenObj = null;
+  _editor3dSecilenMalzeme = null;
 
   openModal('m-3d-depo');
 
   setTimeout(() => {
-    canvasDepo = document.getElementById('canvas-3d-depo');
-    ctxDepo = canvasDepo.getContext('2d');
-
-    document.getElementById('depo-zoom').addEventListener('change', (e) => {
-      _depoZoom = parseInt(e.target.value);
-      redrawDepo();
-    });
-
-    renderDepoMalzemeler();
-    renderDepoKatmanlar();
-    redrawDepo();
-
-    canvasDepo.addEventListener('click', depoCanvasClick);
-    canvasDepo.addEventListener('mousedown', depoMouseDown);
-    canvasDepo.addEventListener('mousemove', depoMouseMove);
-    canvasDepo.addEventListener('mouseup', depoMouseUp);
-    canvasDepo.addEventListener('wheel', depoWheel);
+    initEditor3d();
+    renderEditor3dMalzemeler();
   }, 100);
 }
 
-function renderDepoMalzemeler() {
+function initEditor3d() {
+  const canvas = document.getElementById('canvas-3d-editor');
+  if (!canvas) return;
+
+  sceneEditor3d = new THREE.Scene();
+  sceneEditor3d.background = new THREE.Color(0x1a1a1a);
+
+  cameraEditor3d = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 10000);
+  cameraEditor3d.position.set(5, 4, 5);
+
+  rendererEditor3d = new THREE.WebGLRenderer({ canvas, antialias: true });
+  rendererEditor3d.setSize(canvas.clientWidth, canvas.clientHeight);
+  rendererEditor3d.shadowMap.enabled = true;
+
+  // Grid
+  gridHelperEditor3d = new THREE.GridHelper(10, 20, 0x444444, 0x222222);
+  sceneEditor3d.add(gridHelperEditor3d);
+
+  // Işıklar
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(5, 5, 5);
+  dirLight.castShadow = true;
+  sceneEditor3d.add(dirLight);
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  sceneEditor3d.add(ambientLight);
+
+  // OrbitControls
+  controlsEditor3d = new THREE.OrbitControls(cameraEditor3d, rendererEditor3d.domElement);
+  controlsEditor3d.enableDamping = true;
+  controlsEditor3d.dampingFactor = 0.05;
+  controlsEditor3d.autoRotate = false;
+
+  // Raycasting
+  raycasterEditor3d = new THREE.Raycaster();
+  mouseEditor3d = new THREE.Vector2();
+
+  canvas.addEventListener('click', editor3dCanvasClick);
+  canvas.addEventListener('keydown', editor3dKeyDown);
+  canvas.addEventListener('mousemove', editor3dMouseMove);
+  canvas.addEventListener('wheel', editor3dMouseWheel);
+
+  // Animate loop
+  function animateEditor3d() {
+    requestAnimationFrame(animateEditor3d);
+    controlsEditor3d.update();
+    rendererEditor3d.render(sceneEditor3d, cameraEditor3d);
+  }
+  animateEditor3d();
+}
+
+function renderEditor3dMalzemeler() {
   const tur = _kesifAktifTur || 'elektrik';
-  const malzemeler = DEPO_MALZEME[tur] || [];
+  const malzemeler = EDITOR3D_MALZEME[tur] || [];
 
   const html = malzemeler.map(m => `
-    <div class="depo-malzeme" style="
-      padding:8px;
+    <div style="
+      padding:10px;
       margin:6px;
       background:${m.renk};
       color:white;
       border-radius:4px;
       cursor:pointer;
-      font-size:12px;
+      font-size:11px;
       font-weight:bold;
       text-align:center;
       transition:0.2s;
-      ${_depoSecilenMalzeme?.id === m.id ? 'transform:scale(1.1);box-shadow:0 0 8px rgba(0,0,0,0.3)' : ''}
-    " onclick="depoSelectMalzeme('${m.id}', '${m.ad}', '${m.renk}', ${m.w}, ${m.h})">
+      ${_editor3dSecilenMalzeme?.id === m.id ? 'border:3px solid white;transform:scale(1.05)' : 'border:1px solid rgba(0,0,0,0.3)'}
+    " onclick="editor3dSelectMalzeme('${m.id}', '${m.ad}', '${m.renk}', ${m.w}, ${m.h}, ${m.d})">
       ${m.ad}
     </div>
   `).join('');
 
-  document.getElementById('depo-malzeme-list').innerHTML = html;
+  document.getElementById('editor-malzeme-list').innerHTML = html;
 }
 
-function renderDepoKatmanlar() {
-  const html = _depoKatmanlar.map((k, i) => `
-    <div style="
-      padding:8px;
-      margin:6px;
-      background:${i === _depoAktifKatman ? '#4CAF50' : '#ddd'};
-      color:${i === _depoAktifKatman ? 'white' : '#333'};
-      border-radius:4px;
-      cursor:pointer;
-      font-size:12px;
-      text-align:center;
-    " onclick="depoSelectKatman(${i})">
-      ${k.ad} (Z: ${k.zYuksekligi}m)
-    </div>
-  `).join('');
-
-  document.getElementById('depo-katman-list').innerHTML = html;
+function editor3dSelectMalzeme(id, ad, renk, w, h, d) {
+  _editor3dSecilenMalzeme = { id, ad, renk, w, h, d };
+  renderEditor3dMalzemeler();
 }
 
-function depoSelectMalzeme(id, ad, renk, w, h) {
-  _depoSecilenMalzeme = { id, ad, renk, w, h };
-  renderDepoMalzemeler();
-}
-
-function depoSelectKatman(idx) {
-  _depoAktifKatman = idx;
-  renderDepoKatmanlar();
-  redrawDepo();
-}
-
-function depoYeniKatman() {
-  const no = _depoKatmanlar.length + 1;
-  _depoKatmanlar.push({
-    no,
-    ad: `Kat ${no}`,
-    zYuksekligi: (no - 1) * 3
-  });
-  renderDepoKatmanlar();
-}
-
-function depoCanvasClick(e) {
-  if (!_depoSecilenMalzeme) {
+function editor3dAddObject() {
+  if (!_editor3dSecilenMalzeme) {
     alert('Malzeme seç');
     return;
   }
 
-  const rect = canvasDepo.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
+  const m = _editor3dSecilenMalzeme;
+  const geometry = new THREE.BoxGeometry(m.w, m.h, m.d);
+  const material = new THREE.MeshStandardMaterial({ color: m.renk });
+  const mesh = new THREE.Mesh(geometry, material);
 
-  const w = canvasDepo.width;
-  const h = canvasDepo.height;
-  const centerX = w / 2 + _depoPan.x;
-  const centerY = h / 2 + _depoPan.y;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.position.set(Math.random() * 4 - 2, m.h / 2, Math.random() * 4 - 2);
 
-  // İzometrik düzlemde ters çevir
-  const px = (mx - centerX) / (_depoZoom / 100);
-  const py = (my - centerY) / (_depoZoom / 100);
-
-  const gridX = Math.round(px / 32);
-  const gridY = Math.round(py / 16 - gridX / 2);
-
-  _depoObjeler.push({
+  const objData = {
     id: `obj-${Date.now()}`,
-    malzeme: { ..._depoSecilenMalzeme },
-    x: gridX,
-    y: gridY,
-    z: _depoKatmanlar[_depoAktifKatman].zYuksekligi,
-    katman: _depoAktifKatman
-  });
+    malzeme: { ...m },
+    position: { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 }
+  };
 
-  redrawDepo();
+  mesh.userData = objData;
+  sceneEditor3d.add(mesh);
+  _editor3dObjeler.push({ mesh, data: objData });
 }
 
-function depoMouseDown(e) {
-  if (e.button === 2) { // Sağ tık (pan)
-    _depoDrag = { startX: e.clientX, startY: e.clientY, panX: _depoPan.x, panY: _depoPan.y };
+function editor3dCanvasClick(e) {
+  if (e.target.tagName !== 'CANVAS') return;
+
+  const canvas = rendererEditor3d.domElement;
+  const rect = canvas.getBoundingClientRect();
+
+  mouseEditor3d.x = ((e.clientX - rect.left) / canvas.width) * 2 - 1;
+  mouseEditor3d.y = -((e.clientY - rect.top) / canvas.height) * 2 + 1;
+
+  raycasterEditor3d.setFromCamera(mouseEditor3d, cameraEditor3d);
+  const intersects = raycasterEditor3d.intersectObjects(sceneEditor3d.children);
+
+  if (intersects.length > 0) {
+    const hit = intersects.find(i => i.object.userData.malzeme);
+    if (hit) {
+      _editor3dSecilenObj = hit.object;
+      editor3dShowProperties();
+      return;
+    }
+  }
+
+  _editor3dSecilenObj = null;
+  document.getElementById('editor-properties').innerHTML = '<p style="color:#999">Nesne seçmek için 3D alanda tıkla</p>';
+}
+
+function editor3dShowProperties() {
+  if (!_editor3dSecilenObj) return;
+
+  const data = _editor3dSecilenObj.userData;
+  const pos = _editor3dSecilenObj.position;
+  const rot = _editor3dSecilenObj.rotation;
+  const scale = _editor3dSecilenObj.scale;
+
+  const html = `
+    <div style="margin-bottom:8px;padding:8px;background:#fff;border-radius:4px">
+      <strong>${data.malzeme.ad}</strong>
+    </div>
+
+    <div style="margin-bottom:8px">
+      <strong style="font-size:11px">Konum (X, Y, Z)</strong><br>
+      <input type="number" value="${pos.x.toFixed(2)}" step="0.1" onchange="editor3dUpdateProp('posX', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+      <input type="number" value="${pos.y.toFixed(2)}" step="0.1" onchange="editor3dUpdateProp('posY', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+      <input type="number" value="${pos.z.toFixed(2)}" step="0.1" onchange="editor3dUpdateProp('posZ', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+    </div>
+
+    <div style="margin-bottom:8px">
+      <strong style="font-size:11px">Döndürme (X, Y, Z) °</strong><br>
+      <input type="number" value="${(rot.x * 180 / Math.PI).toFixed(1)}" step="5" onchange="editor3dUpdateProp('rotX', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+      <input type="number" value="${(rot.y * 180 / Math.PI).toFixed(1)}" step="5" onchange="editor3dUpdateProp('rotY', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+      <input type="number" value="${(rot.z * 180 / Math.PI).toFixed(1)}" step="5" onchange="editor3dUpdateProp('rotZ', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+    </div>
+
+    <div style="margin-bottom:8px">
+      <strong style="font-size:11px">Ölçek (X, Y, Z)</strong><br>
+      <input type="number" value="${scale.x.toFixed(2)}" step="0.1" min="0.1" onchange="editor3dUpdateProp('scaleX', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+      <input type="number" value="${scale.y.toFixed(2)}" step="0.1" min="0.1" onchange="editor3dUpdateProp('scaleY', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+      <input type="number" value="${scale.z.toFixed(2)}" step="0.1" min="0.1" onchange="editor3dUpdateProp('scaleZ', this.value)" style="width:70px;padding:4px;margin:2px;font-size:10px">
+    </div>
+  `;
+
+  document.getElementById('editor-properties').innerHTML = html;
+}
+
+function editor3dUpdateProp(prop, val) {
+  if (!_editor3dSecilenObj) return;
+
+  const v = parseFloat(val);
+  if (isNaN(v)) return;
+
+  if (prop === 'posX') _editor3dSecilenObj.position.x = v;
+  else if (prop === 'posY') _editor3dSecilenObj.position.y = v;
+  else if (prop === 'posZ') _editor3dSecilenObj.position.z = v;
+  else if (prop === 'rotX') _editor3dSecilenObj.rotation.x = v * Math.PI / 180;
+  else if (prop === 'rotY') _editor3dSecilenObj.rotation.y = v * Math.PI / 180;
+  else if (prop === 'rotZ') _editor3dSecilenObj.rotation.z = v * Math.PI / 180;
+  else if (prop === 'scaleX') _editor3dSecilenObj.scale.x = v;
+  else if (prop === 'scaleY') _editor3dSecilenObj.scale.y = v;
+  else if (prop === 'scaleZ') _editor3dSecilenObj.scale.z = v;
+
+  // Verileri güncelle
+  const data = _editor3dSecilenObj.userData;
+  data.position = _editor3dSecilenObj.position.toJSON();
+  data.rotation = { x: _editor3dSecilenObj.rotation.x, y: _editor3dSecilenObj.rotation.y, z: _editor3dSecilenObj.rotation.z };
+  data.scale = _editor3dSecilenObj.scale.toJSON();
+
+  editor3dShowProperties();
+}
+
+function editor3dDeleteObject() {
+  if (!_editor3dSecilenObj) return;
+
+  sceneEditor3d.remove(_editor3dSecilenObj);
+  _editor3dObjeler = _editor3dObjeler.filter(o => o.mesh !== _editor3dSecilenObj);
+  _editor3dSecilenObj = null;
+
+  document.getElementById('editor-properties').innerHTML = '<p style="color:#999">Nesne seçmek için 3D alanda tıkla</p>';
+}
+
+function editor3dKeyDown(e) {
+  if (e.key === 'Delete') {
+    editor3dDeleteObject();
   }
 }
 
-function depoMouseMove(e) {
-  if (_depoDrag && e.buttons === 2) {
-    _depoPan.x = _depoDrag.panX + (e.clientX - _depoDrag.startX);
-    _depoPan.y = _depoDrag.panY + (e.clientY - _depoDrag.startY);
-    redrawDepo();
-  }
+function editor3dMouseMove(e) {
+  if (e.target.tagName !== 'CANVAS') return;
+  const canvas = rendererEditor3d.domElement;
+  const rect = canvas.getBoundingClientRect();
+  mouseEditor3d.x = ((e.clientX - rect.left) / canvas.width) * 2 - 1;
+  mouseEditor3d.y = -((e.clientY - rect.top) / canvas.height) * 2 + 1;
 }
 
-function depoMouseUp(e) {
-  _depoDrag = null;
-}
-
-function depoWheel(e) {
+function editor3dMouseWheel(e) {
   e.preventDefault();
-  _depoZoom = Math.max(10, Math.min(100, _depoZoom + (e.deltaY > 0 ? -5 : 5)));
-  document.getElementById('depo-zoom').value = _depoZoom;
-  redrawDepo();
 }
 
-function redrawDepo() {
-  if (!canvasDepo || !ctxDepo) return;
-
-  canvasDepo.width = canvasDepo.offsetWidth;
-  canvasDepo.height = canvasDepo.offsetHeight;
-
-  const w = canvasDepo.width;
-  const h = canvasDepo.height;
-  const centerX = w / 2 + _depoPan.x;
-  const centerY = h / 2 + _depoPan.y;
-  const scale = _depoZoom / 100;
-
-  // Arka plan
-  ctxDepo.fillStyle = '#e8f4f8';
-  ctxDepo.fillRect(0, 0, w, h);
-
-  // Grid
-  ctxDepo.strokeStyle = '#d0d0d0';
-  ctxDepo.lineWidth = 1;
-  for (let i = -10; i <= 10; i++) {
-    const x1 = centerX + i * 32 * scale;
-    const y1 = centerY - i * 16 * scale;
-    const x2 = centerX + i * 32 * scale;
-    const y2 = centerY + i * 16 * scale + 200 * scale;
-
-    ctxDepo.beginPath();
-    ctxDepo.moveTo(x1, y1);
-    ctxDepo.lineTo(x2, y2);
-    ctxDepo.stroke();
-
-    const x3 = centerX - 200 * scale + i * 16 * scale;
-    const y3 = centerY + i * 16 * scale;
-    const x4 = centerX + 200 * scale + i * 16 * scale;
-    const y4 = centerY + i * 16 * scale;
-
-    ctxDepo.beginPath();
-    ctxDepo.moveTo(x3, y3);
-    ctxDepo.lineTo(x4, y4);
-    ctxDepo.stroke();
-  }
-
-  // Nesneleri çiz (katmana göre filtrele)
-  const currentKatmanObjeler = _depoObjeler.filter(o => o.katman === _depoAktifKatman);
-  currentKatmanObjeler.forEach(obj => {
-    const x = centerX + (obj.x * 32 - obj.y * 16) * scale;
-    const y = centerY + (obj.x * 16 + obj.y * 16 - obj.z * 10) * scale;
-
-    const w = obj.malzeme.w * 32 * scale;
-    const h = obj.malzeme.h * 16 * scale;
-
-    ctxDepo.fillStyle = obj.malzeme.renk;
-    ctxDepo.globalAlpha = 0.8;
-    ctxDepo.fillRect(x - w / 2, y - h / 2, w, h);
-
-    ctxDepo.globalAlpha = 1;
-    ctxDepo.strokeStyle = '#333';
-    ctxDepo.lineWidth = 2;
-    ctxDepo.strokeRect(x - w / 2, y - h / 2, w, h);
-
-    ctxDepo.fillStyle = '#333';
-    ctxDepo.font = 'bold 11px Arial';
-    ctxDepo.textAlign = 'center';
-    ctxDepo.fillText(obj.malzeme.ad.split(' ')[0], x, y);
-  });
+function editor3dToggleGrid() {
+  _editor3dShowGrid = document.getElementById('editor-show-grid').checked;
+  gridHelperEditor3d.visible = _editor3dShowGrid;
 }
 
-async function depoKaydet() {
+function editor3dScreenshot() {
+  alert('Ekran görüntüsü çok yakında');
+}
+
+async function editor3dKaydet() {
   const data = {
-    nesneler: _depoObjeler,
-    katmanlar: _depoKatmanlar,
+    nesneler: _editor3dObjeler.map(o => o.data),
     tur: _kesifAktifTur || 'elektrik'
   };
 
-  await inv('depo:kaydet', _projeDetayAktif.id, data);
-  alert('3D Depo tasarımı kaydedildi');
+  await inv('editor3d:kaydet', _projeDetayAktif.id, data);
+  alert('3D Tasarım kaydedildi');
   closeModal('m-3d-depo');
 }
 
