@@ -9503,6 +9503,118 @@ async function depoKaydet() {
 function depoExcel() {
   alert('Excel çıktısı çok yakında');
 }
+
+// ─── Özet Raporu (Keşif + İşçilik + 3D) ────────────────────
+async function ozetRaporPdf() {
+  const tur = _kesifAktifTur || 'elektrik';
+
+  // Keşif verisi
+  const kesifData = await inv('kesif:getir', _projeDetayAktif.id, tur);
+  const kesifRows = kesifData.rows || [];
+  const kesifToplam = kesifData.genelToplam || 0;
+
+  // İşçilik verisi
+  const iscilikData = await inv('iscilik:getir', _projeDetayAktif.id);
+  const iscilikRows = iscilikData.rows || [];
+  const iscilikToplam = iscilikData.genelToplam || 0;
+
+  // 3D Depo verisi (nesneler sayısı)
+  const depoData = await inv('depo:getir', _projeDetayAktif.id);
+  const depoNesneler = depoData.nesneler || [];
+  const depoKatmanlar = depoData.katmanlar || [];
+
+  // Kat Planı verisi (işaretler sayısı)
+  const katPlaniData = await inv('kat-plani:getir', _projeDetayAktif.id);
+  const katPlaniItems = katPlaniData.items || [];
+
+  const html = `
+    <div style="font-family:Arial;margin:20px;color:#333">
+      <h1 style="text-align:center;color:#2c3e50">PROJE KESFİ ÖZET RAPORU</h1>
+      <p style="text-align:center;font-size:12px;color:#666">
+        Proje: <strong>${_projeDetayAktif.ad}</strong> |
+        Kategori: <strong>${tur.toUpperCase()}</strong> |
+        Tarih: <strong>${new Date().toLocaleDateString('tr-TR')}</strong>
+      </p>
+
+      <hr style="border:1px solid #ddd;margin:20px 0">
+
+      <h2 style="color:#34495e;border-bottom:2px solid #3498db;padding-bottom:8px">1. KEŞİF VERİLERİ</h2>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+        <thead>
+          <tr style="background:#ecf0f1">
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:left">Poz No</th>
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:left">Malzeme</th>
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:center">Miktar</th>
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:center">Birim</th>
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:right">Birim Fiyat</th>
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:right">Tutar</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${kesifRows.map(r => `
+            <tr>
+              <td style="border:1px solid #bdc3c7;padding:8px">${r.poz_no || '-'}</td>
+              <td style="border:1px solid #bdc3c7;padding:8px">${r.ad || '-'}</td>
+              <td style="border:1px solid #bdc3c7;padding:8px;text-align:center">${r.miktar || 0}</td>
+              <td style="border:1px solid #bdc3c7;padding:8px;text-align:center">${r.birim || '-'}</td>
+              <td style="border:1px solid #bdc3c7;padding:8px;text-align:right">${fmt(r.birim_fiyat || 0, r.para_birimi || 'USD')}</td>
+              <td style="border:1px solid #bdc3c7;padding:8px;text-align:right;font-weight:bold">${fmt(r.tutar || 0, r.para_birimi || 'USD')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="text-align:right;padding:10px;background:#fff3cd;border:1px solid #ffc107;border-radius:4px;margin-bottom:20px">
+        <strong style="font-size:16px">KEŞİF TOPLAMI: ${fmt(kesifToplam, 'USD')}</strong>
+      </div>
+
+      <h2 style="color:#34495e;border-bottom:2px solid #e74c3c;padding-bottom:8px">2. İŞÇİLİK KESFİ</h2>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+        <thead>
+          <tr style="background:#ecf0f1">
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:left">İşçi Adı</th>
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:center">Gün</th>
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:right">Gündelik</th>
+            <th style="border:1px solid #bdc3c7;padding:10px;text-align:right">Toplam</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${iscilikRows.map(r => `
+            <tr>
+              <td style="border:1px solid #bdc3c7;padding:8px">${r.isci_adi || '-'}</td>
+              <td style="border:1px solid #bdc3c7;padding:8px;text-align:center">${r.gun || 0}</td>
+              <td style="border:1px solid #bdc3c7;padding:8px;text-align:right">${fmt(r.gundelik || 0, 'USD')}</td>
+              <td style="border:1px solid #bdc3c7;padding:8px;text-align:right;font-weight:bold">${fmt(r.toplam || 0, 'USD')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="text-align:right;padding:10px;background:#f8d7da;border:1px solid #f5c6cb;border-radius:4px;margin-bottom:20px">
+        <strong style="font-size:16px">İŞÇİLİK TOPLAMI: ${fmt(iscilikToplam, 'USD')}</strong>
+      </div>
+
+      <h2 style="color:#34495e;border-bottom:2px solid #16a085;padding-bottom:8px">3. TASARIM VERİLERİ</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px">
+        <div style="padding:15px;background:#d5f4e6;border-radius:4px">
+          <strong>Kat Planı (2D)</strong><br>
+          Yerleştirilen Malzeme: <strong style="font-size:16px">${katPlaniItems.length}</strong> adet<br>
+          <span style="font-size:12px;color:#555">Kategorisi: ${tur}</span>
+        </div>
+        <div style="padding:15px;background:#cce5ff;border-radius:4px">
+          <strong>3D Depo (İzometrik)</strong><br>
+          Toplam Nesne: <strong style="font-size:16px">${depoNesneler.length}</strong> adet<br>
+          Katman Sayısı: <strong>${depoKatmanlar.length}</strong>
+        </div>
+      </div>
+
+      <hr style="border:1px solid #ddd;margin:20px 0">
+      <div style="text-align:center;font-size:11px;color:#999">
+        <p>Bu rapor otomatik olarak oluşturulmuştur. | Albrus Firma v1.0 | ${new Date().toLocaleString('tr-TR')}</p>
+      </div>
+    </div>
+  `;
+
+  await inv('print:pdf', html);
+}
 </script>
 </body>
 </html>
