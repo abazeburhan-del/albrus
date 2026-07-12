@@ -4188,7 +4188,7 @@ function updateFaturaToplam() {
 
 function faturaKalemEkle() {
   syncKalemlerFromDom();
-  _faturaKalemler.push({ aciklama: '', marka: '', miktar: 1, birim: 'Pcs', birim_fiyat: 0 });
+  _faturaKalemler.push({ aciklama: '', marka: '', miktar: 1, birim: 'Pcs', birim_fiyat: 0, stok_id: null });
   renderFaturaKalemler();
 }
 
@@ -4258,6 +4258,7 @@ async function openFaturaDuzenle(id) {
     miktar:      k.miktar,
     birim:       k.birim || 'Adet',
     birim_fiyat: k.birim_fiyat,
+    stok_id:     k.stok_id || null,
   }));
   renderFaturaKalemler();
 
