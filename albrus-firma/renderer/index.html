@@ -167,6 +167,8 @@
       #print-area { display: block !important; background: #fff; color: #000; }
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@r128/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
 
@@ -1132,14 +1134,118 @@
       <button class="btn btn-sm" id="ptab-elektrik" onclick="projeDetayTab('elektrik')">Elektrik</button>
       <button class="btn btn-sm" id="ptab-mekanik" onclick="projeDetayTab('mekanik')">Mekanik</button>
       <button class="btn btn-sm" id="ptab-insaat" onclick="projeDetayTab('insaat')">İnşaat</button>
+      <button class="btn btn-sm" id="ptab-iscilik" onclick="projeDetayTab('iscilik')">İşçilik</button>
     </div>
     <div id="proje-detay-icerik" style="max-height:62vh;overflow-y:auto"></div>
     <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btn btn-ghost" onclick="closeModal('m-proje-detay')">Kapat</button>
       <button class="btn btn-ghost" onclick="projeDetayPdf()" id="btn-proje-detay-pdf">PDF Rapor</button>
+      <button class="btn btn-ghost" id="btn-ozet-pdf" style="display:none" onclick="ozetRaporPdf()">Özet Raporu</button>
       <button class="btn btn-ghost" id="btn-kesif-kaydet" style="display:none" onclick="kesifKaydet()">Kaydet</button>
       <button class="btn btn-ghost" id="btn-kesif-pdf" style="display:none" onclick="kesifPdf()">PDF</button>
       <button class="btn btn-ghost" id="btn-kesif-excel" style="display:none" onclick="kesifExcel()">Excel</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3D Konumlandırma -->
+<div class="overlay" id="m-3d-konumlandir">
+  <div class="modal" style="max-width:90vw;max-height:90vh;width:90vw;height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title">3D Konumlandırma - Malzeme Düzeni</div>
+    <div style="flex:1;border:1px solid var(--border);border-radius:4px;margin-bottom:12px;position:relative">
+      <canvas id="canvas3d" style="width:100%;height:100%;display:block"></canvas>
+      <div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.7);color:white;padding:8px 12px;border-radius:4px;font-size:12px;max-width:280px;z-index:10">
+        <strong>Kontrol:</strong><br>
+        Sol Tıkla + Sürükle: Malzeme taşı<br>
+        Sağ Tıkla + Sürükle: Kamera döndür<br>
+        Scroll: Zoom<br>
+        Delete: Seçili nesneyi sil
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-3d-konumlandir')">Kapat</button>
+      <button class="btn btn-primary" onclick="save3dKonumlar()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- Kat Planı Tasarımı -->
+<div class="overlay" id="m-kat-plani">
+  <div class="modal" style="max-width:95vw;max-height:90vh;width:95vw;height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title">Kat Planı Tasarımı - Malzeme Yerleştirme</div>
+    <div style="flex:1;display:flex;gap:12px;margin-bottom:12px">
+      <!-- Sol Panel: Resim ve Kontroller -->
+      <div style="flex:1;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden">
+        <div id="kat-plani-upload" style="padding:12px;background:#f5f5f5;border-bottom:1px solid var(--border)">
+          <input type="file" id="kat-plani-dosya" accept="image/*" style="display:none">
+          <button class="btn btn-sm btn-primary" onclick="document.getElementById('kat-plani-dosya').click()">📷 Kat Planı Yükle</button>
+          <span id="kat-plani-dosya-ad" style="margin-left:12px;font-size:12px;color:#666"></span>
+        </div>
+        <canvas id="canvas-kat-plani" style="flex:1;background:#f9f9f9;display:block"></canvas>
+      </div>
+
+      <!-- Sağ Panel: Malzeme Kategorileri -->
+      <div style="width:280px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden;background:#fafafa">
+        <div style="padding:12px;background:#f0f0f0;border-bottom:1px solid var(--border);font-weight:bold">Malzeme Kategorileri</div>
+        <div id="kat-malzeme-list" style="flex:1;overflow-y:auto;padding:8px">
+          <!-- Dinamik olarak doldurulacak -->
+        </div>
+        <div style="padding:12px;border-top:1px solid var(--border);background:#f0f0f0;font-size:11px;color:#666">
+          <strong>Kontrol:</strong><br>
+          1. Resim yükle<br>
+          2. Malzemeyi seç<br>
+          3. Resime tıkla<br>
+          4. Kaydet
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-kat-plani')">Kapat</button>
+      <button class="btn btn-ghost" id="btn-kat-plani-pdf" style="display:none" onclick="katPlaniPdf()">PDF Rapor</button>
+      <button class="btn btn-primary" onclick="katPlaniKaydet()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3D Depo Tasarımı (Isometric) -->
+<div class="overlay" id="m-3d-depo">
+  <div class="modal" style="max-width:95vw;max-height:90vh;width:95vw;height:90vh;display:flex;flex-direction:column">
+    <div class="modal-title">3D Depo Tasarımı - İzometrik Görünüm</div>
+    <div style="flex:1;display:flex;gap:12px;margin-bottom:12px">
+      <!-- Sol Panel: İzometrik Canvas -->
+      <div style="flex:1;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden">
+        <div style="padding:12px;background:#f5f5f5;border-bottom:1px solid var(--border);font-size:12px">
+          <strong>Depo Planı</strong> — Malzemeyi seç, grid'e tıkla | Scroll: Zoom | Sağ Tıkla + Sürükle: Pan
+        </div>
+        <canvas id="canvas-3d-depo" style="flex:1;background:#e8f4f8;display:block;cursor:crosshair"></canvas>
+      </div>
+
+      <!-- Sağ Panel: Malzeme ve Katmanlar -->
+      <div style="width:300px;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:4px;overflow:hidden;background:#fafafa">
+        <div style="padding:12px;background:#f0f0f0;border-bottom:1px solid var(--border);font-weight:bold">Malzeme Türleri</div>
+        <div id="depo-malzeme-list" style="max-height:200px;overflow-y:auto;padding:8px;border-bottom:1px solid var(--border)">
+          <!-- Dinamik olarak doldurulacak -->
+        </div>
+
+        <div style="padding:12px;background:#f0f0f0;border-bottom:1px solid var(--border);font-weight:bold">Katmanlar</div>
+        <div id="depo-katman-list" style="flex:1;overflow-y:auto;padding:8px">
+          <!-- Dinamik olarak doldurulacak -->
+        </div>
+
+        <div style="padding:12px;border-top:1px solid var(--border);background:#f0f0f0">
+          <label style="display:block;margin-bottom:8px;font-size:12px">
+            <input type="number" id="depo-zoom" value="50" min="10" max="100" style="width:50px"> % Zoom
+          </label>
+          <button class="btn btn-sm" onclick="depoYeniKatman()" style="width:100%">+ Katman Ekle</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-3d-depo')">Kapat</button>
+      <button class="btn btn-ghost" onclick="depoExcel()">Excel</button>
+      <button class="btn btn-primary" onclick="depoKaydet()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -3357,21 +3463,35 @@ async function openProjeDetay(id) {
 }
 
 async function projeDetayTab(tab) {
-  const tabs = ['hareketler', 'elektrik', 'mekanik', 'insaat'];
+  const tabs = ['hareketler', 'elektrik', 'mekanik', 'insaat', 'iscilik'];
   tabs.forEach(t => {
     const btn = document.getElementById('ptab-' + t);
     if (btn) btn.style.opacity = t === tab ? '1' : '0.6';
   });
 
   const kesifBtns = ['btn-kesif-kaydet', 'btn-kesif-pdf', 'btn-kesif-excel'];
+  const kaydetBtn = document.getElementById('btn-kesif-kaydet');
+  const ozetBtn = document.getElementById('btn-ozet-pdf');
+
   kesifBtns.forEach(bid => {
     const b = document.getElementById(bid);
     if (b) b.style.display = tab === 'hareketler' ? 'none' : 'inline-flex';
   });
   document.getElementById('btn-proje-detay-pdf').style.display = tab === 'hareketler' ? 'inline-flex' : 'none';
+  if (ozetBtn) ozetBtn.style.display = (tab === 'hareketler' || tab === 'iscilik') ? 'none' : 'inline-flex';
+
+  if (kaydetBtn) {
+    if (tab === 'iscilik') {
+      kaydetBtn.onclick = iscilikKaydet;
+    } else {
+      kaydetBtn.onclick = kesifKaydet;
+    }
+  }
 
   if (tab === 'hareketler') {
     await openProjeHareketler();
+  } else if (tab === 'iscilik') {
+    await openIscilikTab();
   } else {
     _kesifAktifTur = tab;
     await openKesifTab(tab);
@@ -3412,6 +3532,78 @@ async function openKesifTab(tur) {
   renderKesifGrid();
 }
 
+let _iscilikData = [];
+
+async function openIscilikTab() {
+  const data = await inv('iscilik:getir', _projeDetayAktif.id);
+  _iscilikData = data.rows || [];
+  renderIscilikGrid();
+}
+
+function renderIscilikGrid() {
+  const rows = _iscilikData;
+  const gridRows = rows.map((s, i) => `
+    <tr>
+      <td style="padding:6px;"><input type="text" class="iscilik-adi" value="${s.isci_adi || ''}" style="width:100%"></td>
+      <td style="padding:6px;"><input type="number" class="iscilik-gun" value="${s.gun || 0}" style="width:80px" onchange="renderIscilikGrid()"></td>
+      <td style="padding:6px;"><input type="number" class="iscilik-gundelik" value="${s.gundelik || 0}" style="width:90px" onchange="renderIscilikGrid()"></td>
+      <td style="padding:6px;text-align:right;min-width:100px;font-weight:600">${fmt((Number(s.gun)||0) * (Number(s.gundelik)||0), s.para_birimi || 'USD')}</td>
+      <td style="padding:6px;text-align:center"><button class="btn-del" onclick="iscilikSatirSil(${i})">×</button></td>
+    </tr>
+  `).join('');
+
+  const toplamTutar = rows.reduce((a, s) => a + (Number(s.gun)||0) * (Number(s.gundelik)||0), 0);
+
+  const html = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="background:#f0f0f0">
+          <th style="padding:10px;text-align:left;border-bottom:1px solid #ccc">İşçi Adı</th>
+          <th style="padding:10px;text-align:center;border-bottom:1px solid #ccc">Gün</th>
+          <th style="padding:10px;text-align:center;border-bottom:1px solid #ccc">Gündelik</th>
+          <th style="padding:10px;text-align:right;border-bottom:1px solid #ccc">Toplam</th>
+          <th style="padding:10px;text-align:center;border-bottom:1px solid #ccc"></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${gridRows}
+      </tbody>
+      <tfoot>
+        <tr style="background:#fff9e6;font-weight:bold">
+          <td colspan="3" style="padding:10px;text-align:right;border-top:2px solid #ccc">GENEL TOPLAM:</td>
+          <td style="padding:10px;text-align:right;border-top:2px solid #ccc">${fmt(toplamTutar, 'USD')}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-sm" onclick="iscilikSatirEkle()">+ Satır Ekle</button>
+    </div>
+  `;
+  document.getElementById('proje-detay-icerik').innerHTML = html;
+}
+
+function iscilikSatirEkle() {
+  _iscilikData.push({ isci_adi: '', gun: 0, gundelik: 0, para_birimi: 'USD' });
+  renderIscilikGrid();
+}
+
+function iscilikSatirSil(idx) {
+  _iscilikData.splice(idx, 1);
+  renderIscilikGrid();
+}
+
+async function iscilikKaydet() {
+  const satirlar = Array.from(document.querySelectorAll('#proje-detay-icerik table tbody tr')).map((tr, i) => ({
+    isci_adi: tr.querySelector('.iscilik-adi').value,
+    gun: Number(tr.querySelector('.iscilik-gun').value) || 0,
+    gundelik: Number(tr.querySelector('.iscilik-gundelik').value) || 0,
+    para_birimi: 'USD'
+  }));
+  await inv('iscilik:kaydet', _projeDetayAktif.id, satirlar);
+  yesilToast('İşçilik keşfi kaydedildi');
+}
+
 function renderKesifGrid() {
   const rows = _kesifData;
   const gridRows = rows.map((s, i) => `
@@ -3447,9 +3639,56 @@ function renderKesifGrid() {
         <td></td>
       </tr></tfoot>
     </table>
-    <button class="btn btn-sm" style="margin-top:10px" onclick="kesifSatirEkle()">+ Satır Ekle</button>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="kesifDxfYukle()">📄 DXF Yükle</button>
+      <button class="btn btn-sm" onclick="kesifYapistir()">📋 Yapıştır</button>
+      <button class="btn btn-sm" onclick="kesifSatirEkle()">+ Satır Ekle</button>
+      <button class="btn btn-sm btn-primary" onclick="open3dKonumlandir()">🎨 3D Konumlandır</button>
+      <button class="btn btn-sm btn-primary" onclick="openKatPlani()">🏗️ Kat Planı Tasarımı</button>
+      <button class="btn btn-sm btn-primary" onclick="openDepo3d()">🏢 3D Depo Tasarımı</button>
+    </div>
   `;
   document.getElementById('proje-detay-icerik').innerHTML = html;
+}
+
+async function kesifDxfYukle() {
+  // DXF seç
+  const dxfRes = await inv('dwg:openDxf');
+  if (!dxfRes.ok) return;
+
+  // Parse
+  const entities = await inv('dwg:parseDxf', dxfRes.filePath);
+
+  if (entities.error) {
+    alert('DXF Parse hatası: ' + entities.error);
+    return;
+  }
+
+  // Seçilen tur'a eşleşen entity'leri filtrele
+  const filtered = entities.filter(e => e.layer === _kesifAktifTur);
+  if (filtered.length === 0) {
+    alert('Bu türde malzeme bulunamadı');
+    return;
+  }
+
+  // Parse: block name + count
+  const yeniSatirlar = filtered.map(e => {
+    const m = /^([^\s]+)\s+(.*)$/.exec(e.text.trim());
+    const poz_no = m ? m[1] : '';
+    const ad = m ? m[2] : e.text;
+    return {
+      poz_no,
+      ad,
+      birim: 'Adet',
+      miktar: e.count || 1,
+      birim_fiyat: 0,
+      para_birimi: 'USD'
+    };
+  });
+
+  _kesifData.push(...yeniSatirlar);
+  renderKesifGrid();
+  yesilToast('DXF okundu: ' + yeniSatirlar.length + ' malzeme');
 }
 
 function kesifSatirEkle() {
@@ -3473,6 +3712,35 @@ function kesifSatirOku() {
     para_birimi: tr.querySelector('.kesif-pb').value
   }));
   return rows;
+}
+
+async function kesifYapistir() {
+  try {
+    const text = await navigator.clipboard.readText();
+    const satirlar = text.trim().split('\n').map(line => {
+      const cols = line.split('\t').map(c => c.trim());
+      if (cols.length < 2) return null;
+      return {
+        poz_no: cols[0] || '',
+        ad: cols[1] || '',
+        birim: cols[2] || 'Adet',
+        miktar: Number(cols[3]) || 0,
+        birim_fiyat: Number(cols[4]) || 0,
+        para_birimi: cols[5] || 'USD'
+      };
+    }).filter(s => s && s.ad);
+
+    if (satirlar.length === 0) {
+      yesilToast('Yapıştırılacak malzeme bulunamadı');
+      return;
+    }
+
+    _kesifData.push(...satirlar);
+    renderKesifGrid();
+    yesilToast('Yapıştırıldı: ' + satirlar.length + ' malzeme');
+  } catch (e) {
+    yesilToast('Yapıştırma hatası: ' + e.message);
+  }
 }
 
 async function kesifKaydet() {
@@ -3539,6 +3807,68 @@ async function kesifExcel() {
   const html = await buildKesifHtml(rows, _kesifAktifTur, _projeDetayAktif.ad);
   const stamp = new Date().toISOString().slice(0, 10);
   await inv('export:xls', { html, ad: `Kesif-${turAd}-${_projeDetayAktif.ad}-${stamp}`, sheet: turAd + ' Keşfi' });
+}
+
+async function ozetRaporPdf() {
+  const p = _projeDetayAktif;
+  const bugun = fmtDate(today());
+
+  // Malzeme keşfi toplamları (tüm türler)
+  const malzemelar = { elektrik: 0, mekanik: 0, insaat: 0 };
+  for (const tur of ['elektrik', 'mekanik', 'insaat']) {
+    const data = await inv('kesif:getir', p.id, tur);
+    malzemelar[tur] = data.genelToplam || 0;
+  }
+  const malzemeGenelToplam = Object.values(malzemelar).reduce((a, b) => a + b, 0);
+
+  // İşçilik keşfi toplamı
+  const iscilikData = await inv('iscilik:getir', p.id);
+  const iscilikGenelToplam = iscilikData.genelToplam || 0;
+
+  // Genel bütçe toplamı
+  const butceToplam = malzemeGenelToplam + iscilikGenelToplam;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;font-size:11pt;padding:30px">
+      <h2 style="text-align:center;margin-bottom:30px">${p.ad} — Keşif Özeti</h2>
+      <p style="text-align:center;color:#666;margin-bottom:20px">${bugun}</p>
+
+      <table style="width:100%;border-collapse:collapse;margin-bottom:30px">
+        <tr style="background:#f0f0f0">
+          <th style="padding:12px;text-align:left;border:1px solid #ccc">Malzeme Türü</th>
+          <th style="padding:12px;text-align:right;border:1px solid #ccc">Toplam Tutar</th>
+        </tr>
+        <tr>
+          <td style="padding:10px;border:1px solid #ccc">Elektrik Keşfi</td>
+          <td style="padding:10px;text-align:right;border:1px solid #ccc">${fmt(malzemelar.elektrik, 'USD')}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px;border:1px solid #ccc">Mekanik Keşfi</td>
+          <td style="padding:10px;text-align:right;border:1px solid #ccc">${fmt(malzemelar.mekanik, 'USD')}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px;border:1px solid #ccc">İnşaat Keşfi</td>
+          <td style="padding:10px;text-align:right;border:1px solid #ccc">${fmt(malzemelar.insaat, 'USD')}</td>
+        </tr>
+        <tr style="background:#e6f3ff">
+          <td style="padding:10px;border:1px solid #ccc;font-weight:bold">Malzeme Toplam</td>
+          <td style="padding:10px;text-align:right;border:1px solid #ccc;font-weight:bold">${fmt(malzemeGenelToplam, 'USD')}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px;border:1px solid #ccc">İşçilik Keşfi</td>
+          <td style="padding:10px;text-align:right;border:1px solid #ccc">${fmt(iscilikGenelToplam, 'USD')}</td>
+        </tr>
+        <tr style="background:#fff9e6">
+          <td style="padding:12px;border:2px solid #333;font-weight:bold;font-size:12pt">GENEL TOPLAM BÜTÇE</td>
+          <td style="padding:12px;text-align:right;border:2px solid #333;font-weight:bold;font-size:12pt">${fmt(butceToplam, 'USD')}</td>
+        </tr>
+      </table>
+
+      <p style="text-align:right;color:#999;font-size:9pt">${bugun} tarihinde oluşturulmuştur</p>
+    </div>
+  `;
+
+  await inv('print:pdf', html);
 }
 
 async function projeDetayPdf() {
@@ -8562,6 +8892,616 @@ async function dbGeriYukle() {
       location.reload();
     }
   } catch (e) { alert('Geri yükleme hatası: ' + e.message); }
+}
+
+// ─── 3D Konumlandırma ──────────────────────────────────────────
+let scene3d, camera3d, renderer3d, controls3d;
+let raycaster3d, mouse3d, draggedObject3d, dragPlane3d, dragOffset3d;
+
+async function open3dKonumlandir() {
+  if (!_kesifAktifTur || _kesifData.length === 0) {
+    alert('Önce keşif verisi gir');
+    return;
+  }
+  openModal('m-3d-konumlandir');
+  setTimeout(() => init3d(), 100);
+}
+
+function init3d() {
+  const canvas = document.getElementById('canvas3d');
+  if (!canvas) return;
+
+  scene3d = new THREE.Scene();
+  scene3d.background = new THREE.Color(0xcccccc);
+
+  camera3d = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 10000);
+  camera3d.position.set(10, 10, 10);
+
+  renderer3d = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer3d.setSize(canvas.clientWidth, canvas.clientHeight);
+  renderer3d.shadowMap.enabled = true;
+
+  // Grid
+  const gridHelper = new THREE.GridHelper(20, 20);
+  scene3d.add(gridHelper);
+
+  // Işık
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(10, 10, 10);
+  light.castShadow = true;
+  scene3d.add(light);
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  scene3d.add(ambientLight);
+
+  // Malzeme küpleri
+  const renkler = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0x95e1d3, 0xf38181, 0xaa96da];
+  _kesifData.forEach((s, i) => {
+    const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+    const material = new THREE.MeshStandardMaterial({ color: renkler[i % renkler.length] });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(Math.random() * 15 - 7.5, 0.4, Math.random() * 15 - 7.5);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData = { kesifId: s.id, ad: s.ad };
+    scene3d.add(mesh);
+  });
+
+  // Raycasting
+  raycaster3d = new THREE.Raycaster();
+  mouse3d = new THREE.Vector2();
+  dragPlane3d = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  dragOffset3d = new THREE.Vector3();
+
+  canvas.addEventListener('mousedown', on3dMouseDown, false);
+  canvas.addEventListener('mousemove', on3dMouseMove, false);
+  canvas.addEventListener('mouseup', on3dMouseUp, false);
+  document.addEventListener('keydown', on3dKeyDown, false);
+
+  // Kontroller
+  if (window.THREE && window.THREE.OrbitControls) {
+    controls3d = new THREE.OrbitControls(camera3d, renderer3d.domElement);
+    controls3d.autoRotate = false;
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (controls3d) controls3d.update();
+    renderer3d.render(scene3d, camera3d);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    if (renderer3d && canvas.parentElement) {
+      const w = canvas.parentElement.clientWidth;
+      const h = canvas.parentElement.clientHeight;
+      renderer3d.setSize(w, h);
+      camera3d.aspect = w / h;
+      camera3d.updateProjectionMatrix();
+    }
+  });
+}
+
+function on3dMouseDown(e) {
+  if (e.button !== 0) return;
+  const rect = renderer3d.domElement.getBoundingClientRect();
+  mouse3d.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse3d.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster3d.setFromCamera(mouse3d, camera3d);
+  const objects = scene3d.children.filter(o => o.userData && o.userData.kesifId);
+  const intersects = raycaster3d.intersectObjects(objects);
+
+  if (intersects.length > 0) {
+    draggedObject3d = intersects[0].object;
+    dragPlane3d.setFromNormalAndCoplanarPoint(
+      camera3d.getWorldDirection(new THREE.Vector3()).normalize().negate(),
+      draggedObject3d.position
+    );
+
+    const dragPoint = new THREE.Vector3();
+    raycaster3d.ray.intersectPlane(dragPlane3d, dragPoint);
+    dragOffset3d.copy(dragPoint).sub(draggedObject3d.position);
+    draggedObject3d.material.emissive.setHex(0x444444);
+
+    if (controls3d) controls3d.enabled = false;
+  }
+}
+
+function on3dMouseMove(e) {
+  if (!draggedObject3d) return;
+
+  const rect = renderer3d.domElement.getBoundingClientRect();
+  mouse3d.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse3d.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster3d.setFromCamera(mouse3d, camera3d);
+  const dragPoint = new THREE.Vector3();
+  raycaster3d.ray.intersectPlane(dragPlane3d, dragPoint);
+
+  dragPoint.sub(dragOffset3d);
+  dragPoint.y = 0.4;
+  dragPoint.x = Math.max(-9, Math.min(9, dragPoint.x));
+  dragPoint.z = Math.max(-9, Math.min(9, dragPoint.z));
+
+  draggedObject3d.position.copy(dragPoint);
+}
+
+function on3dMouseUp(e) {
+  if (draggedObject3d) {
+    draggedObject3d.material.emissive.setHex(0x000000);
+    draggedObject3d = null;
+    if (controls3d) controls3d.enabled = true;
+  }
+}
+
+function on3dKeyDown(e) {
+  if (e.key === 'Delete' && draggedObject3d) {
+    scene3d.remove(draggedObject3d);
+    draggedObject3d = null;
+  }
+}
+
+async function save3dKonumlar() {
+  const objects = scene3d.children.filter(o => o.userData && o.userData.kesifId);
+  for (const mesh of objects) {
+    await inv('3d:kaydet', mesh.userData.kesifId, mesh.position.x, mesh.position.y, mesh.position.z, 0, 0, 0, 1);
+  }
+  alert('3D konumlar kaydedildi');
+  closeModal('m-3d-konumlandir');
+}
+
+// ─── Kat Planı Tasarımı ────────────────────────────────────────
+let _katPlaniImage = null;
+let _katPlaniItems = [];
+let _katPlaniSelectedMalzeme = null;
+let canvasKatPlani;
+let ctxKatPlani;
+
+const MALZEME_KATEGORILER = {
+  elektrik: [
+    { id: 'led', ad: '💡 LED Panel', renk: '#FFD700' },
+    { id: 'priz', ad: '🔌 Priz', renk: '#FF6B6B' },
+    { id: 'switch', ad: '⚡ Aydınlatma Switch', renk: '#4ECDC4' },
+    { id: 'kablo', ad: '📍 Kablo', renk: '#95E1D3' }
+  ],
+  mekanik: [
+    { id: 'motor', ad: '⚙️ Motor', renk: '#F38181' },
+    { id: 'fan', ad: '🌀 Fan', renk: '#AA96DA' },
+    { id: 'vana', ad: '🔧 Vana', renk: '#FCBAD3' }
+  ],
+  insaat: [
+    { id: 'duvar', ad: '🧱 Duvar Yüzeyi', renk: '#A8DADC' },
+    { id: 'kapı', ad: '🚪 Kapı', renk: '#457B9D' },
+    { id: 'pencere', ad: '🪟 Pencere', renk: '#E63946' }
+  ]
+};
+
+function openKatPlani() {
+  _katPlaniImage = null;
+  _katPlaniItems = [];
+  _katPlaniSelectedMalzeme = null;
+
+  renderKatPlaniMalzemeler();
+  openModal('m-kat-plani');
+
+  setTimeout(() => {
+    canvasKatPlani = document.getElementById('canvas-kat-plani');
+    ctxKatPlani = canvasKatPlani.getContext('2d');
+    canvasKatPlani.addEventListener('click', katPlaniCanvasClick);
+
+    const dosya = document.getElementById('kat-plani-dosya');
+    dosya.addEventListener('change', katPlaniFileSelected);
+
+    redrawKatPlani();
+  }, 100);
+}
+
+function renderKatPlaniMalzemeler() {
+  const tur = _kesifAktifTur || 'elektrik';
+  const kategoriler = MALZEME_KATEGORILER[tur] || [];
+
+  const html = kategoriler.map(m => `
+    <div class="malzeme-item" data-id="${m.id}" style="
+      padding:10px;
+      margin:8px;
+      background:white;
+      border:2px solid ${m.renk};
+      border-radius:4px;
+      cursor:pointer;
+      text-align:center;
+      font-size:13px;
+      transition:0.2s;
+      ${_katPlaniSelectedMalzeme?.id === m.id ? 'background:' + m.renk + ';color:white' : ''}
+    " onclick="katPlaniSelectMalzeme('${m.id}', '${m.ad}', '${m.renk}')">
+      ${m.ad}
+    </div>
+  `).join('');
+
+  document.getElementById('kat-malzeme-list').innerHTML = html;
+}
+
+function katPlaniSelectMalzeme(id, ad, renk) {
+  _katPlaniSelectedMalzeme = { id, ad, renk };
+  renderKatPlaniMalzemeler();
+}
+
+function katPlaniFileSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      _katPlaniImage = img;
+      document.getElementById('kat-plani-dosya-ad').textContent = file.name;
+      redrawKatPlani();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function redrawKatPlani() {
+  if (!canvasKatPlani || !ctxKatPlani) return;
+
+  canvasKatPlani.width = canvasKatPlani.offsetWidth;
+  canvasKatPlani.height = canvasKatPlani.offsetHeight;
+
+  // Resim çiz
+  if (_katPlaniImage) {
+    const w = canvasKatPlani.width;
+    const h = canvasKatPlani.height;
+    const imgRatio = _katPlaniImage.width / _katPlaniImage.height;
+    const canvasRatio = w / h;
+    let sx, sy, sw, sh;
+
+    if (imgRatio > canvasRatio) {
+      sh = _katPlaniImage.height;
+      sw = sh * canvasRatio;
+      sx = (_katPlaniImage.width - sw) / 2;
+      sy = 0;
+    } else {
+      sw = _katPlaniImage.width;
+      sh = sw / canvasRatio;
+      sx = 0;
+      sy = (_katPlaniImage.height - sh) / 2;
+    }
+
+    ctxKatPlani.drawImage(_katPlaniImage, sx, sy, sw, sh, 0, 0, w, h);
+  } else {
+    ctxKatPlani.fillStyle = '#e8e8e8';
+    ctxKatPlani.fillRect(0, 0, canvasKatPlani.width, canvasKatPlani.height);
+    ctxKatPlani.fillStyle = '#999';
+    ctxKatPlani.font = '16px Arial';
+    ctxKatPlani.textAlign = 'center';
+    ctxKatPlani.fillText('Resim yüklemek için yukarıya tıkla', canvasKatPlani.width / 2, canvasKatPlani.height / 2);
+  }
+
+  // İşaretleri çiz
+  _katPlaniItems.forEach(item => {
+    ctxKatPlani.fillStyle = item.renk;
+    ctxKatPlani.beginPath();
+    ctxKatPlani.arc(item.x, item.y, 12, 0, Math.PI * 2);
+    ctxKatPlani.fill();
+
+    ctxKatPlani.strokeStyle = '#333';
+    ctxKatPlani.lineWidth = 2;
+    ctxKatPlani.stroke();
+
+    ctxKatPlani.fillStyle = 'white';
+    ctxKatPlani.font = 'bold 10px Arial';
+    ctxKatPlani.textAlign = 'center';
+    ctxKatPlani.textBaseline = 'middle';
+    ctxKatPlani.fillText(item.ad[0], item.x, item.y);
+  });
+}
+
+function katPlaniCanvasClick(e) {
+  if (!_katPlaniSelectedMalzeme || !_katPlaniImage) {
+    alert('Önce resim yükle ve malzeme seç');
+    return;
+  }
+
+  const rect = canvasKatPlani.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  _katPlaniItems.push({
+    id: _katPlaniSelectedMalzeme.id,
+    ad: _katPlaniSelectedMalzeme.ad.split(' ')[0],
+    renk: _katPlaniSelectedMalzeme.renk,
+    x,
+    y
+  });
+
+  redrawKatPlani();
+}
+
+async function katPlaniKaydet() {
+  if (_katPlaniItems.length === 0) {
+    alert('En az bir malzeme yerleştir');
+    return;
+  }
+
+  const data = {
+    resim: _katPlaniImage ? _katPlaniImage.src : null,
+    items: _katPlaniItems,
+    tur: _kesifAktifTur || 'elektrik'
+  };
+
+  await inv('kat-plani:kaydet', _projeDetayAktif.id, data);
+  alert('Kat planı kaydedildi');
+  closeModal('m-kat-plani');
+}
+
+function katPlaniPdf() {
+  alert('PDF çıktısı çok yakında');
+}
+
+// ─── 3D Depo Tasarımı (İzometrik) ─────────────────────────
+let canvasDepo, ctxDepo;
+let _depoObjeler = [];
+let _depoSecilenMalzeme = null;
+let _depoKatmanlar = [{ no: 1, ad: 'Kat 1', zYuksekligi: 0 }];
+let _depoAktifKatman = 0;
+let _depoPan = { x: 0, y: 0 };
+let _depoZoom = 50;
+let _depoDrag = null;
+
+const DEPO_MALZEME = {
+  elektrik: [
+    { id: 'pano', ad: '📦 Kontrol Panosu', w: 1, h: 1, renk: '#E74C3C' },
+    { id: 'transformator', ad: '⚡ Trafo', w: 2, h: 1, renk: '#3498DB' },
+    { id: 'kablo', ad: '📍 Kablo Sarı', w: 1, h: 1, renk: '#F39C12' }
+  ],
+  mekanik: [
+    { id: 'motor', ad: '⚙️ Motor', w: 1, h: 1, renk: '#95A5A6' },
+    { id: 'pompa', ad: '💧 Pompa', w: 1, h: 2, renk: '#16A085' },
+    { id: 'kompressor', ad: '💨 Kompressor', w: 2, h: 2, renk: '#8E44AD' }
+  ],
+  insaat: [
+    { id: 'cement', ad: '🧱 Çimento', w: 1, h: 1, renk: '#D2B48C' },
+    { id: 'demirler', ad: '🔗 Demir Çubuklar', w: 1, h: 3, renk: '#7F8C8D' },
+    { id: 'sac', ad: '🏗️ Yapı Demiri', w: 2, h: 2, renk: '#34495E' }
+  ]
+};
+
+function openDepo3d() {
+  _depoObjeler = [];
+  _depoKatmanlar = [{ no: 1, ad: 'Kat 1', zYuksekligi: 0 }];
+  _depoAktifKatman = 0;
+  _depoPan = { x: 0, y: 0 };
+  _depoZoom = 50;
+
+  openModal('m-3d-depo');
+
+  setTimeout(() => {
+    canvasDepo = document.getElementById('canvas-3d-depo');
+    ctxDepo = canvasDepo.getContext('2d');
+
+    document.getElementById('depo-zoom').addEventListener('change', (e) => {
+      _depoZoom = parseInt(e.target.value);
+      redrawDepo();
+    });
+
+    renderDepoMalzemeler();
+    renderDepoKatmanlar();
+    redrawDepo();
+
+    canvasDepo.addEventListener('click', depoCanvasClick);
+    canvasDepo.addEventListener('mousedown', depoMouseDown);
+    canvasDepo.addEventListener('mousemove', depoMouseMove);
+    canvasDepo.addEventListener('mouseup', depoMouseUp);
+    canvasDepo.addEventListener('wheel', depoWheel);
+  }, 100);
+}
+
+function renderDepoMalzemeler() {
+  const tur = _kesifAktifTur || 'elektrik';
+  const malzemeler = DEPO_MALZEME[tur] || [];
+
+  const html = malzemeler.map(m => `
+    <div class="depo-malzeme" style="
+      padding:8px;
+      margin:6px;
+      background:${m.renk};
+      color:white;
+      border-radius:4px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:bold;
+      text-align:center;
+      transition:0.2s;
+      ${_depoSecilenMalzeme?.id === m.id ? 'transform:scale(1.1);box-shadow:0 0 8px rgba(0,0,0,0.3)' : ''}
+    " onclick="depoSelectMalzeme('${m.id}', '${m.ad}', '${m.renk}', ${m.w}, ${m.h})">
+      ${m.ad}
+    </div>
+  `).join('');
+
+  document.getElementById('depo-malzeme-list').innerHTML = html;
+}
+
+function renderDepoKatmanlar() {
+  const html = _depoKatmanlar.map((k, i) => `
+    <div style="
+      padding:8px;
+      margin:6px;
+      background:${i === _depoAktifKatman ? '#4CAF50' : '#ddd'};
+      color:${i === _depoAktifKatman ? 'white' : '#333'};
+      border-radius:4px;
+      cursor:pointer;
+      font-size:12px;
+      text-align:center;
+    " onclick="depoSelectKatman(${i})">
+      ${k.ad} (Z: ${k.zYuksekligi}m)
+    </div>
+  `).join('');
+
+  document.getElementById('depo-katman-list').innerHTML = html;
+}
+
+function depoSelectMalzeme(id, ad, renk, w, h) {
+  _depoSecilenMalzeme = { id, ad, renk, w, h };
+  renderDepoMalzemeler();
+}
+
+function depoSelectKatman(idx) {
+  _depoAktifKatman = idx;
+  renderDepoKatmanlar();
+  redrawDepo();
+}
+
+function depoYeniKatman() {
+  const no = _depoKatmanlar.length + 1;
+  _depoKatmanlar.push({
+    no,
+    ad: `Kat ${no}`,
+    zYuksekligi: (no - 1) * 3
+  });
+  renderDepoKatmanlar();
+}
+
+function depoCanvasClick(e) {
+  if (!_depoSecilenMalzeme) {
+    alert('Malzeme seç');
+    return;
+  }
+
+  const rect = canvasDepo.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const w = canvasDepo.width;
+  const h = canvasDepo.height;
+  const centerX = w / 2 + _depoPan.x;
+  const centerY = h / 2 + _depoPan.y;
+
+  // İzometrik düzlemde ters çevir
+  const px = (mx - centerX) / (_depoZoom / 100);
+  const py = (my - centerY) / (_depoZoom / 100);
+
+  const gridX = Math.round(px / 32);
+  const gridY = Math.round(py / 16 - gridX / 2);
+
+  _depoObjeler.push({
+    id: `obj-${Date.now()}`,
+    malzeme: { ..._depoSecilenMalzeme },
+    x: gridX,
+    y: gridY,
+    z: _depoKatmanlar[_depoAktifKatman].zYuksekligi,
+    katman: _depoAktifKatman
+  });
+
+  redrawDepo();
+}
+
+function depoMouseDown(e) {
+  if (e.button === 2) { // Sağ tık (pan)
+    _depoDrag = { startX: e.clientX, startY: e.clientY, panX: _depoPan.x, panY: _depoPan.y };
+  }
+}
+
+function depoMouseMove(e) {
+  if (_depoDrag && e.buttons === 2) {
+    _depoPan.x = _depoDrag.panX + (e.clientX - _depoDrag.startX);
+    _depoPan.y = _depoDrag.panY + (e.clientY - _depoDrag.startY);
+    redrawDepo();
+  }
+}
+
+function depoMouseUp(e) {
+  _depoDrag = null;
+}
+
+function depoWheel(e) {
+  e.preventDefault();
+  _depoZoom = Math.max(10, Math.min(100, _depoZoom + (e.deltaY > 0 ? -5 : 5)));
+  document.getElementById('depo-zoom').value = _depoZoom;
+  redrawDepo();
+}
+
+function redrawDepo() {
+  if (!canvasDepo || !ctxDepo) return;
+
+  canvasDepo.width = canvasDepo.offsetWidth;
+  canvasDepo.height = canvasDepo.offsetHeight;
+
+  const w = canvasDepo.width;
+  const h = canvasDepo.height;
+  const centerX = w / 2 + _depoPan.x;
+  const centerY = h / 2 + _depoPan.y;
+  const scale = _depoZoom / 100;
+
+  // Arka plan
+  ctxDepo.fillStyle = '#e8f4f8';
+  ctxDepo.fillRect(0, 0, w, h);
+
+  // Grid
+  ctxDepo.strokeStyle = '#d0d0d0';
+  ctxDepo.lineWidth = 1;
+  for (let i = -10; i <= 10; i++) {
+    const x1 = centerX + i * 32 * scale;
+    const y1 = centerY - i * 16 * scale;
+    const x2 = centerX + i * 32 * scale;
+    const y2 = centerY + i * 16 * scale + 200 * scale;
+
+    ctxDepo.beginPath();
+    ctxDepo.moveTo(x1, y1);
+    ctxDepo.lineTo(x2, y2);
+    ctxDepo.stroke();
+
+    const x3 = centerX - 200 * scale + i * 16 * scale;
+    const y3 = centerY + i * 16 * scale;
+    const x4 = centerX + 200 * scale + i * 16 * scale;
+    const y4 = centerY + i * 16 * scale;
+
+    ctxDepo.beginPath();
+    ctxDepo.moveTo(x3, y3);
+    ctxDepo.lineTo(x4, y4);
+    ctxDepo.stroke();
+  }
+
+  // Nesneleri çiz (katmana göre filtrele)
+  const currentKatmanObjeler = _depoObjeler.filter(o => o.katman === _depoAktifKatman);
+  currentKatmanObjeler.forEach(obj => {
+    const x = centerX + (obj.x * 32 - obj.y * 16) * scale;
+    const y = centerY + (obj.x * 16 + obj.y * 16 - obj.z * 10) * scale;
+
+    const w = obj.malzeme.w * 32 * scale;
+    const h = obj.malzeme.h * 16 * scale;
+
+    ctxDepo.fillStyle = obj.malzeme.renk;
+    ctxDepo.globalAlpha = 0.8;
+    ctxDepo.fillRect(x - w / 2, y - h / 2, w, h);
+
+    ctxDepo.globalAlpha = 1;
+    ctxDepo.strokeStyle = '#333';
+    ctxDepo.lineWidth = 2;
+    ctxDepo.strokeRect(x - w / 2, y - h / 2, w, h);
+
+    ctxDepo.fillStyle = '#333';
+    ctxDepo.font = 'bold 11px Arial';
+    ctxDepo.textAlign = 'center';
+    ctxDepo.fillText(obj.malzeme.ad.split(' ')[0], x, y);
+  });
+}
+
+async function depoKaydet() {
+  const data = {
+    nesneler: _depoObjeler,
+    katmanlar: _depoKatmanlar,
+    tur: _kesifAktifTur || 'elektrik'
+  };
+
+  await inv('depo:kaydet', _projeDetayAktif.id, data);
+  alert('3D Depo tasarımı kaydedildi');
+  closeModal('m-3d-depo');
+}
+
+function depoExcel() {
+  alert('Excel çıktısı çok yakında');
 }
 </script>
 </body>

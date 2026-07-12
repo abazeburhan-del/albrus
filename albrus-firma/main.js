@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const { readWorkbook, sheetRows } = require('./xlsx-read');
 
 // ── Lisans (Ed25519 imza doğrulama — sadece public key gömülü, anahtar üretilemez) ──
@@ -413,6 +413,48 @@ async function initDb() {
       birim_fiyat REAL DEFAULT 0,
       para_birimi TEXT DEFAULT 'USD',
       sira INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS proje_iscilik_kesif (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      proje_id INTEGER NOT NULL,
+      isci_adi TEXT NOT NULL DEFAULT '',
+      gun REAL DEFAULT 0,
+      gundelik REAL DEFAULT 0,
+      para_birimi TEXT DEFAULT 'USD',
+      sira INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS proje_kesif_3d (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kesif_id INTEGER NOT NULL,
+      x REAL DEFAULT 0,
+      y REAL DEFAULT 0,
+      z REAL DEFAULT 0,
+      rotasyon_x REAL DEFAULT 0,
+      rotasyon_y REAL DEFAULT 0,
+      rotasyon_z REAL DEFAULT 0,
+      olcek REAL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS proje_kat_plani (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      proje_id INTEGER NOT NULL,
+      resim_data TEXT,
+      items_json TEXT DEFAULT '[]',
+      tur TEXT DEFAULT 'elektrik',
+      olusturma_tarihi TEXT DEFAULT CURRENT_TIMESTAMP,
+      guncelleme_tarihi TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS proje_depo_3d (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      proje_id INTEGER NOT NULL,
+      nesneler_json TEXT DEFAULT '[]',
+      katmanlar_json TEXT DEFAULT '[]',
+      tur TEXT DEFAULT 'elektrik',
+      olusturma_tarihi TEXT DEFAULT CURRENT_TIMESTAMP,
+      guncelleme_tarihi TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -959,6 +1001,281 @@ ipcMain.handle('kesif:kaydet', (_, proje_id, tur, satirlar) => {
   );
   saveDb();
   return true;
+});
+
+ipcMain.handle('iscilik:getir', (_, proje_id) => {
+  const rows = getAll(
+    'SELECT * FROM proje_iscilik_kesif WHERE proje_id=? ORDER BY sira,id',
+    [proje_id]
+  ).map(s => ({ ...s, toplam: (Number(s.gun)||0) * (Number(s.gundelik)||0) }));
+  const genelToplam = rows.reduce((a,r) => a + r.toplam, 0);
+  return { rows, genelToplam };
+});
+
+ipcMain.handle('iscilik:kaydet', (_, proje_id, satirlar) => {
+  run('DELETE FROM proje_iscilik_kesif WHERE proje_id=?', [proje_id]);
+  (satirlar||[]).forEach((s,i) =>
+    run('INSERT INTO proje_iscilik_kesif (proje_id,isci_adi,gun,gundelik,para_birimi,sira) VALUES (?,?,?,?,?,?)',
+      [proje_id, s.isci_adi||'', Number(s.gun)||0, Number(s.gundelik)||0, s.para_birimi||'USD', i+1])
+  );
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('3d:getir', (_, kesif_id) => {
+  return getOne('SELECT * FROM proje_kesif_3d WHERE kesif_id=?', [kesif_id]) || null;
+});
+
+ipcMain.handle('3d:kaydet', (_, kesif_id, x, y, z, rx, ry, rz, olcek) => {
+  const existing = getOne('SELECT id FROM proje_kesif_3d WHERE kesif_id=?', [kesif_id]);
+  if (existing) {
+    run('UPDATE proje_kesif_3d SET x=?, y=?, z=?, rotasyon_x=?, rotasyon_y=?, rotasyon_z=?, olcek=? WHERE kesif_id=?',
+      [x, y, z, rx, ry, rz, olcek, kesif_id]);
+  } else {
+    run('INSERT INTO proje_kesif_3d (kesif_id, x, y, z, rotasyon_x, rotasyon_y, rotasyon_z, olcek) VALUES (?,?,?,?,?,?,?,?)',
+      [kesif_id, x, y, z, rx, ry, rz, olcek]);
+  }
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('kat-plani:kaydet', (_, proje_id, data) => {
+  const existing = getOne('SELECT id FROM proje_kat_plani WHERE proje_id=?', [proje_id]);
+  const itemsJson = JSON.stringify(data.items || []);
+
+  if (existing) {
+    run('UPDATE proje_kat_plani SET resim_data=?, items_json=?, tur=?, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE proje_id=?',
+      [data.resim || null, itemsJson, data.tur || 'elektrik', proje_id]);
+  } else {
+    run('INSERT INTO proje_kat_plani (proje_id, resim_data, items_json, tur) VALUES (?,?,?,?)',
+      [proje_id, data.resim || null, itemsJson, data.tur || 'elektrik']);
+  }
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('kat-plani:getir', (_, proje_id) => {
+  const row = getOne('SELECT * FROM proje_kat_plani WHERE proje_id=?', [proje_id]);
+  if (!row) return { resim: null, items: [] };
+  return {
+    resim: row.resim_data,
+    items: row.items_json ? JSON.parse(row.items_json) : []
+  };
+});
+
+ipcMain.handle('depo:kaydet', (_, proje_id, data) => {
+  const existing = getOne('SELECT id FROM proje_depo_3d WHERE proje_id=?', [proje_id]);
+  const nesnelerJson = JSON.stringify(data.nesneler || []);
+  const katmanlarJson = JSON.stringify(data.katmanlar || []);
+
+  if (existing) {
+    run('UPDATE proje_depo_3d SET nesneler_json=?, katmanlar_json=?, tur=?, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE proje_id=?',
+      [nesnelerJson, katmanlarJson, data.tur || 'elektrik', proje_id]);
+  } else {
+    run('INSERT INTO proje_depo_3d (proje_id, nesneler_json, katmanlar_json, tur) VALUES (?,?,?,?)',
+      [proje_id, nesnelerJson, katmanlarJson, data.tur || 'elektrik']);
+  }
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('depo:getir', (_, proje_id) => {
+  const row = getOne('SELECT * FROM proje_depo_3d WHERE proje_id=?', [proje_id]);
+  if (!row) return { nesneler: [], katmanlar: [] };
+  return {
+    nesneler: row.nesneler_json ? JSON.parse(row.nesneler_json) : [],
+    katmanlar: row.katmanlar_json ? JSON.parse(row.katmanlar_json) : []
+  };
+});
+
+// ── DWG → DXF Konversiyon ──
+async function dwgToDxf(dwgPath, dxfPath) {
+  const scriptContent = `FILEDIA\n0\n-SAVEAS\n_DXF\n"${dxfPath}"\n\nQUIT\n`;
+  const scriptPath = path.join(os.tmpdir(), `conv-${Date.now()}.scr`);
+  const logPath = path.join(os.tmpdir(), `conv-${Date.now()}.log`);
+  fs.writeFileSync(scriptPath, scriptContent);
+
+  return new Promise((resolve, reject) => {
+    const accoreconsole = 'C:\\Program Files\\Autodesk\\AutoCAD 2026\\accoreconsole.exe';
+    const logFile = fs.createWriteStream(logPath);
+    const proc = spawn(accoreconsole, ['/i', dwgPath, '/s', scriptPath]);
+
+    let stdout = '', stderr = '';
+    proc.stdout?.on('data', (d) => { stdout += d; logFile.write(d); });
+    proc.stderr?.on('data', (d) => { stderr += d; logFile.write(d); });
+
+    let exited = false;
+    const timer = setTimeout(() => {
+      if (!exited) {
+        proc.kill('SIGKILL');
+        exited = true;
+        reject(new Error('Timeout: 180 saniye aşıldı'));
+      }
+    }, 180000);
+
+    proc.on('exit', (code) => {
+      exited = true;
+      clearTimeout(timer);
+      logFile.end();
+      try { fs.unlinkSync(scriptPath); } catch (_) {}
+
+      const log = fs.readFileSync(logPath, 'utf-8').slice(0, 500);
+      if (fs.existsSync(dxfPath)) {
+        try { fs.unlinkSync(logPath); } catch (_) {}
+        resolve(dxfPath);
+      } else {
+        reject(new Error(`DXF oluşturulamadı. Log: ${log}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      exited = true;
+      clearTimeout(timer);
+      logFile.end();
+      try { fs.unlinkSync(scriptPath); } catch (_) {}
+      try { fs.unlinkSync(logPath); } catch (_) {}
+      reject(err);
+    });
+  });
+}
+
+// ── DXF Parser (AutoCAD dosyasından keşif listesi çekme) ──
+ipcMain.handle('dwg:openDxf', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'DXF Dosyası Seç (AutoCAD\'da export edin)',
+    properties: ['openFile'],
+    filters: [{ name: 'AutoCAD DXF', extensions: ['dxf'] }]
+  });
+  if (canceled || !filePaths?.length) return { ok: false };
+  return { ok: true, filePath: filePaths[0] };
+});
+
+function mapDxfLayer(layer) {
+  if (layer.includes('mekanik')) return 'mekanik';
+  if (layer.includes('insaat') || layer.includes('inşaat')) return 'insaat';
+  return 'elektrik';
+}
+
+ipcMain.handle('dwg:parseDxf', async (_, filePath) => {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const lines = content.split('\n');
+
+    // Step 1: Parse BLOCKS section to get block descriptions
+    const blockDescs = {}; // C1 -> "CEILING RECESSED..."
+    let inBlocks = false;
+    let currentBlockName = '';
+    let i = 0;
+
+    while (i < lines.length && i < lines.length / 2) { // BLOCKS section is early, limit scan
+      const lineNum = lines[i].trim();
+      if (lineNum === '0') {
+        const entityType = lines[i + 1]?.trim();
+
+        if (entityType === 'SECTION') {
+          const nextCode = lines[i + 2]?.trim();
+          if (nextCode === '2' && lines[i + 3]?.trim() === 'BLOCKS') {
+            inBlocks = true;
+            i += 4;
+            continue;
+          }
+        }
+
+        if (inBlocks && entityType === 'ENDSEC') {
+          break; // end of BLOCKS
+        }
+
+        if (inBlocks && entityType === 'BLOCK') {
+          let j = i + 2;
+          while (j < lines.length && lines[j].trim() !== '0') {
+            const code = lines[j].trim();
+            if (code === '2') {
+              currentBlockName = lines[j + 1]?.trim() || '';
+              blockDescs[currentBlockName] = currentBlockName; // default to block name
+            }
+            j += 2;
+          }
+        }
+
+        // First TEXT in a block = description
+        if (inBlocks && entityType === 'TEXT' && currentBlockName) {
+          let j = i + 2;
+          while (j < lines.length && lines[j].trim() !== '0') {
+            const code = lines[j].trim();
+            if (code === '1') {
+              const desc = lines[j + 1]?.trim() || '';
+              if (desc && blockDescs[currentBlockName] === currentBlockName) {
+                blockDescs[currentBlockName] = desc; // overwrite default
+              }
+              break; // only first TEXT
+            }
+            j += 2;
+          }
+        }
+      }
+      i++;
+    }
+
+    // Step 2: Parse ENTITIES section to count INSERT instances
+    const blocks = {}; // block name -> { layer, count, description }
+    i = 0;
+    while (i < lines.length) {
+      const lineNum = lines[i].trim();
+      if (lineNum === '0') {
+        const entityType = lines[i + 1]?.trim();
+
+        // INSERT entity: count instances
+        if (entityType === 'INSERT') {
+          let layer = 'elektrik', blockName = '';
+          let j = i + 2;
+          while (j < lines.length && lines[j].trim() !== '0') {
+            const code = lines[j].trim();
+            if (code === '8') layer = (lines[j + 1]?.trim() || '').toLowerCase();
+            if (code === '2') blockName = (lines[j + 1]?.trim() || '');
+            j += 2;
+          }
+          if (blockName) {
+            const mappedLayer = mapDxfLayer(layer);
+            if (!blocks[blockName]) {
+              blocks[blockName] = { layer: mappedLayer, count: 0, description: blockDescs[blockName] || blockName };
+            }
+            blocks[blockName].count++;
+          }
+          i = j;
+          continue;
+        }
+
+        // TEXT entity: fallback (for non-block text entities)
+        if (entityType === 'TEXT') {
+          let layer = 'elektrik', text = '';
+          let j = i + 2;
+          while (j < lines.length && lines[j].trim() !== '0') {
+            const code = lines[j].trim();
+            if (code === '8') layer = (lines[j + 1]?.trim() || '').toLowerCase();
+            if (code === '1') text = lines[j + 1]?.trim() || '';
+            j += 2;
+          }
+          if (text && !blocks[text]) {
+            blocks[text] = { layer: mapDxfLayer(layer), count: 1, description: text };
+          }
+          i = j;
+          continue;
+        }
+      }
+      i++;
+    }
+
+    // Convert to entity array: { layer, text, count }
+    const entities = Object.entries(blocks).map(([name, info]) => ({
+      layer: info.layer,
+      text: info.description, // use description (malzeme adı)
+      count: info.count
+    }));
+
+    return entities;
+  } catch (e) {
+    return { error: e.message };
+  }
 });
 
 // ════════════════════════════════════════════════════════════
