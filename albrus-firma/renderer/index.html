@@ -4245,6 +4245,8 @@ async function openFaturaEkle(tur, belge_turu = 'fatura') {
   _faturaEditId = null;
   openModal('m-fatura');
   setTimeout(() => document.getElementById('ft-no').focus(), 80);
+
+  await updateFaturanoByCari();
 }
 
 async function openFaturaDuzenle(id) {
