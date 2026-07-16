@@ -1571,7 +1571,7 @@ ipcMain.handle('fatura:guncelle', (_, id, d) => {
 // ════════════════════════════════════════════════════════════
 
 ipcMain.handle('stoklar:getir', () =>
-  getAll('SELECT * FROM stoklar ORDER BY ad')
+  getAll('SELECT s.*, g.ad AS grup_ad FROM stoklar s LEFT JOIN stok_gruplan g ON g.id = s.grup_id ORDER BY s.ad')
 );
 
 ipcMain.handle('stoklar:ekle', (_, d) => {
