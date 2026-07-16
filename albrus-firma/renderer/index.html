@@ -1968,6 +1968,25 @@
   </div>
 </div>
 
+<!-- ── STOK SEÇİM POPUP ── -->
+<div class="overlay" id="m-stok-sec">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-title">Stok Seç</div>
+    <input type="hidden" id="stok-sec-kalem-idx">
+    <div class="fg">
+      <label>Arama (Stok Adı)</label>
+      <input type="text" id="stok-sec-arama" placeholder="Stok adını yazın..." oninput="filterStokSecList()">
+    </div>
+    <label style="display:block;font-size:11px;color:var(--dim);font-weight:600;margin-top:10px;margin-bottom:6px">Gruplar</label>
+    <div id="stok-grup-buttons" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>
+    <label style="display:block;font-size:11px;color:var(--dim);font-weight:600;margin-bottom:6px">Stoklar</label>
+    <div id="stok-sec-list" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn btn-ghost" onclick="closeModal('m-stok-sec')">İptal</button>
+    </div>
+  </div>
+</div>
+
 <div id="print-area"></div>
 
 <script>
@@ -2010,6 +2029,12 @@ let S = {
   kasalar: [], bankalar: [], cariler: [], projeler: [],
   secilenKasa: null, secilenBanka: null
 };
+
+// Stok seçim state
+let _selectingStokKalemIdx = -1;
+let _stokSecGrups = [];
+let _stokSecSeciliGrup = null;
+let _stokSecTumStoklar = [];
 
 // ── Utils ──────────────────────────────────────────
 function fmt(n, pb) {
@@ -2084,7 +2109,8 @@ const pageLoaders = {
   ortaklar:  loadOrtaklar,
   cek:       loadCek,
   hakedis:   loadHakedis,
-  ayarlar:   loadAyarlar
+  ayarlar:   loadAyarlar,
+  'stok-gruplan': loadGruplan
 };
 
 function goPage(page) {
@@ -4076,17 +4102,14 @@ function syncKalemlerFromDom() {
 
 function renderFaturaKalemler() {
   const isAlis = document.getElementById('ft-tur')?.value === 'alis';
-  const hasStok = (_stoklar||[]).length > 0;
-  const cols = hasStok ? 8 : 7;
+  const hasStok = true; // Her zaman stok seçimi göster
+  const cols = 8;
   const wrap = document.getElementById('ft-kalemler-wrap');
-  const stokOpts = hasStok
-    ? '<option value="">— Stok Seç —</option>' + (_stoklar||[]).map(s => `<option value="${s.id}">${s.ad} (${s.mevcut_miktar} ${s.birim})</option>`).join('')
-    : '';
   wrap.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
       <thead>
         <tr style="background:rgba(0,0,0,.04)">
-          ${hasStok ? `<th style="padding:8px 6px;text-align:left;font-size:11px;color:var(--dim);width:130px">Stok</th>` : ''}
+          <th style="padding:8px 6px;text-align:left;font-size:11px;color:var(--dim);width:130px">Stok</th>
           <th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--dim)">Description</th>
           <th style="padding:8px 6px;text-align:center;font-size:11px;color:var(--dim);width:70px">Brand</th>
           <th style="padding:8px 6px;text-align:right;font-size:11px;color:var(--dim);width:45px">Qty</th>
@@ -4099,13 +4122,12 @@ function renderFaturaKalemler() {
       <tbody>
         ${_faturaKalemler.map((k, i) => `
           <tr style="border-top:1px solid var(--border)">
-            ${hasStok ? `
-            <td style="padding:5px 6px">
-              <select id="fk-stok-${i}" onchange="onStokSec(${i})"
-                style="width:100%;background:transparent;border:none;color:var(--text);padding:4px 2px;font-size:11px;font-family:inherit;outline:none;cursor:pointer">
-                ${stokOpts.replace(`value="${k.stok_id||''}"`, `value="${k.stok_id||''}" selected`)}
-              </select>
-            </td>` : ''}
+            <td style="padding:5px 6px;display:flex;gap:4px">
+              <input id="fk-stok-${i}" type="text" value="${((_stoklar||[]).find(s => s.id === k.stok_id)?.ad || '')}"
+                readonly placeholder="Stok seç..."
+                style="flex:1;background:transparent;border:none;color:var(--text);padding:4px 2px;font-size:11px;font-family:inherit;outline:none;cursor:pointer">
+              <button type="button" onclick="openStokSec(${i})" class="btn btn-sm" style="padding:2px 8px;flex-shrink:0">Seç</button>
+            </td>
             <td style="padding:5px 6px">
               <input id="fk-aciklama-${i}" type="text" value="${k.aciklama}"
                 oninput="updateFaturaToplam()"
@@ -9681,6 +9703,91 @@ async function ozetRaporPdf() {
   `;
 
   await inv('print:pdf', html);
+}
+
+// ════════════════════════════════════════════════════════════
+// STOK SEÇİM (Faturada kalem stok seçimi)
+// ════════════════════════════════════════════════════════════
+
+async function openStokSec(kalmIdx) {
+  _selectingStokKalemIdx = kalmIdx;
+  _stokSecSeciliGrup = null;
+
+  // Grupları ve tümünün stok'larını yükle
+  _stokSecGrups = await inv('stok-gruplan:getir');
+  _stokSecTumStoklar = await inv('stoklar:getir');
+
+  // Grup butonlarını oluştur
+  const btnHtml = `
+    <button type="button" class="btn btn-sm" onclick="secGrup(null)" style="background:var(--blue);color:white">Tümü</button>
+  ` + _stokSecGrups.map(g => `
+    <button type="button" class="btn btn-sm" onclick="secGrup(${g.id})" style="background:var(--border)">${g.ad}</button>
+  `).join('');
+  document.getElementById('stok-grup-buttons').innerHTML = btnHtml;
+
+  // İlk olarak tümünü göster
+  filterStokSecList();
+
+  openModal('m-stok-sec');
+  setTimeout(() => document.getElementById('stok-sec-arama').focus(), 80);
+}
+
+function secGrup(grupId) {
+  _stokSecSeciliGrup = grupId;
+  // Grup butonlarının stilini güncelle
+  document.querySelectorAll('#stok-grup-buttons button').forEach(btn => {
+    btn.style.background = btn.onclick.toString().includes(`(${grupId})`) ? 'var(--blue)' : 'var(--border)';
+    btn.style.color = btn.style.background === 'var(--blue)' ? 'white' : 'var(--text)';
+  });
+  filterStokSecList();
+}
+
+function filterStokSecList() {
+  const q = document.getElementById('stok-sec-arama').value.toLowerCase().trim();
+
+  // Filtreleme: seçili gruba ait stoklar + arama
+  let stoklar = _stokSecTumStoklar;
+  if (_stokSecSeciliGrup !== null) {
+    stoklar = stoklar.filter(s => s.grup_id === _stokSecSeciliGrup);
+  }
+  if (q) {
+    stoklar = stoklar.filter(s => (s.ad || '').toLowerCase().includes(q) || (s.kod || '').toLowerCase().includes(q));
+  }
+
+  // Listele
+  const html = stoklar.map(s => `
+    <div style="padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center"
+      onclick="seçStok(${s.id})" onmouseover="this.style.background='rgba(0,0,0,.04)'" onmouseout="this.style.background=''">
+      <div>
+        <div style="font-weight:600">${s.ad}</div>
+        <div style="font-size:12px;color:var(--dim)">${s.kod || '—'} | ${s.mevcut_miktar} ${s.birim}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--dim)">$${s.satis_fiyat || '0'}</div>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('stok-sec-list').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--dim)">Stok bulunamadı</div>';
+}
+
+function seçStok(stokId) {
+  if (_selectingStokKalemIdx < 0) return;
+  const stok = _stokSecTumStoklar.find(s => s.id === stokId);
+  if (!stok) return;
+
+  // Kalem'in stok_id'sini güncelle
+  _faturaKalemler[_selectingStokKalemIdx].stok_id = stok.id;
+  _faturaKalemler[_selectingStokKalemIdx].aciklama = stok.ad;
+  _faturaKalemler[_selectingStokKalemIdx].birim = stok.birim || 'Pcs';
+
+  // Faturanın türüne göre fiyatı otomatik doldur
+  const isAlis = document.getElementById('ft-tur')?.value === 'alis';
+  const fiyat = isAlis ? stok.alis_fiyat : stok.satis_fiyat;
+  if (fiyat > 0) _faturaKalemler[_selectingStokKalemIdx].birim_fiyat = fiyat;
+
+  renderFaturaKalemler();
+  closeModal('m-stok-sec');
 }
 
 // ════════════════════════════════════════════════════════════
