@@ -1612,9 +1612,9 @@ ipcMain.handle('stoklar:import', (_, { satirlar }) => {
 ipcMain.handle('stoklar:guncelle', (_, id, d) => {
   // mevcut_miktar düzenlemesini stok hareketi olarak işle (manuel düzeltme)
   const eski = getOne('SELECT mevcut_miktar FROM stoklar WHERE id = ?', [id]);
-  run('UPDATE stoklar SET kod=?, ad=?, barkod=?, birim=?, grup_id=?, mevcut_miktar=?, min_miktar=?, alis_fiyat=?, satis_fiyat=?, para_birimi=?, aciklama=? WHERE id=?',
+  run('UPDATE stoklar SET kod=?, ad=?, barkod=?, birim=?, grup_id=?, mevcut_miktar=?, min_miktar=?, alis_fiyat=?, satis_fiyat=?, para_birimi=?, aciklama=?, kategori=? WHERE id=?',
     [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.grup_id || null, d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
-     d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '', id]);
+     d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '', '', id]);
   if (eski && eski.mevcut_miktar !== (d.mevcut_miktar ?? 0)) {
     const fark = (d.mevcut_miktar ?? 0) - eski.mevcut_miktar;
     run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
