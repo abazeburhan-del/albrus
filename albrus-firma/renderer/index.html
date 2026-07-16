@@ -9713,23 +9713,28 @@ async function openStokSec(kalmIdx) {
   _selectingStokKalemIdx = kalmIdx;
   _stokSecSeciliGrup = null;
 
-  // Grupları ve tümünün stok'larını yükle
-  _stokSecGrups = await inv('stok-gruplan:getir');
-  _stokSecTumStoklar = await inv('stoklar:getir');
+  try {
+    // Grupları ve tümünün stok'larını yükle
+    _stokSecGrups = await inv('stok-gruplan:getir') || [];
+    _stokSecTumStoklar = await inv('stoklar:getir') || [];
 
-  // Grup butonlarını oluştur
-  const btnHtml = `
-    <button type="button" class="btn btn-sm" onclick="secGrup(null)" style="background:var(--blue);color:white">Tümü</button>
-  ` + _stokSecGrups.map(g => `
-    <button type="button" class="btn btn-sm" onclick="secGrup(${g.id})" style="background:var(--border)">${g.ad}</button>
-  `).join('');
-  document.getElementById('stok-grup-buttons').innerHTML = btnHtml;
+    // Grup butonlarını oluştur
+    const btnHtml = `
+      <button type="button" class="btn btn-sm" onclick="secGrup(null)" style="background:var(--blue);color:white">Tümü</button>
+    ` + _stokSecGrups.map(g => `
+      <button type="button" class="btn btn-sm" onclick="secGrup(${g.id})" style="background:var(--border)">${g.ad}</button>
+    `).join('');
+    document.getElementById('stok-grup-buttons').innerHTML = btnHtml;
 
-  // İlk olarak tümünü göster
-  filterStokSecList();
+    // İlk olarak tümünü göster
+    filterStokSecList();
 
-  openModal('m-stok-sec');
-  setTimeout(() => document.getElementById('stok-sec-arama').focus(), 80);
+    openModal('m-stok-sec');
+    setTimeout(() => document.getElementById('stok-sec-arama').focus(), 80);
+  } catch (e) {
+    console.error('Stok seçim açılış hatası:', e);
+    alert('Stoklar yüklenemedi: ' + e.message);
+  }
 }
 
 function secGrup(grupId) {
