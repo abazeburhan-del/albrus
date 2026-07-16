@@ -5771,6 +5771,7 @@ async function personelSil(id) {
 }
 
 let _topluOdeData = null;
+let _topluOdeFiltre = null;   // null = tümü, 0 = atanmamış, >0 = proje id
 
 async function openTopluMaasOde() {
   const [liste, kasalar, bankalar] = await Promise.all([
@@ -5781,16 +5782,23 @@ async function openTopluMaasOde() {
   const aktifler = liste.filter(p => p.durum === 'aktif' && p.net_alacak > 0);
   if (aktifler.length === 0) { alert('Ödeme yapılacak personel bulunamadı (alacakları sıfır).'); return; }
 
+  _topluOdeData = { aktifler, kasalar, bankalar };
+  _topluOdeFiltre = null;
+
   const bugun = new Date().toISOString().split('T')[0];
   const donem = bugun.substring(0, 7);
 
-  const gruplar = {};
-  aktifler.forEach(p => {
-    if (!gruplar[p.para_birimi]) gruplar[p.para_birimi] = [];
-    gruplar[p.para_birimi].push(p);
+  // Proje filtre seçenekleri
+  const projeMap = new Map();
+  let atanmamisVar = false;
+  aktifler.forEach(p => { if (p.proje_id) projeMap.set(p.proje_id, p.proje_ad || 'Proje'); else atanmamisVar = true; });
+  let projeOpts = `<option value="">Tüm Projeler (${aktifler.length})</option>`;
+  [...projeMap.entries()].sort((a, b) => (a[1] || '').localeCompare(b[1] || '', 'tr')).forEach(([id, ad]) => {
+    projeOpts += `<option value="${id}">🏗 ${ad} (${aktifler.filter(p => p.proje_id === id).length})</option>`;
   });
+  if (atanmamisVar) projeOpts += `<option value="0">Atanmamış (${aktifler.filter(p => !p.proje_id).length})</option>`;
 
-  let icerik = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+  const icerik = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
     <div class="fg" style="flex:1;min-width:130px"><label>Dönem Tipi</label>
       <select id="tmo-donem-tip" onchange="topluDonemPreset()">
         <option value="ay">Takvim Ayı (1 – Ay Sonu)</option>
@@ -5805,8 +5813,37 @@ async function openTopluMaasOde() {
       <input type="date" id="tmo-donem-bit"></div>
     <div class="fg" style="flex:1;min-width:110px"><label>Ödeme Tarihi</label>
       <input type="date" id="tmo-tarih" value="${bugun}"></div>
-  </div>`;
+  </div>
+  <div class="fg" style="margin-bottom:14px"><label>Proje (kimlere ödenecek)</label>
+    <select id="tmo-proje-filtre" onchange="topluOdeProjeFiltrele(this.value)" style="width:100%">${projeOpts}</select>
+  </div>
+  <div id="toplu-ode-gruplar"></div>`;
 
+  document.getElementById('toplu-ode-icerik').innerHTML = icerik;
+  topluDonemPreset();
+  renderTopluOdeGruplar();
+  openModal('m-toplu-maas-ode');
+}
+
+function topluOdeProjeFiltrele(v) {
+  _topluOdeFiltre = v === '' ? null : (v === '0' ? 0 : Number(v));
+  renderTopluOdeGruplar();
+}
+
+function topluOdeGorunenler() {
+  const { aktifler } = _topluOdeData;
+  if (_topluOdeFiltre === null) return aktifler;
+  if (_topluOdeFiltre === 0)   return aktifler.filter(p => !p.proje_id);
+  return aktifler.filter(p => p.proje_id === _topluOdeFiltre);
+}
+
+function renderTopluOdeGruplar() {
+  const { kasalar, bankalar } = _topluOdeData;
+  const gorunen = topluOdeGorunenler();
+  const gruplar = {};
+  gorunen.forEach(p => { (gruplar[p.para_birimi] = gruplar[p.para_birimi] || []).push(p); });
+
+  let html = '';
   Object.entries(gruplar).forEach(([pb, personeller]) => {
     const toplam = personeller.reduce((s, p) => s + p.net_alacak, 0);
     const kasaOpts = kasalar.filter(k => k.para_birimi === pb)
@@ -5814,9 +5851,9 @@ async function openTopluMaasOde() {
     const bankaOpts = bankalar.filter(b => b.para_birimi === pb)
       .map(b => `<option value="banka:${b.id}">${b.banka_adi} — Bakiye: ${fmtTutar(Math.round(b.bakiye))} ${pb}</option>`).join('');
     if (!kasaOpts && !bankaOpts) return;
-    icerik += `<div style="margin-bottom:14px;padding:10px;border:1px solid var(--border);border-radius:8px">
+    html += `<div style="margin-bottom:14px;padding:10px;border:1px solid var(--border);border-radius:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <b style="font-size:13px">${pb} Grubu</b>
+        <b style="font-size:13px">${pb} Grubu — ${personeller.length} kişi</b>
         <span style="font-size:13px;color:#22c55e;font-weight:700">Toplam: ${fmtTutar(Math.round(toplam))} ${pb}</span>
       </div>
       <div class="fg" style="margin-bottom:8px">
@@ -5825,17 +5862,14 @@ async function openTopluMaasOde() {
       </div>
       <table style="width:100%;font-size:12px;border-collapse:collapse">
         <tbody>${personeller.map(p => `<tr>
-          <td style="padding:3px 4px">${p.ad}${p.soyad ? ' ' + p.soyad : ''}</td>
+          <td style="padding:3px 4px">${p.ad}${p.soyad ? ' ' + p.soyad : ''}${p.proje_ad ? `<span style="color:var(--dim);font-size:10px"> · ${p.proje_ad}</span>` : ''}</td>
           <td style="padding:3px 4px;text-align:right;color:#22c55e;font-weight:700">${fmtTutar(Math.round(p.net_alacak))} ${pb}</td>
         </tr>`).join('')}</tbody>
       </table>
     </div>`;
   });
-
-  _topluOdeData = { aktifler, gruplar };
-  document.getElementById('toplu-ode-icerik').innerHTML = icerik;
-  topluDonemPreset();
-  openModal('m-toplu-maas-ode');
+  document.getElementById('toplu-ode-gruplar').innerHTML = html ||
+    `<div style="padding:20px;text-align:center;color:var(--dim)">Bu projede ödenecek personel yok.</div>`;
 }
 
 function topluDonemPreset() {
@@ -5872,8 +5906,11 @@ async function saveTopluMaasOde() {
   if (!tarih) { alert('Ödeme tarihi zorunludur.'); return; }
   const donemEtiket = `${fmtDate(donemBas)} – ${fmtDate(donemBit)}`;
 
+  const odenecekler = topluOdeGorunenler();
+  if (!odenecekler.length) { alert('Ödenecek personel yok.'); return; }
+
   const hatalar = [];
-  for (const p of _topluOdeData.aktifler) {
+  for (const p of odenecekler) {
     const pb = p.para_birimi;
     const kaynakVal = document.getElementById(`tmo-kaynak-${pb}`)?.value;
     if (!kaynakVal) { hatalar.push(`${p.ad}: kaynak seçilmedi`); continue; }
