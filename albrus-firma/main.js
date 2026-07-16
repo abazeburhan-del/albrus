@@ -751,6 +751,20 @@ ipcMain.handle('kasa:fis:sil', (_, id) => {
     run("DELETE FROM cari_hareketleri WHERE cari_id=? AND tutar=? AND tarih=? AND kaynak='kasa'",
       [fis.cari_id, fis.tutar, fis.tarih]);
   }
+
+  // Personel ödemesi / avans / maaş ise personel hareketini de geri al
+  const ph = getOne(
+    "SELECT * FROM personel_hareketleri WHERE tur='borc' AND tutar=? AND tarih=? AND aciklama=? AND kaynak IN ('kasa_odeme','avans','maas_odeme') ORDER BY id DESC LIMIT 1",
+    [fis.tutar, fis.tarih, fis.aciklama || '']);
+  if (ph) {
+    run('DELETE FROM personel_hareketleri WHERE id=?', [ph.id]);
+    // Maaş ödemesi ise (belge MAA-XXXX) maas_odemeleri kaydını da sil
+    if (fis.belge_no && /^MAA-/.test(fis.belge_no)) {
+      const moId = parseInt(String(fis.belge_no).replace('MAA-', ''), 10);
+      if (moId) run('DELETE FROM maas_odemeleri WHERE id=?', [moId]);
+    }
+  }
+
   run('DELETE FROM kasa_hareketleri WHERE id = ?', [id]);
   saveDb();
   return true;
@@ -902,6 +916,18 @@ ipcMain.handle('banka:fis:sil', (_, id) => {
     }
     run("DELETE FROM cari_hareketleri WHERE cari_id=? AND tutar=? AND tarih=? AND kaynak='banka'",
       [fis.cari_id, fis.tutar, fis.tarih]);
+  }
+
+  // Personel ödemesi / avans / maaş ise personel hareketini de geri al
+  const ph = getOne(
+    "SELECT * FROM personel_hareketleri WHERE tur='borc' AND tutar=? AND tarih=? AND aciklama=? AND kaynak IN ('kasa_odeme','avans','maas_odeme') ORDER BY id DESC LIMIT 1",
+    [fis.tutar, fis.tarih, fis.aciklama || '']);
+  if (ph) {
+    run('DELETE FROM personel_hareketleri WHERE id=?', [ph.id]);
+    if (fis.belge_no && /^MAA-/.test(fis.belge_no)) {
+      const moId = parseInt(String(fis.belge_no).replace('MAA-', ''), 10);
+      if (moId) run('DELETE FROM maas_odemeleri WHERE id=?', [moId]);
+    }
   }
 
   run('DELETE FROM banka_hareketleri WHERE id = ?', [id]);
