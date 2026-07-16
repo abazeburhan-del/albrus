@@ -2128,6 +2128,29 @@ ipcMain.handle('puantaj:getir', (_, personel_id, yil, ay) =>
     [personel_id, yil, ay])
 );
 
+// Irak: Cuma günleri ücretli tatil. Ayda çalışma/izin varsa, X/İ işaretli olmayan
+// her Cuma için otomatik günlük ücret (maas/30) alacak kaydı üretir.
+function cumaTatilleriniIsle(personel_id, yil, ay) {
+  run("DELETE FROM personel_hareketleri WHERE personel_id=? AND yil=? AND ay=? AND kaynak='cuma'",
+    [personel_id, yil, ay]);
+  const p = getOne('SELECT maas FROM personeller WHERE id=?', [personel_id]);
+  if (!p || !(p.maas > 0)) return;
+  const aktif = getOne("SELECT COUNT(*) AS n FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND durum IN ('X','İ')",
+    [personel_id, yil, ay]);
+  if (!aktif || aktif.n === 0) return;   // hiç çalışma yoksa cuma ödeme yok
+  const gunSayisi = new Date(yil, ay, 0).getDate();
+  const gunluk = p.maas / 30;
+  for (let g = 1; g <= gunSayisi; g++) {
+    if (new Date(yil, ay - 1, g).getDay() !== 5) continue;   // sadece Cuma
+    const d = getOne('SELECT durum FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND gun=?',
+      [personel_id, yil, ay, g]);
+    if (d && (d.durum === 'X' || d.durum === 'İ')) continue;   // zaten ödendi
+    const tarih = `${yil}-${String(ay).padStart(2,'0')}-${String(g).padStart(2,'0')}`;
+    run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, yil, ay, gun, aciklama) VALUES (?,?,?,?,?,?,?,?,?)',
+      [personel_id, tarih, 'alacak', gunluk, 'cuma', yil, ay, g, 'Cuma tatili (ücretli)']);
+  }
+}
+
 ipcMain.handle('puantaj:guncelle', (_, personel_id, yil, ay, gun, durum) => {
   if (durum === '') {
     run('DELETE FROM puantaj WHERE personel_id = ? AND yil = ? AND ay = ? AND gun = ?',
@@ -2149,6 +2172,7 @@ ipcMain.handle('puantaj:guncelle', (_, personel_id, yil, ay, gun, durum) => {
          durum === 'X' ? 'Çalışma günü' : 'Ücretli izin']);
     }
   }
+  cumaTatilleriniIsle(personel_id, yil, ay);
   saveDb();
   return true;
 });
@@ -2174,6 +2198,11 @@ ipcMain.handle('puantaj:mesai:guncelle', (_, personel_id, yil, ay, gun, mesai_sa
 
 ipcMain.handle('puantaj:toplu:ozet', (_, yil, ay) => {
   const personeller = getAll('SELECT p.*, pr.ad AS proje_ad FROM personeller p LEFT JOIN projeler pr ON pr.id = p.proje_id ORDER BY pr.ad, p.ad, p.soyad');
+  personeller.forEach(p => cumaTatilleriniIsle(p.id, yil, ay));   // Cuma tatillerini mutabık kıl
+  saveDb();
+  const gunSayisi = new Date(yil, ay, 0).getDate();
+  const cumaGunleri = [];
+  for (let g = 1; g <= gunSayisi; g++) if (new Date(yil, ay - 1, g).getDay() === 5) cumaGunleri.push(g);
   return personeller.map(p => {
     const gunler = getAll(
       'SELECT gun, durum, COALESCE(mesai_saat,0) as mesai_saat FROM puantaj WHERE personel_id=? AND yil=? AND ay=? ORDER BY gun',
@@ -2191,8 +2220,11 @@ ipcMain.handle('puantaj:toplu:ozet', (_, yil, ay) => {
     const saatlik = gunluk / 9;
     const mesaiToplamSaat = gunler.reduce((s, g) => s + (g.mesai_saat || 0), 0);
     const mesai_ucreti = mesaiToplamSaat * saatlik;
-    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik,
-             net_kazanc: (x + iz) * gunluk + mesai_ucreti,
+    // Ücretli Cuma sayısı: X/İ olmayan cumalar (çalışma varsa)
+    const cumaOdenen = (x + iz) > 0
+      ? cumaGunleri.filter(g => durumMap[g] !== 'X' && durumMap[g] !== 'İ').length : 0;
+    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik, cuma_gun: cumaOdenen,
+             net_kazanc: (x + iz + cumaOdenen) * gunluk + mesai_ucreti,
              mesai_saat_toplam: mesaiToplamSaat, mesai_ucreti, durumMap, mesaiMap };
   });
 });
