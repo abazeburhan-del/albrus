@@ -326,6 +326,14 @@ async function initDb() {
     db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Elektrik', 'ELK')");
     db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Mekanik', 'MEK')");
     db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('İnşaat', 'INS')");
+    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Hizmet', 'HIZ')");
+    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Maintenance', 'MNT')");
+  }
+
+  // Migration: Mevcut NULL stokları Elektrik grubuna ata
+  const elektrik_grup_id = getOne('SELECT id FROM stok_gruplan WHERE ad = ?', ['Elektrik'])?.id;
+  if (elektrik_grup_id) {
+    db.run('UPDATE stoklar SET grup_id = ? WHERE grup_id IS NULL', [elektrik_grup_id]);
   }
 
   // Hakediş — BOQ/poz listesi + dönemler + yeşil defter satırları
