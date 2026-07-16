@@ -536,6 +536,7 @@
         <button class="btn btn-primary" onclick="openMaasOde()" id="btn-maas-ode" disabled>Maaş Öde</button>
       </div>
     </div>
+    <div id="personel-proje-filtre" style="margin-bottom:12px"></div>
     <div class="card-grid" id="personel-cards"></div>
     <div id="personel-odeme-wrap" style="display:none">
       <div class="filter-bar">
@@ -1521,6 +1522,7 @@
         <label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="personel-imp-para-iqd" onchange="personelImportRender()"> Maaşlar IQD (varsayılan USD)</label>
       </div>
     </div>
+    <div class="fg"><label>Tümünü şu projeye ata (opsiyonel)</label><select id="personel-imp-proje-id" style="width:100%"><option value="">— Yok —</option></select></div>
     <div style="font-size:12px;color:var(--dim);margin:6px 0">Her alan için Excel sütununu seç (Ad zorunlu):</div>
     <div class="row3" id="personel-imp-maps"></div>
     <div style="font-size:12px;font-weight:600;margin:12px 0 4px">Önizleme (ilk 8 satır)</div>
@@ -1688,6 +1690,7 @@
       <div class="fg"><label>Pozisyon</label><input type="text" id="personel-pozisyon" placeholder="Mühendis, Teknisyen…"></div>
       <div class="fg"><label>Telefon</label><input type="text" id="personel-telefon"></div>
     </div>
+    <div class="fg"><label>Çalıştığı Proje</label><select id="personel-proje-id" style="width:100%"><option value="">— Yok —</option></select></div>
     <div class="row2">
       <div class="fg"><label>İşe Giriş Tarihi</label><input type="text" id="personel-ise-giris" placeholder="2025-01-01" maxlength="10" oninput="onTarihInput(this)"></div>
       <div class="fg"><label>Durum</label>
@@ -5472,6 +5475,12 @@ async function stokSil(id) {
 // ══════════════════════════════════════════════════
 let _personeller = [];
 let _secilenPersonel = null;
+let _personelProjeFiltre = null;   // null = tümü, 0 = atanmamış, >0 = proje id
+
+function personelProjeFiltrele(v) {
+  _personelProjeFiltre = v;
+  renderPersonelCards();
+}
 
 async function loadPersonel() {
   _personeller = await inv('personeller:getir');
@@ -5490,15 +5499,42 @@ async function loadPersonel() {
 
 function renderPersonelCards() {
   const wrap = document.getElementById('personel-cards');
+  const filtreEl = document.getElementById('personel-proje-filtre');
   if (!_personeller.length) {
+    if (filtreEl) filtreEl.innerHTML = '';
     wrap.innerHTML = `<div style="color:var(--dim);padding:20px;grid-column:1/-1">Henüz personel yok — "+ Yeni Personel" ile başlayın.</div>`;
     return;
   }
-  wrap.innerHTML = _personeller.map(p => `
+
+  // Proje filtre butonları (her projede kaç personel)
+  if (filtreEl) {
+    const sayilar = {};
+    _personeller.forEach(p => { const k = p.proje_id || 0; sayilar[k] = (sayilar[k] || 0) + 1; });
+    const projeler = [];
+    const gorulen = new Set();
+    _personeller.forEach(p => { if (p.proje_id && !gorulen.has(p.proje_id)) { gorulen.add(p.proje_id); projeler.push({ id: p.proje_id, ad: p.proje_ad }); } });
+    projeler.sort((a, b) => (a.ad || '').localeCompare(b.ad || '', 'tr'));
+    const btnStil = aktif => `padding:5px 14px;border-radius:16px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;` +
+      (aktif ? 'background:var(--blue);color:#fff;border-color:var(--blue)' : 'background:transparent;color:var(--text)');
+    let html = `<button style="${btnStil(_personelProjeFiltre === null)}" onclick="personelProjeFiltrele(null)">Tümü (${_personeller.length})</button>`;
+    html += projeler.map(pr => `<button style="${btnStil(_personelProjeFiltre === pr.id)}" onclick="personelProjeFiltrele(${pr.id})">🏗 ${pr.ad} (${sayilar[pr.id] || 0})</button>`).join('');
+    if (sayilar[0]) html += `<button style="${btnStil(_personelProjeFiltre === 0)}" onclick="personelProjeFiltrele(0)">Atanmamış (${sayilar[0]})</button>`;
+    filtreEl.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap">${html}</div>`;
+  }
+
+  const liste = _personelProjeFiltre === null ? _personeller
+    : _personelProjeFiltre === 0 ? _personeller.filter(p => !p.proje_id)
+    : _personeller.filter(p => p.proje_id === _personelProjeFiltre);
+  if (!liste.length) {
+    wrap.innerHTML = `<div style="color:var(--dim);padding:20px;grid-column:1/-1">Bu projede personel yok.</div>`;
+    return;
+  }
+  wrap.innerHTML = liste.map(p => `
     <div class="card${_secilenPersonel?.id === p.id ? ' selected' : ''}" onclick="secPersonel(${p.id})">
       <div class="card-label">${p.pozisyon || 'Personel'}</div>
       <div class="card-val" style="font-size:16px">${p.ad}${p.soyad ? ' ' + p.soyad : ''}</div>
       <div class="card-sub">${p.maas > 0 ? fmtTutar(Math.round(p.maas)) + ' ' + p.para_birimi + '/ay' : '—'}</div>
+      <div class="card-sub" style="color:${p.proje_ad ? 'var(--blue)' : 'var(--dim)'}">🏗 ${p.proje_ad || 'Proje atanmamış'}</div>
       ${p.net_alacak > 0 ? `<div class="card-sub" style="color:#22c55e">Alacak: ${fmtTutar(Math.round(p.net_alacak))} ${p.para_birimi}</div>` : ''}
       <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
         <span class="badge ${p.durum === 'aktif' ? 'b-aktif' : 'b-diger'}">${p.durum}</span>
@@ -5635,7 +5671,15 @@ function clearPersonelFiltre() {
   loadMaasOdemeleri();
 }
 
-function openPersonelEkle() {
+async function personelProjeDropdownDoldur(secili) {
+  const projeler = await inv('projeler:getir');
+  const select = document.getElementById('personel-proje-id');
+  select.innerHTML = '<option value="">— Yok —</option>' +
+    projeler.map(p => `<option value="${p.id}">${p.ad}</option>`).join('');
+  select.value = secili || '';
+}
+
+async function openPersonelEkle() {
   document.getElementById('m-personel-title').textContent = 'Yeni Personel';
   document.getElementById('personel-edit-id').value = '';
   document.getElementById('personel-ad').value = '';
@@ -5646,11 +5690,12 @@ function openPersonelEkle() {
   document.getElementById('personel-durum').value = 'aktif';
   document.getElementById('personel-maas').value = '';
   document.getElementById('personel-para').value = 'USD';
+  await personelProjeDropdownDoldur('');
   openModal('m-personel');
   setTimeout(() => document.getElementById('personel-ad').focus(), 80);
 }
 
-function openPersonelDuzenle(id) {
+async function openPersonelDuzenle(id) {
   const p = _personeller.find(x => x.id === id);
   if (!p) return;
   document.getElementById('m-personel-title').textContent = 'Personel Düzenle';
@@ -5663,6 +5708,7 @@ function openPersonelDuzenle(id) {
   document.getElementById('personel-durum').value = p.durum || 'aktif';
   document.getElementById('personel-maas').value = p.maas > 0 ? fmtTutar(Math.round(p.maas)) : '';
   document.getElementById('personel-para').value = p.para_birimi || 'USD';
+  await personelProjeDropdownDoldur(p.proje_id);
   openModal('m-personel');
 }
 
@@ -5678,6 +5724,7 @@ async function savePersonel() {
     durum:       document.getElementById('personel-durum').value,
     maas:        parseTutar('personel-maas'),
     para_birimi: document.getElementById('personel-para').value,
+    proje_id:    parseInt(document.getElementById('personel-proje-id').value) || null,
   };
   const editId = document.getElementById('personel-edit-id').value;
   if (editId) { await inv('personeller:guncelle', Number(editId), d); }
@@ -7396,6 +7443,11 @@ async function personelImportBaslat() {
   document.getElementById('personel-imp-dosya').textContent = 'Dosya: ' + r.dosya;
   document.getElementById('personel-imp-sheet').innerHTML = r.sheets.map((s,i)=>`<option value="${i}">${s.name}</option>`).join('');
   document.getElementById('personel-imp-para-iqd').checked = false;
+  try {
+    const projeler = await inv('projeler:getir');
+    document.getElementById('personel-imp-proje-id').innerHTML = '<option value="">— Yok —</option>' +
+      projeler.map(p => `<option value="${p.id}">${p.ad}</option>`).join('');
+  } catch (e) {}
   personelImportSheetChange();
   openModal('m-personel-import');
 }
@@ -7487,6 +7539,8 @@ function personelImportRender() {
 async function personelImportUygula() {
   const sat = personelSatirlariCikar();
   if (!sat.length) { alert('Aktarılacak personel yok. Ad sütununu ve başlık satırını kontrol edin.'); return; }
+  const projeId = parseInt(document.getElementById('personel-imp-proje-id').value) || null;
+  if (projeId) sat.forEach(s => s.proje_id = projeId);
   if (!confirm(`${sat.length} personel aktarılacak. Devam edilsin mi?`)) return;
   const r = await inv('personeller:import', { satirlar: sat });
   closeModal('m-personel-import');

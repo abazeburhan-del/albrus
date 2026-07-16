@@ -309,6 +309,7 @@ async function initDb() {
   try { db.run("ALTER TABLE faturalar ADD COLUMN vade TEXT DEFAULT ''"); } catch (_) {}
   try { db.run("ALTER TABLE kasa_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
   try { db.run("ALTER TABLE banka_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
+  try { db.run("ALTER TABLE personeller ADD COLUMN proje_id INTEGER"); } catch (_) {}
 
   // Stok grupları
   db.run(`
@@ -1984,7 +1985,7 @@ ipcMain.handle('kategoriler:getir', (_, tur) => {
 // ════════════════════════════════════════════════════════════
 
 ipcMain.handle('personeller:getir', () => {
-  const personeller = getAll('SELECT * FROM personeller ORDER BY ad, soyad');
+  const personeller = getAll('SELECT p.*, pr.ad AS proje_ad FROM personeller p LEFT JOIN projeler pr ON pr.id = p.proje_id ORDER BY p.ad, p.soyad');
   return personeller.map(p => {
     const alacak = getOne("SELECT COALESCE(SUM(tutar),0) as t FROM personel_hareketleri WHERE personel_id=? AND tur='alacak'", [p.id])?.t || 0;
     const borc   = getOne("SELECT COALESCE(SUM(tutar),0) as t FROM personel_hareketleri WHERE personel_id=? AND tur='borc'",   [p.id])?.t || 0;
@@ -1994,8 +1995,8 @@ ipcMain.handle('personeller:getir', () => {
 
 ipcMain.handle('personeller:ekle', (_, d) => {
   const r = insertAndGet('personeller',
-    'INSERT INTO personeller (ad, soyad, pozisyon, telefon, ise_giris, maas, para_birimi, durum) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif']
+    'INSERT INTO personeller (ad, soyad, pozisyon, telefon, ise_giris, maas, para_birimi, durum, proje_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif', d.proje_id || null]
   );
   saveDb();
   return r;
@@ -2006,9 +2007,9 @@ ipcMain.handle('personeller:import', (_, { satirlar }) => {
   for (const s of (satirlar || [])) {
     if (!s.ad || !String(s.ad).trim()) continue;
     insertAndGet('personeller',
-      'INSERT INTO personeller (ad, soyad, pozisyon, telefon, ise_giris, maas, para_birimi, durum) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO personeller (ad, soyad, pozisyon, telefon, ise_giris, maas, para_birimi, durum, proje_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [String(s.ad).trim(), s.soyad ?? '', s.pozisyon ?? '', s.telefon ?? '', s.ise_giris ?? '',
-       Number(s.maas) || 0, s.para_birimi || 'USD', 'aktif']);
+       Number(s.maas) || 0, s.para_birimi || 'USD', 'aktif', s.proje_id || null]);
     eklenen++;
   }
   saveDb();
@@ -2016,8 +2017,8 @@ ipcMain.handle('personeller:import', (_, { satirlar }) => {
 });
 
 ipcMain.handle('personeller:guncelle', (_, id, d) => {
-  run('UPDATE personeller SET ad=?, soyad=?, pozisyon=?, telefon=?, ise_giris=?, maas=?, para_birimi=?, durum=? WHERE id=?',
-    [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif', id]);
+  run('UPDATE personeller SET ad=?, soyad=?, pozisyon=?, telefon=?, ise_giris=?, maas=?, para_birimi=?, durum=?, proje_id=? WHERE id=?',
+    [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif', d.proje_id || null, id]);
   saveDb();
   return getOne('SELECT * FROM personeller WHERE id = ?', [id]);
 });
