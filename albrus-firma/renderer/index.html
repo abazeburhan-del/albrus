@@ -1318,7 +1318,12 @@
     <div class="fg"><label>Stok Adı *</label><input type="text" id="stok-ad" placeholder="Malzeme adı"></div>
     <div class="row2">
       <div class="fg"><label>Barkod</label><input type="text" id="stok-barkod" placeholder="(opsiyonel)"></div>
-      <div class="fg"><label>Kategori</label><select id="stok-grup-id" style="width:100%"></select></div>
+      <div class="fg"><label>Kategori</label>
+        <div style="display:flex;gap:6px">
+          <select id="stok-grup-id" style="flex:1"></select>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="openGrupEkle()" title="Yeni kategori ekle">+</button>
+        </div>
+      </div>
     </div>
     <div class="row3">
       <div class="fg"><label>Alış Fiyatı (maliyet)</label><input type="text" id="stok-alis" inputmode="decimal" placeholder="0"></div>
@@ -1965,6 +1970,23 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-fatura')">İptal</button>
       <button class="btn btn-primary" onclick="saveFatura()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── STOK GRUP EKLE/DÜZENLE ── -->
+<div class="overlay" id="m-stok-grup">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" id="m-stok-grup-title">Yeni Grup</div>
+    <input type="hidden" id="grup-edit-id">
+    <div class="fg"><label>Grup Adı *</label><input type="text" id="grup-ad" placeholder="Elektrik, Hırdavat..."></div>
+    <div class="row2">
+      <div class="fg"><label>Kod</label><input type="text" id="grup-kod" placeholder="(opsiyonel)"></div>
+      <div class="fg"><label>Açıklama</label><input type="text" id="grup-aciklama" placeholder="(opsiyonel)"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-stok-grup')">İptal</button>
+      <button class="btn btn-primary" onclick="saveStokGrup()">Kaydet</button>
     </div>
   </div>
 </div>
@@ -9850,33 +9872,60 @@ async function loadGruplan() {
     </tr>
   `).join('');
   document.getElementById('stok-gruplan-wrap').innerHTML =
-    '<table><thead><tr><th>Grup Adı</th><th>Kod</th><th>Açıklama</th><th style="width:180px;text-align:right">İşlemler</th></tr></thead><tbody>' +
+    '<table class="tbl"><thead><tr><th>Grup Adı</th><th>Kod</th><th>Açıklama</th><th style="width:180px;text-align:right">İşlemler</th></tr></thead><tbody>' +
     html + '</tbody></table>';
 }
 
 function openGrupEkle() {
-  const ad = prompt('Grup Adı:', '');
-  if (!ad) return;
-  const kod = prompt('Grup Kodu (opsiyonel):', '');
-  const aciklama = prompt('Açıklama (opsiyonel):', '');
-
-  inv('stok-gruplan:ekle', { ad, kod: kod || '', aciklama: aciklama || '' }).then(() => {
-    loadGruplan();
-  }).catch(e => alert('Hata: ' + e));
+  document.getElementById('m-stok-grup-title').textContent = 'Yeni Grup';
+  document.getElementById('grup-edit-id').value = '';
+  document.getElementById('grup-ad').value = '';
+  document.getElementById('grup-kod').value = '';
+  document.getElementById('grup-aciklama').value = '';
+  openModal('m-stok-grup');
+  setTimeout(() => document.getElementById('grup-ad').focus(), 80);
 }
 
 async function openGrupDuzenle(id) {
   const gruplar = await inv('stok-gruplan:getir');
   const g = gruplar.find(x => x.id === id);
   if (!g) return;
+  document.getElementById('m-stok-grup-title').textContent = 'Grup Düzenle';
+  document.getElementById('grup-edit-id').value = g.id;
+  document.getElementById('grup-ad').value = g.ad;
+  document.getElementById('grup-kod').value = g.kod || '';
+  document.getElementById('grup-aciklama').value = g.aciklama || '';
+  openModal('m-stok-grup');
+  setTimeout(() => document.getElementById('grup-ad').focus(), 80);
+}
 
-  const ad = prompt('Grup Adı:', g.ad);
-  if (ad === null) return;
-  const kod = prompt('Grup Kodu:', g.kod || '');
-  const aciklama = prompt('Açıklama:', g.aciklama || '');
+async function saveStokGrup() {
+  const ad = document.getElementById('grup-ad').value.trim();
+  if (!ad) { alert('Grup adı zorunludur.'); return; }
+  const kod = document.getElementById('grup-kod').value.trim();
+  const aciklama = document.getElementById('grup-aciklama').value.trim();
+  const editId = document.getElementById('grup-edit-id').value;
+  try {
+    let yeniGrup = null;
+    if (editId) {
+      await inv('stok-gruplan:guncelle', { id: Number(editId), ad, kod, aciklama });
+    } else {
+      yeniGrup = await inv('stok-gruplan:ekle', { ad, kod, aciklama });
+    }
+    closeModal('m-stok-grup');
 
-  await inv('stok-gruplan:guncelle', { id, ad: ad || g.ad, kod, aciklama });
-  loadGruplan();
+    // Stok formu açıkken eklendiyse: dropdown'u yenile + yeni grubu seç
+    if (document.getElementById('m-stok').classList.contains('open')) {
+      const gruplar = await inv('stok-gruplan:getir');
+      const select = document.getElementById('stok-grup-id');
+      const onceki = select.value;
+      select.innerHTML = '<option value="">— Seçiniz —</option>' +
+        gruplar.map(g => `<option value="${g.id}">${g.ad}</option>`).join('');
+      select.value = yeniGrup ? yeniGrup.id : onceki;
+    } else {
+      loadGruplan();
+    }
+  } catch (e) { alert('Hata: ' + (e.message || e)); }
 }
 
 async function grupSil(id) {
