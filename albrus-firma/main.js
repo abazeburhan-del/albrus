@@ -321,13 +321,14 @@ async function initDb() {
   `);
   try { db.run("ALTER TABLE stoklar ADD COLUMN grup_id INTEGER"); } catch (_) {}
 
-  // Başlangıç stok grupları (sadece boş DB'de bir kez)
-  if (getAll('SELECT COUNT(*) as cnt FROM stok_gruplan')[0].cnt === 0) {
-    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Elektrik', 'ELK')");
-    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Mekanik', 'MEK')");
-    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('İnşaat', 'INS')");
-    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Hizmet', 'HIZ')");
-    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Maintenance', 'MNT')");
+  // Başlangıç stok grupları — eksik olanları ekle
+  const grupAd = ['Elektrik', 'Mekanik', 'İnşaat', 'Hizmet', 'Maintenance'];
+  const grupKod = ['ELK', 'MEK', 'INS', 'HIZ', 'MNT'];
+  const mevcutGruplar = getAll('SELECT ad FROM stok_gruplan').map(g => g.ad);
+  for (let i = 0; i < grupAd.length; i++) {
+    if (!mevcutGruplar.includes(grupAd[i])) {
+      db.run("INSERT INTO stok_gruplan (ad, kod) VALUES (?, ?)", [grupAd[i], grupKod[i]]);
+    }
   }
 
   // Migration: Mevcut NULL stokları Elektrik grubuna ata
