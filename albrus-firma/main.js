@@ -2162,25 +2162,11 @@ function ayCalismaGunu(yil, ay) {
   return n;
 }
 
-// Irak: ay her zaman 30 gün kabul edilir; Cuma'lar ücretli tatil.
-// Tam devam eden biri, ay 28/30/31 çekse de 30 gün alır; devamsızlık düşer.
-// (X+İ) + hafta-tatili kredisi = 30 olacak şekilde kredi ekler (toplam 30'u aşmaz).
+// Sadece işaretlenen günler ödenir — otomatik Cuma/hafta-tatili günü EKLENMEZ.
+// (Eski "cuma" kredi kayıtları varsa temizlenir.)
 function cumaTatilleriniIsle(personel_id, yil, ay) {
   run("DELETE FROM personel_hareketleri WHERE personel_id=? AND yil=? AND ay=? AND kaynak='cuma'",
     [personel_id, yil, ay]);
-  const p = getOne('SELECT maas FROM personeller WHERE id=?', [personel_id]);
-  if (!p || !(p.maas > 0)) return;
-  const presentGun = getOne("SELECT COUNT(*) AS n FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND durum IN ('X','İ')",
-    [personel_id, yil, ay])?.n || 0;
-  if (presentGun === 0) return;                       // hiç çalışma yoksa ödeme yok
-  const isGunu = ayCalismaGunu(yil, ay);              // aydaki çalışma günü (Cuma hariç)
-  let tatilKredi = Math.max(0, 30 - isGunu);          // 30'a tamamlama (hafta tatilleri)
-  tatilKredi = Math.min(tatilKredi, Math.max(0, 30 - presentGun));   // toplam 30'u aşmasın
-  if (tatilKredi <= 0) return;
-  const gunluk = p.maas / 30;
-  const tarih = `${yil}-${String(ay).padStart(2,'0')}-${String(new Date(yil, ay, 0).getDate()).padStart(2,'0')}`;
-  run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, yil, ay, gun, aciklama) VALUES (?,?,?,?,?,?,?,?,?)',
-    [personel_id, tarih, 'alacak', tatilKredi * gunluk, 'cuma', yil, ay, null, `Hafta tatili — ${tatilKredi} gün ücretli`]);
 }
 
 ipcMain.handle('puantaj:guncelle', (_, personel_id, yil, ay, gun, durum) => {
@@ -2284,12 +2270,9 @@ ipcMain.handle('puantaj:toplu:ozet', (_, yil, ay) => {
     const saatlik = gunluk / 9;
     const mesaiToplamSaat = gunler.reduce((s, g) => s + (g.mesai_saat || 0), 0);
     const mesai_ucreti = mesaiToplamSaat * saatlik;
-    // Hafta tatili kredisi: (X+İ) + kredi = 30 (çalışma varsa), toplam 30'u aşmaz
-    const present = x + iz;
-    let tatilKredi = present > 0 ? Math.max(0, 30 - isGunu) : 0;
-    tatilKredi = Math.min(tatilKredi, Math.max(0, 30 - present));
-    const odenenGun = present + tatilKredi;
-    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik, cuma_gun: tatilKredi, odenen_gun: odenenGun,
+    // Sadece işaretli günler: X (çalıştı) + İ (izin)
+    const odenenGun = x + iz;
+    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik, cuma_gun: 0, odenen_gun: odenenGun,
              net_kazanc: odenenGun * gunluk + mesai_ucreti,
              mesai_saat_toplam: mesaiToplamSaat, mesai_ucreti, durumMap, mesaiMap };
   });
