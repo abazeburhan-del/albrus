@@ -2173,7 +2173,7 @@ ipcMain.handle('puantaj:mesai:guncelle', (_, personel_id, yil, ay, gun, mesai_sa
 });
 
 ipcMain.handle('puantaj:toplu:ozet', (_, yil, ay) => {
-  const personeller = getAll('SELECT * FROM personeller ORDER BY ad, soyad');
+  const personeller = getAll('SELECT p.*, pr.ad AS proje_ad FROM personeller p LEFT JOIN projeler pr ON pr.id = p.proje_id ORDER BY pr.ad, p.ad, p.soyad');
   return personeller.map(p => {
     const gunler = getAll(
       'SELECT gun, durum, COALESCE(mesai_saat,0) as mesai_saat FROM puantaj WHERE personel_id=? AND yil=? AND ay=? ORDER BY gun',

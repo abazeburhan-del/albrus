@@ -1869,6 +1869,9 @@
         <span id="tp-ay-label" style="min-width:120px;text-align:center;font-weight:600;font-size:13px"></span>
         <button class="btn btn-ghost btn-sm" onclick="tpAyDegistir(1)">&#8594;</button>
       </div>
+      <label style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:4px">🏗
+        <select id="tp-proje-filtre" onchange="tpProjeFiltrele(this.value)" style="font-size:11px;padding:2px 4px"></select>
+      </label>
       <button class="btn btn-ghost btn-sm" onclick="tpHepsiniDoldur('X')">Hafta içi → X</button>
       <button class="btn btn-ghost btn-sm" onclick="tpSifirla()">Temizle</button>
       <button class="btn btn-ghost btn-sm" onclick="tpPdf()">PDF</button>
@@ -6511,12 +6514,42 @@ let _tpAy  = new Date().getMonth() + 1;
 let _tpData   = {}; // { personel_id: { gun: durum } }
 let _tpMesai  = {}; // { personel_id: { gun: mesai_saat } }
 let _tpPersoneller = [];
+let _tpProjeFiltre = null;   // null = tümü, 0 = atanmamış, >0 = proje id
 
 async function openTopluPuantaj() {
   _tpYil = new Date().getFullYear();
   _tpAy  = new Date().getMonth() + 1;
+  _tpProjeFiltre = null;
   await loadTopluPuantaj();
   openModal('m-toplu-puantaj');
+}
+
+function tpProjeFiltrele(v) {
+  _tpProjeFiltre = v === '' ? null : (v === '0' ? 0 : Number(v));
+  renderTopluPuantajGrid();
+}
+
+function tpProjeFiltreDoldur() {
+  const sel = document.getElementById('tp-proje-filtre');
+  if (!sel) return;
+  const gorulen = new Map();
+  let atanmamisVar = false;
+  _tpPersoneller.forEach(p => {
+    if (p.proje_id) gorulen.set(p.proje_id, p.proje_ad || 'Proje');
+    else atanmamisVar = true;
+  });
+  const secili = _tpProjeFiltre === null ? '' : String(_tpProjeFiltre);
+  let html = `<option value="">Tümü (${_tpPersoneller.length})</option>`;
+  [...gorulen.entries()].sort((a, b) => (a[1] || '').localeCompare(b[1] || '', 'tr')).forEach(([id, ad]) => {
+    const n = _tpPersoneller.filter(p => p.proje_id === id).length;
+    html += `<option value="${id}">${ad} (${n})</option>`;
+  });
+  if (atanmamisVar) {
+    const n = _tpPersoneller.filter(p => !p.proje_id).length;
+    html += `<option value="0">Atanmamış (${n})</option>`;
+  }
+  sel.innerHTML = html;
+  sel.value = secili;
 }
 
 async function loadTopluPuantaj() {
@@ -6528,6 +6561,7 @@ async function loadTopluPuantaj() {
     _tpData[p.id]  = Object.assign({}, p.durumMap || {});
     _tpMesai[p.id] = Object.assign({}, p.mesaiMap || {});
   });
+  tpProjeFiltreDoldur();
   renderTopluPuantajGrid();
 }
 
@@ -6555,9 +6589,27 @@ function renderTopluPuantajGrid() {
   const tdAdStyle = 'border:1px solid var(--border);padding:2px 4px;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;max-width:90px;text-overflow:ellipsis;position:sticky;left:0;background:var(--card);z-index:1';
   const tdOzetStyle = 'border:1px solid var(--border);padding:3px 5px;font-size:10px;white-space:nowrap;position:sticky;right:0;background:var(--card);z-index:1;line-height:1.5';
 
+  // Proje filtresi uygula
+  const gorunen = _tpProjeFiltre === null ? _tpPersoneller
+    : _tpProjeFiltre === 0 ? _tpPersoneller.filter(p => !p.proje_id)
+    : _tpPersoneller.filter(p => p.proje_id === _tpProjeFiltre);
+
+  const toplamSutun = gunSayisi + 2;   // Ad + günler + özet
+  const grupBasStyle = `border:1px solid var(--border);background:rgba(59,130,246,.10);color:var(--blue);font-weight:700;font-size:11px;padding:4px 8px;position:sticky;left:0`;
+
   const toplamlar = {};
   let tbody = '<tbody>';
-  _tpPersoneller.forEach(p => {
+  let oncekiProje = undefined;
+  gorunen.forEach(p => {
+    // "Tümü" görünümünde proje değiştikçe grup başlığı satırı ekle
+    if (_tpProjeFiltre === null) {
+      const projeAnahtar = p.proje_id || 0;
+      if (projeAnahtar !== oncekiProje) {
+        oncekiProje = projeAnahtar;
+        const sayi = _tpPersoneller.filter(x => (x.proje_id || 0) === projeAnahtar).length;
+        tbody += `<tr><td colspan="${toplamSutun}" style="${grupBasStyle}">🏗 ${p.proje_ad || 'Proje atanmamış'} — ${sayi} kişi</td></tr>`;
+      }
+    }
     const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
     tbody += `<tr><td style="${tdAdStyle}" title="${adSoyad}">${adSoyad}</td>`;
     for (let g = 1; g <= gunSayisi; g++) {
