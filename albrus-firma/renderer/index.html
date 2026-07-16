@@ -6890,7 +6890,7 @@ async function tpPdf() {
 
   let thGunler = '';
   gunler.forEach(gd => {
-    thGunler += `<th style="text-align:center;${gd.cuma ? 'background:#fff0f0;' : ''}">${gd.gun}<br><span style="font-size:7px">${gd.gunAdi}</span></th>`;
+    thGunler += `<th class="gcol" style="${gd.cuma ? 'background:#fff0f0;' : ''}">${gd.gun}<br><span style="font-size:6px">${gd.gunAdi}</span></th>`;
   });
 
   let satirlar = '';
@@ -6909,7 +6909,7 @@ async function tpPdf() {
       const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : gd.cuma ? '#fff8f8' : '';
       const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#aaa';
       const mesaiStr = (durum === 'X' && mesai > 0) ? `<br><span style="font-size:5px;color:#b45309">+${mesai}h</span>` : '';
-      tdGunler += `<td style="text-align:center;background:${bg};color:${color};font-weight:700">${durum}${mesaiStr}</td>`;
+      tdGunler += `<td class="gcol" style="background:${bg};color:${color};font-weight:700">${durum}${mesaiStr}</td>`;
     });
     const present = x + iz;
     let tatilKredi = present > 0 ? Math.max(0, 30 - isGunu) : 0;
@@ -6963,6 +6963,7 @@ h1{font-size:11px;margin-bottom:2px}
 table{width:100%;border-collapse:collapse;margin-bottom:14px}
 th,td{border:1px solid #d1d5db;padding:1px 2px;font-size:6px}
 th{background:#f3f4f6;font-weight:700;text-align:left}
+.gcol{width:11px;min-width:11px;max-width:11px;padding:1px 0;text-align:center}
 .tfoot td{background:#f0fdf4;font-weight:700;border-top:2px solid #9ca3af}
 h2{font-size:8px;margin:10px 0 6px;border-bottom:1px solid #d1d5db;padding-bottom:3px}
 </style>
@@ -6979,7 +6980,7 @@ h2{font-size:8px;margin:10px 0 6px;border-bottom:1px solid #d1d5db;padding-botto
 <tbody>${satirlar}</tbody>
 <tfoot><tr class="tfoot">
   <td><b>TOPLAM</b></td>
-  ${Array(gunler.length).fill('<td></td>').join('')}
+  ${Array(gunler.length).fill('<td class="gcol"></td>').join('')}
   <td style="text-align:center"><b style="color:#065f46">${topX}X</b> <b style="color:#1e40af">${topI}İ</b> <b style="color:#991b1b">${topG}G</b>${topMesai > 0 ? ` <b style="color:#b45309">${topMesai}h</b>` : ''}</td>
   <td style="text-align:right;color:#065f46">${toplamStr}</td>
   <td></td>
