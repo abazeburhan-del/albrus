@@ -2001,6 +2001,20 @@ ipcMain.handle('personeller:ekle', (_, d) => {
   return r;
 });
 
+ipcMain.handle('personeller:import', (_, { satirlar }) => {
+  let eklenen = 0;
+  for (const s of (satirlar || [])) {
+    if (!s.ad || !String(s.ad).trim()) continue;
+    insertAndGet('personeller',
+      'INSERT INTO personeller (ad, soyad, pozisyon, telefon, ise_giris, maas, para_birimi, durum) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [String(s.ad).trim(), s.soyad ?? '', s.pozisyon ?? '', s.telefon ?? '', s.ise_giris ?? '',
+       Number(s.maas) || 0, s.para_birimi || 'USD', 'aktif']);
+    eklenen++;
+  }
+  saveDb();
+  return { ok: true, eklenen };
+});
+
 ipcMain.handle('personeller:guncelle', (_, id, d) => {
   run('UPDATE personeller SET ad=?, soyad=?, pozisyon=?, telefon=?, ise_giris=?, maas=?, para_birimi=?, durum=? WHERE id=?',
     [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif', id]);

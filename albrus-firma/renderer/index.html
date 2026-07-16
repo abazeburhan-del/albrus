@@ -528,6 +528,7 @@
       <div class="page-title" style="margin:0">Personel</div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="openPersonelEkle()">+ Yeni Personel</button>
+        <button class="btn btn-ghost" onclick="personelImportBaslat()">Excel'den Aktar</button>
         <button class="btn btn-ghost" onclick="openTopluPuantaj()">Toplu Giriş</button>
         <button class="btn btn-ghost" onclick="topluPuantajPdf()">Toplu Puantaj PDF</button>
         <button class="btn btn-ghost" onclick="openPuantaj()" id="btn-puantaj" disabled>Puantaj</button>
@@ -1504,6 +1505,31 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('m-stok-import')">İptal</button>
       <button class="btn btn-primary" onclick="stokImportUygula()">Aktar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Excel'den Personel Aktar Modal -->
+<div class="overlay" id="m-personel-import">
+  <div class="modal" style="max-width:900px;width:94vw">
+    <div class="modal-title">Excel'den Personel Aktar</div>
+    <div id="personel-imp-dosya" style="font-size:12px;color:var(--dim);margin-bottom:10px"></div>
+    <div class="row3">
+      <div class="fg"><label>Sayfa</label><select id="personel-imp-sheet" onchange="personelImportSheetChange()"></select></div>
+      <div class="fg"><label>Başlık Satırı (no)</label><input type="number" id="personel-imp-header" value="1" min="1" oninput="personelImportRender()"></div>
+      <div class="fg"><label style="display:block">&nbsp;</label>
+        <label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="personel-imp-para-iqd" onchange="personelImportRender()"> Maaşlar IQD (varsayılan USD)</label>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--dim);margin:6px 0">Her alan için Excel sütununu seç (Ad zorunlu):</div>
+    <div class="row3" id="personel-imp-maps"></div>
+    <div style="font-size:12px;font-weight:600;margin:12px 0 4px">Önizleme (ilk 8 satır)</div>
+    <div style="overflow:auto;max-height:30vh;border:1px solid var(--border);border-radius:6px">
+      <table style="width:100%;border-collapse:collapse;font-size:11px" id="personel-imp-preview"></table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('m-personel-import')">İptal</button>
+      <button class="btn btn-primary" onclick="personelImportUygula()">Aktar</button>
     </div>
   </div>
 </div>
@@ -7350,6 +7376,122 @@ async function stokImportUygula() {
   closeModal('m-stok-import');
   alert(r.eklenen + ' stok aktarıldı.');
   loadStok();
+}
+
+// ── Personel Excel'den Aktar ──
+let _personelImpData = null;
+const PERSONEL_ALANLAR = [
+  { key:'ad',       lbl:'Ad *' },
+  { key:'soyad',    lbl:'Soyad' },
+  { key:'pozisyon', lbl:'Pozisyon' },
+  { key:'telefon',  lbl:'Telefon' },
+  { key:'ise_giris',lbl:'İşe Giriş Tarihi' },
+  { key:'maas',     lbl:'Temel Maaş' },
+];
+async function personelImportBaslat() {
+  let r;
+  try { r = await inv('xlsx:onizle'); } catch (e) { alert(e.message); return; }
+  if (!r || r.iptal) return;
+  _personelImpData = r;
+  document.getElementById('personel-imp-dosya').textContent = 'Dosya: ' + r.dosya;
+  document.getElementById('personel-imp-sheet').innerHTML = r.sheets.map((s,i)=>`<option value="${i}">${s.name}</option>`).join('');
+  document.getElementById('personel-imp-para-iqd').checked = false;
+  personelImportSheetChange();
+  openModal('m-personel-import');
+}
+function personelImpAktifRows() {
+  const si = Number(document.getElementById('personel-imp-sheet').value) || 0;
+  return _personelImpData.sheets[si]?.rows || [];
+}
+function personelImportSheetChange() {
+  const rows = personelImpAktifRows();
+  let best = 1, bestScore = 0;
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const textCells = (rows[i]||[]).filter(c => c && isNaN(parseFloat(String(c).replace(/[^\d.,-]/g,''))) && String(c).trim().length > 1).length;
+    if (textCells > bestScore) { bestScore = textCells; best = i + 1; }
+  }
+  document.getElementById('personel-imp-header').value = best;
+  const maxCols = rows.reduce((m,r)=>Math.max(m, (r||[]).length), 0);
+  const headerRow = rows[best-1] || [];
+  const opts = ['<option value="-1">— yok —</option>'].concat(
+    Array.from({length:maxCols}, (_,c) => `<option value="${c}">${sutunHarf(c)} — ${(headerRow[c]||'').slice(0,24)}</option>`)
+  ).join('');
+  const guess = (keywords, exc=[]) => {
+    for (let c=0;c<maxCols;c++){ const h=(headerRow[c]||'').toLowerCase();
+      if(exc.some(k=>h.includes(k))) continue;
+      if(keywords.some(k=>h.includes(k))) return c; }
+    return -1;
+  };
+  const tahmin = {
+    ad:        guess(['ad soyad','adı soyadı','isim','ad','name'], ['soyad','soyadı']),
+    soyad:     guess(['soyad','soyadı','surname','last']),
+    pozisyon:  guess(['pozisyon','görev','gorev','ünvan','unvan','position','title','meslek']),
+    telefon:   guess(['telefon','tel','gsm','phone','cep']),
+    ise_giris: guess(['işe giriş','ise giris','giriş tarih','giris tarih','başlangıç','baslangic','hire','start']),
+    maas:      guess(['maaş','maas','ücret','ucret','salary','wage','yevmiye']),
+  };
+  const gecerli = (x) => x != null && x >= 0 && x < maxCols;
+  document.getElementById('personel-imp-maps').innerHTML = PERSONEL_ALANLAR.map(a => {
+    const sec = gecerli(tahmin[a.key]) ? tahmin[a.key] : -1;
+    return `<div class="fg"><label>${a.lbl}</label>
+      <select id="personel-map-${a.key}" onchange="personelImportRender()">${opts.replace(`value="${sec}"`, `value="${sec}" selected`)}</select>
+    </div>`;
+  }).join('');
+  personelImportRender();
+}
+function personelMapSecimleri() {
+  const m = {};
+  PERSONEL_ALANLAR.forEach(a => { const v = Number(document.getElementById('personel-map-'+a.key)?.value); m[a.key] = isNaN(v)?-1:v; });
+  return m;
+}
+function personelSatirlariCikar() {
+  const rows = personelImpAktifRows();
+  const header = Math.max(1, Number(document.getElementById('personel-imp-header').value)||1);
+  const m = personelMapSecimleri();
+  const para = document.getElementById('personel-imp-para-iqd')?.checked ? 'IQD' : 'USD';
+  const al = (r, idx) => idx>=0 ? (r[idx] ?? '') : '';
+  const sayi = (v) => parseFloat(String(v).replace(/[^\d.,-]/g,'').replace(/\.(?=\d{3}\b)/g,'').replace(',','.')) || 0;
+  const out = [];
+  for (let i = header; i < rows.length; i++) {
+    const r = rows[i] || [];
+    let ad = String(al(r, m.ad)).trim();
+    let soyad = String(al(r, m.soyad)).trim();
+    // Ad-soyad tek sütundaysa (soyad eşlenmemiş) son kelimeyi soyad yap
+    if (!soyad && m.soyad < 0 && ad.includes(' ')) {
+      const parcalar = ad.split(/\s+/);
+      soyad = parcalar.pop();
+      ad = parcalar.join(' ');
+    }
+    if (!ad) continue;
+    out.push({ ad, soyad, pozisyon: String(al(r, m.pozisyon)).trim(),
+      telefon: String(al(r, m.telefon)).trim(), ise_giris: String(al(r, m.ise_giris)).trim(),
+      maas: sayi(al(r, m.maas)), para_birimi: para });
+  }
+  return out;
+}
+function personelImportRender() {
+  const sat = personelSatirlariCikar();
+  const head = `<thead><tr style="background:rgba(0,0,0,.05)">
+    <th style="padding:4px 6px;text-align:left">Ad</th><th style="padding:4px 6px;text-align:left">Soyad</th>
+    <th style="padding:4px 6px;text-align:left">Pozisyon</th><th style="padding:4px 6px;text-align:left">Telefon</th>
+    <th style="padding:4px 6px;text-align:left">İşe Giriş</th><th style="padding:4px 6px;text-align:right">Maaş</th></tr></thead>`;
+  const body = sat.slice(0,8).map(s=>`<tr style="border-top:1px solid var(--border)">
+    <td style="padding:3px 6px">${s.ad}</td><td style="padding:3px 6px">${s.soyad||'—'}</td>
+    <td style="padding:3px 6px">${s.pozisyon||'—'}</td><td style="padding:3px 6px">${s.telefon||'—'}</td>
+    <td style="padding:3px 6px">${s.ise_giris||'—'}</td>
+    <td style="padding:3px 6px;text-align:right">${s.maas?fmtTutar(Math.round(s.maas)):'—'}</td>
+  </tr>`).join('');
+  document.getElementById('personel-imp-preview').innerHTML = head + `<tbody>${body || '<tr><td colspan="6" style="padding:8px;color:var(--dim)">Eşleşen satır yok — Ad sütununu ve başlık satırını kontrol edin.</td></tr>'}</tbody>`
+    + `<tfoot><tr><td colspan="6" style="padding:6px;font-size:11px;color:var(--dim)">Toplam ${sat.length} personel</td></tr></tfoot>`;
+}
+async function personelImportUygula() {
+  const sat = personelSatirlariCikar();
+  if (!sat.length) { alert('Aktarılacak personel yok. Ad sütununu ve başlık satırını kontrol edin.'); return; }
+  if (!confirm(`${sat.length} personel aktarılacak. Devam edilsin mi?`)) return;
+  const r = await inv('personeller:import', { satirlar: sat });
+  closeModal('m-personel-import');
+  alert(r.eklenen + ' personel aktarıldı.');
+  loadPersonel();
 }
 
 // — Poz CRUD —
