@@ -310,6 +310,8 @@ async function initDb() {
   try { db.run("ALTER TABLE kasa_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
   try { db.run("ALTER TABLE banka_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
   try { db.run("ALTER TABLE personeller ADD COLUMN proje_id INTEGER"); } catch (_) {}
+  try { db.run("ALTER TABLE maas_odemeleri ADD COLUMN donem_bas TEXT DEFAULT ''"); } catch (_) {}
+  try { db.run("ALTER TABLE maas_odemeleri ADD COLUMN donem_bit TEXT DEFAULT ''"); } catch (_) {}
 
   // Stok grupları
   db.run(`
@@ -2056,14 +2058,15 @@ ipcMain.handle('maas:odeme:ekle', (_, d) => {
   const net = Math.max(0, brut + prim - kesinti);
 
   const odeme = insertAndGet('maas_odemeleri',
-    'INSERT INTO maas_odemeleri (personel_id, donem, tarih, brut, kesinti, prim, kesinti_neden, net, para_birimi, odeme_turu, kaynak_id, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO maas_odemeleri (personel_id, donem, tarih, brut, kesinti, prim, kesinti_neden, net, para_birimi, odeme_turu, kaynak_id, aciklama, donem_bas, donem_bit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [d.personel_id, d.donem, d.tarih, brut, kesinti, prim, d.kesinti_neden ?? '', net,
      d.para_birimi ?? 'USD', d.odeme_turu ?? 'kasa',
-     d.kaynak_id ? Number(d.kaynak_id) : null, d.aciklama ?? '']
+     d.kaynak_id ? Number(d.kaynak_id) : null, d.aciklama ?? '', d.donem_bas ?? '', d.donem_bit ?? '']
   );
 
   const belgeNo = `MAA-${String(odeme.id).padStart(4, '0')}`;
-  const aciklama = `Maaş — ${personel.ad} ${personel.soyad} (${d.donem})`;
+  const donemMetin = (d.donem_bas && d.donem_bit) ? `${d.donem_bas} – ${d.donem_bit}` : d.donem;
+  const aciklama = `Maaş — ${personel.ad} ${personel.soyad} (${donemMetin})`;
 
   if (d.odeme_turu === 'banka' && d.kaynak_id) {
     const hesap = getOne('SELECT * FROM banka_hesaplari WHERE id = ?', [Number(d.kaynak_id)]);

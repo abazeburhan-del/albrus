@@ -1734,7 +1734,18 @@
     <div class="modal-title">Maaş Öde</div>
     <div id="m-maas-personel-bilgi" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;"></div>
     <div class="row2">
-      <div class="fg"><label>Dönem (YYYY-AA)</label><input type="text" id="maas-donem" placeholder="2026-06" maxlength="7"></div>
+      <div class="fg"><label>Dönem Tipi</label>
+        <select id="maas-donem-tip" onchange="donemPresetUygula()">
+          <option value="ay">Takvim Ayı (1 – Ay Sonu)</option>
+          <option value="orta">Ay Ortası (15 – 15)</option>
+          <option value="ozel">Özel Aralık</option>
+        </select>
+      </div>
+      <div class="fg"><label>Ay (YYYY-AA)</label><input type="text" id="maas-donem-ay" placeholder="2026-06" maxlength="7" oninput="donemPresetUygula()"></div>
+    </div>
+    <div class="row3">
+      <div class="fg"><label>Dönem Başlangıç</label><input type="text" id="maas-donem-bas" placeholder="2026-06-01" maxlength="10" oninput="onTarihInput(this)"></div>
+      <div class="fg"><label>Dönem Bitiş</label><input type="text" id="maas-donem-bit" placeholder="2026-06-30" maxlength="10" oninput="onTarihInput(this)"></div>
       <div class="fg"><label>Ödeme Tarihi</label><input type="text" id="maas-tarih" placeholder="2026-06-09" maxlength="10" oninput="onTarihInput(this)"></div>
     </div>
     <div class="row3">
@@ -5590,7 +5601,7 @@ async function loadMaasOdemeleri() {
       <tbody>
         ${list.map(o => `
           <tr>
-            <td><b>${o.donem}</b></td>
+            <td><b>${o.donem_bas && o.donem_bit ? fmtDate(o.donem_bas) + ' – ' + fmtDate(o.donem_bit) : o.donem}</b></td>
             <td>${o.personel_ad}${o.personel_soyad ? ' ' + o.personel_soyad : ''}
               <div style="font-size:11px;color:var(--dim)">${o.pozisyon || ''}</div></td>
             <td>${fmtDate(o.tarih)}</td>
@@ -5621,7 +5632,7 @@ async function maasOdemeRaporPdf() {
   const satirlar = list.map((o, i) => {
     if (o.para_birimi === 'USD') topUSD += o.net; else topIQD += o.net;
     return `<tr style="background:${i%2===0?'#fff':'#f9f9f9'}">
-      <td>${o.donem}</td>
+      <td>${o.donem_bas && o.donem_bit ? fmtDate(o.donem_bas) + ' – ' + fmtDate(o.donem_bit) : o.donem}</td>
       <td><b>${o.personel_ad}${o.personel_soyad?' '+o.personel_soyad:''}</b>
         ${o.pozisyon?`<div style="font-size:7px;color:#888">${o.pozisyon}</div>`:''}
       </td>
@@ -5767,8 +5778,18 @@ async function openTopluMaasOde() {
   });
 
   let icerik = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-    <div class="fg" style="flex:1;min-width:110px"><label>Dönem</label>
-      <input type="month" id="tmo-donem" value="${donem}"></div>
+    <div class="fg" style="flex:1;min-width:130px"><label>Dönem Tipi</label>
+      <select id="tmo-donem-tip" onchange="topluDonemPreset()">
+        <option value="ay">Takvim Ayı (1 – Ay Sonu)</option>
+        <option value="orta">Ay Ortası (15 – 15)</option>
+        <option value="ozel">Özel Aralık</option>
+      </select></div>
+    <div class="fg" style="flex:1;min-width:110px"><label>Ay</label>
+      <input type="month" id="tmo-donem" value="${donem}" onchange="topluDonemPreset()"></div>
+    <div class="fg" style="flex:1;min-width:110px"><label>Dönem Başlangıç</label>
+      <input type="date" id="tmo-donem-bas"></div>
+    <div class="fg" style="flex:1;min-width:110px"><label>Dönem Bitiş</label>
+      <input type="date" id="tmo-donem-bit"></div>
     <div class="fg" style="flex:1;min-width:110px"><label>Ödeme Tarihi</label>
       <input type="date" id="tmo-tarih" value="${bugun}"></div>
   </div>`;
@@ -5800,14 +5821,43 @@ async function openTopluMaasOde() {
 
   _topluOdeData = { aktifler, gruplar };
   document.getElementById('toplu-ode-icerik').innerHTML = icerik;
+  topluDonemPreset();
   openModal('m-toplu-maas-ode');
+}
+
+function topluDonemPreset() {
+  const tip = document.getElementById('tmo-donem-tip')?.value;
+  if (!tip || tip === 'ozel') return;
+  const ay = document.getElementById('tmo-donem').value;   // YYYY-AA
+  const m = ay.match(/^(\d{4})-(\d{1,2})$/);
+  if (!m) return;
+  const yil = Number(m[1]), aylik = Number(m[2]);
+  const iki = n => String(n).padStart(2, '0');
+  let bas, bit;
+  if (tip === 'orta') {
+    const sonrakiYil = aylik === 12 ? yil + 1 : yil;
+    const sonrakiAy  = aylik === 12 ? 1 : aylik + 1;
+    bas = `${yil}-${iki(aylik)}-15`;
+    bit = `${sonrakiYil}-${iki(sonrakiAy)}-15`;
+  } else {
+    const sonGun = new Date(yil, aylik, 0).getDate();
+    bas = `${yil}-${iki(aylik)}-01`;
+    bit = `${yil}-${iki(aylik)}-${iki(sonGun)}`;
+  }
+  document.getElementById('tmo-donem-bas').value = bas;
+  document.getElementById('tmo-donem-bit').value = bit;
 }
 
 async function saveTopluMaasOde() {
   if (!_topluOdeData) return;
   const donem = document.getElementById('tmo-donem').value;
+  const donemBas = document.getElementById('tmo-donem-bas').value;
+  const donemBit = document.getElementById('tmo-donem-bit').value;
   const tarih = document.getElementById('tmo-tarih').value;
-  if (!donem || !tarih) { alert('Dönem ve tarih zorunludur.'); return; }
+  if (!donemBas || !donemBit) { alert('Dönem başlangıç ve bitiş tarihini girin.'); return; }
+  if (donemBit < donemBas) { alert('Dönem bitişi başlangıçtan önce olamaz.'); return; }
+  if (!tarih) { alert('Ödeme tarihi zorunludur.'); return; }
+  const donemEtiket = `${fmtDate(donemBas)} – ${fmtDate(donemBit)}`;
 
   const hatalar = [];
   for (const p of _topluOdeData.aktifler) {
@@ -5817,12 +5867,13 @@ async function saveTopluMaasOde() {
     const [odeme_turu, kaynak_id] = kaynakVal.split(':');
     try {
       await inv('maas:odeme:ekle', {
-        personel_id: p.id, donem, tarih,
+        personel_id: p.id, donem: donemBas.substring(0, 7),
+        donem_bas: donemBas, donem_bit: donemBit, tarih,
         brut: Math.round(p.net_alacak), kesinti: 0,
         net: Math.round(p.net_alacak),
         para_birimi: pb, odeme_turu,
         kaynak_id: Number(kaynak_id),
-        aciklama: `Toplu maaş ödemesi — ${donem}`,
+        aciklama: `Toplu maaş ödemesi — ${donemEtiket}`,
       });
     } catch (e) { hatalar.push(`${p.ad}: ${e.message}`); }
   }
@@ -5842,7 +5893,9 @@ async function openMaasOde() {
     ${p.maas > 0 ? `<span style="float:right;color:var(--blue)">${fmtTutar(Math.round(p.maas))} ${p.para_birimi}/ay</span>` : ''}
   `;
   const bugun = new Date().toISOString().split('T')[0];
-  document.getElementById('maas-donem').value = bugun.substring(0, 7);
+  document.getElementById('maas-donem-tip').value = 'ay';
+  document.getElementById('maas-donem-ay').value = bugun.substring(0, 7);
+  donemPresetUygula();
   document.getElementById('maas-tarih').value = bugun;
   document.getElementById('maas-brut').value = p.maas > 0 ? fmtTutar(Math.round(p.maas)) : '';
   document.getElementById('maas-prim').value = '';
@@ -5864,6 +5917,31 @@ async function openMaasOde() {
   await onMaasOdemeTuruChange();
   openModal('m-maas-ode');
   setTimeout(() => document.getElementById('maas-brut').focus(), 80);
+}
+
+function donemPresetUygula() {
+  const tip = document.getElementById('maas-donem-tip').value;
+  if (tip === 'ozel') return;   // Özel'de kullanıcı elle girer
+  const ay = document.getElementById('maas-donem-ay').value.trim();
+  const m = ay.match(/^(\d{4})-(\d{1,2})$/);
+  if (!m) return;
+  const yil = Number(m[1]), aylik = Number(m[2]);
+  const iki = n => String(n).padStart(2, '0');
+  let bas, bit;
+  if (tip === 'orta') {
+    // Ayın 15'i → sonraki ayın 15'i
+    const sonrakiYil = aylik === 12 ? yil + 1 : yil;
+    const sonrakiAy  = aylik === 12 ? 1 : aylik + 1;
+    bas = `${yil}-${iki(aylik)}-15`;
+    bit = `${sonrakiYil}-${iki(sonrakiAy)}-15`;
+  } else {
+    // Takvim ayı: 1 → ayın son günü
+    const sonGun = new Date(yil, aylik, 0).getDate();
+    bas = `${yil}-${iki(aylik)}-01`;
+    bit = `${yil}-${iki(aylik)}-${iki(sonGun)}`;
+  }
+  document.getElementById('maas-donem-bas').value = bas;
+  document.getElementById('maas-donem-bit').value = bit;
 }
 
 function hesaplaNet() {
@@ -5896,17 +5974,20 @@ async function onMaasOdemeTuruChange() {
 
 async function saveMaasOdeme() {
   if (!_secilenPersonel) return;
-  const donem = document.getElementById('maas-donem').value.trim();
+  const donemBas = document.getElementById('maas-donem-bas').value.trim();
+  const donemBit = document.getElementById('maas-donem-bit').value.trim();
   const tarih = document.getElementById('maas-tarih').value.trim();
   const brut  = parseTutar('maas-brut');
-  if (!donem || donem.length < 6) { alert('Dönem zorunludur (YYYY-AA).'); return; }
-  if (!tarih || tarih.length < 10) { alert('Tarih zorunludur.'); return; }
+  if (!donemBas || donemBas.length < 10 || !donemBit || donemBit.length < 10) { alert('Dönem başlangıç ve bitiş tarihini girin.'); return; }
+  if (donemBit < donemBas) { alert('Dönem bitişi başlangıçtan önce olamaz.'); return; }
+  if (!tarih || tarih.length < 10) { alert('Ödeme tarihi zorunludur.'); return; }
   if (!brut || brut <= 0) { alert('Brüt maaş sıfırdan büyük olmalıdır.'); return; }
   const kesinti = parseTutar('maas-kesinti');
   const prim    = parseTutar('maas-prim');
+  const donem = donemBas.substring(0, 7);   // filtre/geriye uyum için YYYY-AA
   const d = {
     personel_id: _secilenPersonel.id,
-    donem, tarih, brut, kesinti, prim,
+    donem, donem_bas: donemBas, donem_bit: donemBit, tarih, brut, kesinti, prim,
     kesinti_neden: document.getElementById('maas-kesinti-neden').value,
     net:         Math.max(0, brut + prim - kesinti),
     para_birimi: document.getElementById('maas-para').value,
@@ -6092,7 +6173,7 @@ async function bordroPdf(odemeId) {
       <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:12px;margin-bottom:18px">
         <div><div style="font-size:24px;font-weight:800">${FIRMA}</div>
           <div style="font-size:13px;color:#666">Maaş Pusulası / Bordro</div></div>
-        <div style="text-align:right;font-size:12px;color:#666">Dönem: ${o.donem}<br>Tarih: ${fmtDate(o.tarih)}</div>
+        <div style="text-align:right;font-size:12px;color:#666">Dönem: ${o.donem_bas && o.donem_bit ? fmtDate(o.donem_bas) + ' – ' + fmtDate(o.donem_bit) : o.donem}<br>Tarih: ${fmtDate(o.tarih)}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
         <tr><td style="padding:6px 10px;color:#666;width:140px">Personel</td><td style="padding:6px 10px;font-weight:700">${adSoyad}</td></tr>
