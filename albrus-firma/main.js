@@ -2128,27 +2128,33 @@ ipcMain.handle('puantaj:getir', (_, personel_id, yil, ay) =>
     [personel_id, yil, ay])
 );
 
-// Irak: Cuma günleri ücretli tatil. Ayda çalışma/izin varsa, X/İ işaretli olmayan
-// her Cuma için otomatik günlük ücret (maas/30) alacak kaydı üretir.
+// Aydaki çalışma günü (Cuma hariç) sayısını verir.
+function ayCalismaGunu(yil, ay) {
+  const gunSayisi = new Date(yil, ay, 0).getDate();
+  let n = 0;
+  for (let g = 1; g <= gunSayisi; g++) if (new Date(yil, ay - 1, g).getDay() !== 5) n++;
+  return n;
+}
+
+// Irak: ay her zaman 30 gün kabul edilir; Cuma'lar ücretli tatil.
+// Tam devam eden biri, ay 28/30/31 çekse de 30 gün alır; devamsızlık düşer.
+// (X+İ) + hafta-tatili kredisi = 30 olacak şekilde kredi ekler (toplam 30'u aşmaz).
 function cumaTatilleriniIsle(personel_id, yil, ay) {
   run("DELETE FROM personel_hareketleri WHERE personel_id=? AND yil=? AND ay=? AND kaynak='cuma'",
     [personel_id, yil, ay]);
   const p = getOne('SELECT maas FROM personeller WHERE id=?', [personel_id]);
   if (!p || !(p.maas > 0)) return;
-  const aktif = getOne("SELECT COUNT(*) AS n FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND durum IN ('X','İ')",
-    [personel_id, yil, ay]);
-  if (!aktif || aktif.n === 0) return;   // hiç çalışma yoksa cuma ödeme yok
-  const gunSayisi = new Date(yil, ay, 0).getDate();
+  const presentGun = getOne("SELECT COUNT(*) AS n FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND durum IN ('X','İ')",
+    [personel_id, yil, ay])?.n || 0;
+  if (presentGun === 0) return;                       // hiç çalışma yoksa ödeme yok
+  const isGunu = ayCalismaGunu(yil, ay);              // aydaki çalışma günü (Cuma hariç)
+  let tatilKredi = Math.max(0, 30 - isGunu);          // 30'a tamamlama (hafta tatilleri)
+  tatilKredi = Math.min(tatilKredi, Math.max(0, 30 - presentGun));   // toplam 30'u aşmasın
+  if (tatilKredi <= 0) return;
   const gunluk = p.maas / 30;
-  for (let g = 1; g <= gunSayisi; g++) {
-    if (new Date(yil, ay - 1, g).getDay() !== 5) continue;   // sadece Cuma
-    const d = getOne('SELECT durum FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND gun=?',
-      [personel_id, yil, ay, g]);
-    if (d && (d.durum === 'X' || d.durum === 'İ')) continue;   // zaten ödendi
-    const tarih = `${yil}-${String(ay).padStart(2,'0')}-${String(g).padStart(2,'0')}`;
-    run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, yil, ay, gun, aciklama) VALUES (?,?,?,?,?,?,?,?,?)',
-      [personel_id, tarih, 'alacak', gunluk, 'cuma', yil, ay, g, 'Cuma tatili (ücretli)']);
-  }
+  const tarih = `${yil}-${String(ay).padStart(2,'0')}-${String(new Date(yil, ay, 0).getDate()).padStart(2,'0')}`;
+  run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, yil, ay, gun, aciklama) VALUES (?,?,?,?,?,?,?,?,?)',
+    [personel_id, tarih, 'alacak', tatilKredi * gunluk, 'cuma', yil, ay, null, `Hafta tatili — ${tatilKredi} gün ücretli`]);
 }
 
 ipcMain.handle('puantaj:guncelle', (_, personel_id, yil, ay, gun, durum) => {
@@ -2198,11 +2204,9 @@ ipcMain.handle('puantaj:mesai:guncelle', (_, personel_id, yil, ay, gun, mesai_sa
 
 ipcMain.handle('puantaj:toplu:ozet', (_, yil, ay) => {
   const personeller = getAll('SELECT p.*, pr.ad AS proje_ad FROM personeller p LEFT JOIN projeler pr ON pr.id = p.proje_id ORDER BY pr.ad, p.ad, p.soyad');
-  personeller.forEach(p => cumaTatilleriniIsle(p.id, yil, ay));   // Cuma tatillerini mutabık kıl
+  personeller.forEach(p => cumaTatilleriniIsle(p.id, yil, ay));   // hafta tatillerini mutabık kıl
   saveDb();
-  const gunSayisi = new Date(yil, ay, 0).getDate();
-  const cumaGunleri = [];
-  for (let g = 1; g <= gunSayisi; g++) if (new Date(yil, ay - 1, g).getDay() === 5) cumaGunleri.push(g);
+  const isGunu = ayCalismaGunu(yil, ay);   // aydaki çalışma günü (Cuma hariç)
   return personeller.map(p => {
     const gunler = getAll(
       'SELECT gun, durum, COALESCE(mesai_saat,0) as mesai_saat FROM puantaj WHERE personel_id=? AND yil=? AND ay=? ORDER BY gun',
@@ -2220,11 +2224,13 @@ ipcMain.handle('puantaj:toplu:ozet', (_, yil, ay) => {
     const saatlik = gunluk / 9;
     const mesaiToplamSaat = gunler.reduce((s, g) => s + (g.mesai_saat || 0), 0);
     const mesai_ucreti = mesaiToplamSaat * saatlik;
-    // Ücretli Cuma sayısı: X/İ olmayan cumalar (çalışma varsa)
-    const cumaOdenen = (x + iz) > 0
-      ? cumaGunleri.filter(g => durumMap[g] !== 'X' && durumMap[g] !== 'İ').length : 0;
-    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik, cuma_gun: cumaOdenen,
-             net_kazanc: (x + iz + cumaOdenen) * gunluk + mesai_ucreti,
+    // Hafta tatili kredisi: (X+İ) + kredi = 30 (çalışma varsa), toplam 30'u aşmaz
+    const present = x + iz;
+    let tatilKredi = present > 0 ? Math.max(0, 30 - isGunu) : 0;
+    tatilKredi = Math.min(tatilKredi, Math.max(0, 30 - present));
+    const odenenGun = present + tatilKredi;
+    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik, cuma_gun: tatilKredi, odenen_gun: odenenGun,
+             net_kazanc: odenenGun * gunluk + mesai_ucreti,
              mesai_saat_toplam: mesaiToplamSaat, mesai_ucreti, durumMap, mesaiMap };
   });
 });

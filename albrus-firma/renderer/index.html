@@ -1881,7 +1881,7 @@
         <b style="color:#16a34a">X</b> Çalıştı &nbsp;
         <b style="color:#dc2626">G</b> Gelmedi &nbsp;
         <b style="color:#2563eb">İ</b> İzin &nbsp;
-        <b style="color:#7c3aed">C</b> Cuma (ücretli)
+        <b style="color:#7c3aed">+T</b> Hafta tatili (30'a tamamlama)
       </span>
       <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="closeModal('m-toplu-puantaj')">Kapat</button>
     </div>
@@ -6495,7 +6495,7 @@ async function topluPuantajPdf() {
       const mesaiTag = (durum === 'X' && mesai > 0) ? `<div style="font-size:5px;color:#b45309;font-weight:700">⏱${mesai}h</div>` : '';
       gunCells += `<div style="text-align:center;padding:2px 1px;border:1px solid #e5e7eb;border-radius:2px;background:${bg};color:${color};font-weight:700"><div style="font-size:5px;color:#aaa">${g}</div><div style="font-size:8px;min-height:10px">${durum}</div>${mesaiTag}</div>`;
     }
-    const ozet = `<b style="color:#065f46">${p.x_gun}X</b> <b style="color:#1e40af">${p.i_gun}İ</b> <b style="color:#991b1b">${p.g_gun}G</b>${p.cuma_gun > 0 ? ` <b style="color:#7c3aed">${p.cuma_gun}C</b>` : ''}${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(Math.round(p.net_kazanc))} ${pb}</b>`;
+    const ozet = `<b style="color:#065f46">${p.x_gun}X</b> <b style="color:#1e40af">${p.i_gun}İ</b> <b style="color:#991b1b">${p.g_gun}G</b>${p.cuma_gun > 0 ? ` <b style="color:#7c3aed">+${p.cuma_gun}T</b>` : ''}${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(Math.round(p.net_kazanc))} ${pb}</b>`;
     bireyselGridler += `<div style="break-inside:avoid;margin-bottom:8px">
       <div style="font-size:7px;font-weight:700;margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">${adSoyad} &nbsp;<span style="font-weight:400">${ozet}</span></div>
       <div style="display:grid;grid-template-columns:repeat(${gunSayisi},1fr);gap:2px">${gunCells}</div>
@@ -6702,28 +6702,26 @@ function renderTopluPuantajGrid() {
     }
     const x  = Object.values(_tpData[p.id] || {}).filter(d => d === 'X').length;
     const iz = Object.values(_tpData[p.id] || {}).filter(d => d === 'İ').length;
-    // Ücretli Cuma sayısı ve kesinti günü (Cuma-G düşülmez) — gün bazında
-    let cumaOdenen = 0, kesintiGun = 0;
-    for (let g = 1; g <= gunSayisi; g++) {
-      const cuma = new Date(_tpYil, _tpAy - 1, g).getDay() === 5;
-      const d = _tpData[p.id]?.[g] || '';
-      if (cuma) { if (d !== 'X' && d !== 'İ') cumaOdenen++; }
-      else if (d === 'G') kesintiGun++;
-    }
-    if ((x + iz) === 0) cumaOdenen = 0;   // hiç çalışma yoksa cuma ödeme yok
     const gg = Object.values(_tpData[p.id] || {}).filter(d => d === 'G').length;
+    // Aydaki çalışma günü (Cuma hariç) — 30'a tamamlama için
+    let isGunu = 0;
+    for (let g = 1; g <= gunSayisi; g++) if (new Date(_tpYil, _tpAy - 1, g).getDay() !== 5) isGunu++;
+    const present = x + iz;
+    let tatilKredi = present > 0 ? Math.max(0, 30 - isGunu) : 0;
+    tatilKredi = Math.min(tatilKredi, Math.max(0, 30 - present));
+    const odenenGun = present + tatilKredi;        // toplam ödenen gün (max 30)
     const mesaiToplam = Object.values(_tpMesai[p.id] || {}).reduce((s, v) => s + v, 0);
     const gunluk  = p.maas > 0 ? p.maas / 30 : 0;
     const saatlik = gunluk / 9;
-    const alacak  = Math.round((x + iz + cumaOdenen) * gunluk + mesaiToplam * saatlik);
-    const kesinti = Math.round(kesintiGun * gunluk);
+    const alacak  = Math.round(odenenGun * gunluk + mesaiToplam * saatlik);
+    const kesinti = Math.round(Math.max(0, 30 - odenenGun) * gunluk);   // 30'dan eksik gün
     const pb = p.para_birimi || '';
-    const maasKazancTp = Math.round((x + iz + cumaOdenen) * gunluk);
+    const maasKazancTp = Math.round(odenenGun * gunluk);
     const mesaiUcretTp = Math.round(mesaiToplam * saatlik);
     toplamlar[pb] = (toplamlar[pb] || 0) + alacak;
     tbody += `<td style="${tdOzetStyle};white-space:nowrap">
-      <span style="margin-right:6px"><b style="color:#16a34a">${x}X</b> <b style="color:#2563eb">${iz}İ</b> <b style="color:#dc2626">${gg}G</b>${cumaOdenen > 0 ? ` <b style="color:#7c3aed">${cumaOdenen}C</b>` : ''}</span>
-      <span style="color:var(--text-muted);margin-right:6px">Maaş: <b style="color:#16a34a">+${fmtTutar(maasKazancTp)}</b></span>
+      <span style="margin-right:6px"><b style="color:#16a34a">${x}X</b> <b style="color:#2563eb">${iz}İ</b> <b style="color:#dc2626">${gg}G</b>${tatilKredi > 0 ? ` <b style="color:#7c3aed">+${tatilKredi}T</b>` : ''}</span>
+      <span style="color:var(--text-muted);margin-right:6px">${odenenGun} gün: <b style="color:#16a34a">+${fmtTutar(maasKazancTp)}</b></span>
       ${mesaiToplam > 0 ? `<span style="color:#d97706;margin-right:6px">⏱${mesaiToplam}h: <b>+${fmtTutar(mesaiUcretTp)}</b></span>` : ''}
       ${kesinti > 0 ? `<span style="color:#dc2626;margin-right:6px">-${fmtTutar(kesinti)}</span>` : ''}
       <b style="color:#16a34a;border-left:1px solid var(--border);padding-left:6px">= ${fmtTutar(alacak)} ${pb}</b>
@@ -6852,26 +6850,24 @@ async function tpPdf() {
     const x  = Object.values(_tpData[p.id] || {}).filter(d => d === 'X').length;
     const iz = Object.values(_tpData[p.id] || {}).filter(d => d === 'İ').length;
     const gg = Object.values(_tpData[p.id] || {}).filter(d => d === 'G').length;
-    let cumaOdenen = 0, kesintiGun = 0;
-    for (let g = 1; g <= gunSayisi; g++) {
-      const cuma = new Date(_tpYil, _tpAy - 1, g).getDay() === 5;
-      const d = _tpData[p.id]?.[g] || '';
-      if (cuma) { if (d !== 'X' && d !== 'İ') cumaOdenen++; }
-      else if (d === 'G') kesintiGun++;
-    }
-    if ((x + iz) === 0) cumaOdenen = 0;
+    let isGunu = 0;
+    for (let g = 1; g <= gunSayisi; g++) if (new Date(_tpYil, _tpAy - 1, g).getDay() !== 5) isGunu++;
+    const present = x + iz;
+    let tatilKredi = present > 0 ? Math.max(0, 30 - isGunu) : 0;
+    tatilKredi = Math.min(tatilKredi, Math.max(0, 30 - present));
+    const odenenGun = present + tatilKredi;
     const mesaiToplam = Object.values(_tpMesai[p.id] || {}).reduce((s, v) => s + v, 0);
     const gunluk  = p.maas > 0 ? p.maas / 30 : 0;
     const saatlik = gunluk / 9;
-    const alacak  = Math.round((x + iz + cumaOdenen) * gunluk + mesaiToplam * saatlik);
-    const kesinti = Math.round(kesintiGun * gunluk);
+    const alacak  = Math.round(odenenGun * gunluk + mesaiToplam * saatlik);
+    const kesinti = Math.round(Math.max(0, 30 - odenenGun) * gunluk);
     topX += x; topI += iz; topG += gg; topMesai += mesaiToplam;
     topAlacak[pb] = (topAlacak[pb] || 0) + alacak;
 
     satirlar += `<tr style="${i % 2 === 1 ? 'background:#f9fafb' : ''}">
       <td style="white-space:nowrap;font-weight:600">${adSoyad}</td>
       ${tdGunler}
-      <td style="text-align:right;white-space:nowrap"><b style="color:#065f46">${x}X</b> <b style="color:#1e40af">${iz}İ</b> <b style="color:#991b1b">${gg}G</b>${cumaOdenen > 0 ? ` <b style="color:#7c3aed">${cumaOdenen}C</b>` : ''}${mesaiToplam > 0 ? ` <b style="color:#b45309">${mesaiToplam}h</b>` : ''}</td>
+      <td style="text-align:right;white-space:nowrap"><b style="color:#065f46">${x}X</b> <b style="color:#1e40af">${iz}İ</b> <b style="color:#991b1b">${gg}G</b>${tatilKredi > 0 ? ` <b style="color:#7c3aed">+${tatilKredi}T</b>` : ''}${mesaiToplam > 0 ? ` <b style="color:#b45309">${mesaiToplam}h</b>` : ''}</td>
       <td style="text-align:right;white-space:nowrap;color:#065f46;font-weight:700">+${fmtTutar(alacak)} ${pb}</td>
       <td style="text-align:right;white-space:nowrap;color:#991b1b">${kesinti > 0 ? '-'+fmtTutar(kesinti)+' '+pb : '—'}</td>
     </tr>`;
@@ -6892,7 +6888,7 @@ async function tpPdf() {
         ${mesaiTag}
       </div>`;
     }
-    const ozet = `<b style="color:#065f46">${x}X</b> <b style="color:#1e40af">${iz}İ</b> <b style="color:#991b1b">${gg}G</b>${cumaOdenen > 0 ? ` <b style="color:#7c3aed">${cumaOdenen}C</b>` : ''}${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(alacak)} ${pb}</b>`;
+    const ozet = `<b style="color:#065f46">${x}X</b> <b style="color:#1e40af">${iz}İ</b> <b style="color:#991b1b">${gg}G</b>${tatilKredi > 0 ? ` <b style="color:#7c3aed">+${tatilKredi}T</b>` : ''}${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(alacak)} ${pb}</b>`;
     bireyselGridler += `<div style="break-inside:avoid;margin-bottom:8px">
       <div style="font-size:7px;font-weight:700;margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">
         ${adSoyad} &nbsp; <span style="font-weight:400">${ozet}</span>
