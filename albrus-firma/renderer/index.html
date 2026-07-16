@@ -6183,35 +6183,50 @@ async function personelEkstrePdf() {
     const bo = h.tur === 'borc' ? h.tutar : 0;
     bakiye += al - bo;
     return `<tr>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee">${fmtDate(h.tarih)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee">${KAYNAK_ETIKET[h.kaynak] || h.kaynak}${h.aciklama ? ' — ' + h.aciklama : ''}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#16a34a">${al ? fmtTutar(Math.round(al)) : '—'}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;color:#dc2626">${bo ? fmtTutar(Math.round(bo)) : '—'}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${fmtTutar(Math.round(bakiye))}</td>
+      <td style="white-space:nowrap">${fmtDate(h.tarih)}</td>
+      <td>${KAYNAK_ETIKET[h.kaynak] || h.kaynak}${h.aciklama ? ' — ' + h.aciklama : ''}</td>
+      <td style="text-align:right;color:#16a34a">${al ? fmtTutar(Math.round(al)) : '—'}</td>
+      <td style="text-align:right;color:#dc2626">${bo ? fmtTutar(Math.round(bo)) : '—'}</td>
+      <td style="text-align:right;font-weight:600">${fmtTutar(Math.round(bakiye))}</td>
     </tr>`;
-  }).join('') : '<tr><td colspan="5" style="padding:10px;color:#888">Hareket yok</td></tr>';
+  }).join('') : '<tr><td colspan="5" style="color:#888">Hareket yok</td></tr>';
   const net = eks.net;
+  const satirSayisi = eks.hareketler.length;
+  // Satır çoksa fontu küçült — tek sayfaya sığsın
+  const fs = satirSayisi > 34 ? 8 : satirSayisi > 24 ? 9 : 10;
+  const pad = satirSayisi > 34 ? '2px 6px' : '3px 7px';
   const html = `
-    <div style="padding:30px 36px;font-family:'Segoe UI',sans-serif;color:#111">
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #111;padding-bottom:10px;margin-bottom:12px">
-        <div><div style="font-size:22px;font-weight:800">${FIRMA}</div>
-          <div style="font-size:13px;color:#666">Personel Hesap Ekstresi</div></div>
-        <div style="text-align:right;font-size:12px;color:#666">Tarih: ${bugun}</div>
-      </div>
-      <div style="font-size:16px;font-weight:700">${adSoyad}</div>
-      <div style="font-size:12px;color:#666;margin-bottom:14px">${p.pozisyon || ''} ${p.maas>0?'· Maaş: '+fmtTutar(Math.round(p.maas))+' '+p.para_birimi+'/ay':''}</div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:14px">
-        <thead><tr style="background:#f3f3f3">
-          <th style="padding:6px 8px;text-align:left">Tarih</th><th style="padding:6px 8px;text-align:left">İşlem</th>
-          <th style="padding:6px 8px;text-align:right">Hak Ediş</th><th style="padding:6px 8px;text-align:right">Ödeme</th>
-          <th style="padding:6px 8px;text-align:right">Bakiye</th>
-        </tr></thead><tbody>${rows}</tbody>
-      </table>
-      <table style="width:300px;margin-left:auto;border-collapse:collapse;font-size:13px">
-        <tr><td style="padding:5px 8px">Toplam Hak Ediş</td><td style="padding:5px 8px;text-align:right;color:#16a34a">${fmtTutar(Math.round(eks.alacak))}</td></tr>
-        <tr><td style="padding:5px 8px">Toplam Ödeme/Avans</td><td style="padding:5px 8px;text-align:right;color:#dc2626">${fmtTutar(Math.round(eks.borc))}</td></tr>
-        <tr><td style="padding:6px 8px;border-top:2px solid #111;font-weight:700">${net>=0?'Kalan Alacak':'Fazla Ödeme'}</td><td style="padding:6px 8px;border-top:2px solid #111;text-align:right;font-weight:800">${fmtTutar(Math.round(Math.abs(net)))} ${p.para_birimi}</td></tr>
-      </table>
+    <style>
+      @page { size: A4; margin: 12mm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; }
+      .ek-tab { width: 100%; border-collapse: collapse; font-size: ${fs}px; }
+      .ek-tab th, .ek-tab td { padding: ${pad}; border-bottom: 1px solid #eee; }
+      .ek-tab thead th { background: #f3f3f3; border-bottom: 1px solid #ccc; }
+      tr { page-break-inside: avoid; }
+    </style>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:8px">
+      <div><div style="font-size:18px;font-weight:800">${FIRMA}</div>
+        <div style="font-size:11px;color:#666">Personel Hesap Ekstresi</div></div>
+      <div style="text-align:right;font-size:11px;color:#666">Tarih: ${bugun}</div>
+    </div>
+    <div style="font-size:14px;font-weight:700">${adSoyad}</div>
+    <div style="font-size:11px;color:#666;margin-bottom:8px">${p.pozisyon || ''} ${p.maas>0?'· Maaş: '+fmtTutar(Math.round(p.maas))+' '+p.para_birimi+'/ay':''}</div>
+    <table class="ek-tab" style="margin-bottom:10px">
+      <thead><tr>
+        <th style="text-align:left">Tarih</th><th style="text-align:left">İşlem</th>
+        <th style="text-align:right">Hak Ediş</th><th style="text-align:right">Ödeme</th>
+        <th style="text-align:right">Bakiye</th>
+      </tr></thead><tbody>${rows}</tbody>
+    </table>
+    <table style="width:280px;margin-left:auto;border-collapse:collapse;font-size:12px">
+      <tr><td style="padding:4px 8px">Toplam Hak Ediş</td><td style="padding:4px 8px;text-align:right;color:#16a34a">${fmtTutar(Math.round(eks.alacak))}</td></tr>
+      <tr><td style="padding:4px 8px">Toplam Ödeme/Avans</td><td style="padding:4px 8px;text-align:right;color:#dc2626">${fmtTutar(Math.round(eks.borc))}</td></tr>
+      <tr><td style="padding:5px 8px;border-top:2px solid #111;font-weight:700">${net>=0?'Kalan Alacak':'Fazla Ödeme'}</td><td style="padding:5px 8px;border-top:2px solid #111;text-align:right;font-weight:800">${fmtTutar(Math.round(Math.abs(net)))} ${p.para_birimi}</td></tr>
+    </table>
+    <div style="display:flex;justify-content:space-around;margin-top:40px;font-size:11px;color:#444">
+      <div style="text-align:center">____________________________<br><b>Personel İmza</b><br>${adSoyad}</div>
+      <div style="text-align:center">____________________________<br><b>İşveren İmza</b><br>${FIRMA}</div>
     </div>`;
   await inv('print:pdf', html);
 }
