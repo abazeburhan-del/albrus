@@ -321,6 +321,13 @@ async function initDb() {
   `);
   try { db.run("ALTER TABLE stoklar ADD COLUMN grup_id INTEGER"); } catch (_) {}
 
+  // Başlangıç stok grupları (sadece boş DB'de bir kez)
+  if (getAll('SELECT COUNT(*) as cnt FROM stok_gruplan')[0].cnt === 0) {
+    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Elektrik', 'ELK')");
+    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('Mekanik', 'MEK')");
+    db.run("INSERT INTO stok_gruplan (ad, kod) VALUES ('İnşaat', 'INS')");
+  }
+
   // Hakediş — BOQ/poz listesi + dönemler + yeşil defter satırları
   db.run(`
     CREATE TABLE IF NOT EXISTS hakedis_pozlar (
