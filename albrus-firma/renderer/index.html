@@ -6488,7 +6488,7 @@ async function topluPuantajPdf() {
       const durum = durumMap[g] || '';
       const mesai = mesaiMap[g] || 0;
       const hg = new Date(y, m - 1, g).getDay();
-      const haftaSonu = hg === 0 || hg === 6;
+      const haftaSonu = hg === 5;   // Irak: Cuma tatil
       const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : haftaSonu ? '#fff0f0' : '#f9f9f9';
       const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#bbb';
       const mesaiTag = (durum === 'X' && mesai > 0) ? `<div style="font-size:5px;color:#b45309;font-weight:700">⏱${mesai}h</div>` : '';
@@ -6639,7 +6639,7 @@ function renderTopluPuantajGrid() {
   for (let g = 1; g <= gunSayisi; g++) {
     const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
     const gunAdi = GUN_ADLARI[hg === 0 ? 6 : hg - 1];
-    const haftaSonu = hg === 0 || hg === 6;
+    const haftaSonu = hg === 5;   // Irak: Cuma tatil
     thead += `<th style="${thStyle};width:22px;min-width:22px;${haftaSonu ? 'background:rgba(239,68,68,.08)' : ''}">${g}<br>${gunAdi}</th>`;
   }
   thead += `<th style="${thOzetStyle}">Gün / Alacak / Kesinti</th></tr></thead>`;
@@ -6682,7 +6682,7 @@ function renderTopluPuantajGrid() {
       const durum = _tpData[p.id]?.[g] || '';
       const mesai = _tpMesai[p.id]?.[g] || 0;
       const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
-      const haftaSonu = hg === 0 || hg === 6;
+      const haftaSonu = hg === 5;   // Irak: Cuma tatil
       const renkBg = durum === 'X' ? 'background:rgba(34,197,94,.2);color:#16a34a'
                    : durum === 'G' ? 'background:rgba(239,68,68,.2);color:#dc2626'
                    : durum === 'İ' ? 'background:rgba(96,165,250,.2);color:#2563eb'
@@ -6776,7 +6776,7 @@ async function tpHepsiniDoldur(durum) {
   for (const p of _tpPersoneller) {
     for (let g = 1; g <= gunSayisi; g++) {
       const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
-      const haftaSonu = hg === 0 || hg === 6;
+      const haftaSonu = hg === 5;   // Irak: Cuma tatil
       const hedef = haftaSonu ? '' : durum;
       const mevcut = _tpData[p.id]?.[g] || '';
       if (mevcut !== hedef) {
@@ -6815,7 +6815,7 @@ async function tpPdf() {
   for (let g = 1; g <= gunSayisi; g++) {
     const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
     const gunAdi = GUN_ADLARI[hg === 0 ? 6 : hg - 1];
-    const haftaSonu = hg === 0 || hg === 6;
+    const haftaSonu = hg === 5;   // Irak: Cuma tatil
     thGunler += `<th style="text-align:center;${haftaSonu ? 'background:#fff0f0;' : ''}">${g}<br><span style="font-size:7px">${gunAdi}</span></th>`;
   }
 
@@ -6833,7 +6833,7 @@ async function tpPdf() {
       const durum = _tpData[p.id]?.[g] || '';
       const mesai = _tpMesai[p.id]?.[g] || 0;
       const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
-      const haftaSonu = hg === 0 || hg === 6;
+      const haftaSonu = hg === 5;   // Irak: Cuma tatil
       const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : haftaSonu ? '#fff8f8' : '';
       const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#aaa';
       const mesaiStr = (durum === 'X' && mesai > 0) ? `<br><span style="font-size:5px;color:#b45309">+${mesai}h</span>` : '';
@@ -6864,7 +6864,7 @@ async function tpPdf() {
       const durum = _tpData[p.id]?.[g] || '';
       const mesai = _tpMesai[p.id]?.[g] || 0;
       const hg = new Date(_tpYil, _tpAy - 1, g).getDay();
-      const haftaSonu = hg === 0 || hg === 6;
+      const haftaSonu = hg === 5;   // Irak: Cuma tatil
       const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : haftaSonu ? '#fff0f0' : '#f9f9f9';
       const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#bbb';
       const mesaiTag = (durum === 'X' && mesai > 0) ? `<div style="font-size:5px;color:#b45309;font-weight:700">⏱${mesai}h</div>` : '';
