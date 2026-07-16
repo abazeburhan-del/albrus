@@ -2196,7 +2196,7 @@ ipcMain.handle('puantaj:guncelle', (_, personel_id, yil, ay, gun, durum) => {
 });
 
 // Bir tarih aralığında birden çok personelin puantajını TEK işlemde doldur/temizle.
-// durum='' → temizle; 'X'/'İ'/'G' → doldur (Cuma günleri boş bırakılır). Tek saveDb.
+// durum='' → temizle; 'X' ile doldururken Cuma günlerine 'İ' (ücretli izin) yazılır. Tek saveDb.
 ipcMain.handle('puantaj:aralik:doldur', (_, personelIds, basStr, bitStr, durum) => {
   const gunler = [];
   const aylarSet = new Set();
@@ -2209,7 +2209,8 @@ ipcMain.handle('puantaj:aralik:doldur', (_, personelIds, basStr, bitStr, durum) 
     const p = getOne('SELECT maas FROM personeller WHERE id=?', [pid]);
     const maas = p ? p.maas : 0;
     for (const g of gunler) {
-      const hedef = g.cuma ? '' : durum;   // Cuma tatil → boş
+      // Temizlerken hepsi boş; doldururken Cuma → İ (ücretli izin), diğer günler → durum
+      const hedef = durum === '' ? '' : (g.cuma ? 'İ' : durum);
       if (hedef === '') {
         run('DELETE FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND gun=?', [pid, g.yil, g.ay, g.gun]);
       } else {
