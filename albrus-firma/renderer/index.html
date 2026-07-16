@@ -1317,7 +1317,7 @@
     <div class="fg"><label>Stok Adı *</label><input type="text" id="stok-ad" placeholder="Malzeme adı"></div>
     <div class="row2">
       <div class="fg"><label>Barkod</label><input type="text" id="stok-barkod" placeholder="(opsiyonel)"></div>
-      <div class="fg"><label>Kategori</label><input type="text" id="stok-kategori" placeholder="Elektrik, Boru..."></div>
+      <div class="fg"><label>Kategori</label><select id="stok-grup-id" style="width:100%"></select></div>
     </div>
     <div class="row3">
       <div class="fg"><label>Alış Fiyatı (maliyet)</label><input type="text" id="stok-alis" inputmode="decimal" placeholder="0"></div>
@@ -5267,13 +5267,12 @@ td{padding:4px 7px;border-bottom:1px solid #f0f0f0}
   await inv('print:pdf', content);
 }
 
-function openStokEkle() {
+async function openStokEkle() {
   document.getElementById('m-stok-title').textContent = 'Stok Tanımı Ekle';
   document.getElementById('stok-edit-id').value = '';
   document.getElementById('stok-kod').value = '';
   document.getElementById('stok-ad').value = '';
   document.getElementById('stok-barkod').value = '';
-  document.getElementById('stok-kategori').value = '';
   document.getElementById('stok-birim').value = 'Pcs';
   document.getElementById('stok-alis').value = '';
   document.getElementById('stok-satis').value = '';
@@ -5281,11 +5280,19 @@ function openStokEkle() {
   document.getElementById('stok-min').value = '';
   document.getElementById('stok-miktar').value = '';
   document.getElementById('stok-aciklama').value = '';
+
+  // Kategorileri (grupları) dropdown'a yükle
+  const gruplar = await inv('stok-gruplan:getir');
+  const select = document.getElementById('stok-grup-id');
+  select.innerHTML = '<option value="">— Seçiniz —</option>' +
+    gruplar.map(g => `<option value="${g.id}">${g.ad}</option>`).join('');
+  select.value = '';
+
   openModal('m-stok');
   setTimeout(() => document.getElementById('stok-ad').focus(), 80);
 }
 
-function openStokDuzenle(id) {
+async function openStokDuzenle(id) {
   const s = _stoklar.find(x => x.id === id);
   if (!s) return;
   document.getElementById('m-stok-title').textContent = 'Stok Düzenle';
@@ -5293,7 +5300,6 @@ function openStokDuzenle(id) {
   document.getElementById('stok-kod').value = s.kod || '';
   document.getElementById('stok-ad').value = s.ad;
   document.getElementById('stok-barkod').value = s.barkod || '';
-  document.getElementById('stok-kategori').value = s.kategori || '';
   document.getElementById('stok-birim').value = s.birim || 'Pcs';
   document.getElementById('stok-alis').value = s.alis_fiyat || '';
   document.getElementById('stok-satis').value = s.satis_fiyat || '';
@@ -5301,6 +5307,14 @@ function openStokDuzenle(id) {
   document.getElementById('stok-min').value = s.min_miktar || '';
   document.getElementById('stok-miktar').value = s.mevcut_miktar || '';
   document.getElementById('stok-aciklama').value = s.aciklama || '';
+
+  // Kategorileri (grupları) dropdown'a yükle
+  const gruplar = await inv('stok-gruplan:getir');
+  const select = document.getElementById('stok-grup-id');
+  select.innerHTML = '<option value="">— Seçiniz —</option>' +
+    gruplar.map(g => `<option value="${g.id}">${g.ad}</option>`).join('');
+  select.value = s.grup_id || '';
+
   openModal('m-stok');
 }
 
@@ -5312,7 +5326,7 @@ async function saveStok() {
     ad,
     barkod:        document.getElementById('stok-barkod').value.trim(),
     birim:         document.getElementById('stok-birim').value,
-    kategori:      document.getElementById('stok-kategori').value.trim(),
+    grup_id:       parseInt(document.getElementById('stok-grup-id').value) || null,
     alis_fiyat:    parseFloat(document.getElementById('stok-alis').value.replace(',', '.')) || 0,
     satis_fiyat:   parseFloat(document.getElementById('stok-satis').value.replace(',', '.')) || 0,
     para_birimi:   document.getElementById('stok-para').value,

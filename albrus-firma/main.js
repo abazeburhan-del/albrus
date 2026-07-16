@@ -331,7 +331,15 @@ async function initDb() {
     }
   }
 
-  // Migration: Mevcut NULL stokları Elektrik grubuna ata
+  // Migration: kategori text'ini grup_id'ye dönüştür
+  const mevcut_kategoriler = getAll("SELECT DISTINCT kategori FROM stoklar WHERE kategori IS NOT NULL AND kategori != ''");
+  for (const kat of mevcut_kategoriler) {
+    const grup = getOne('SELECT id FROM stok_gruplan WHERE ad = ?', [kat.kategori]);
+    if (grup) {
+      db.run('UPDATE stoklar SET grup_id = ? WHERE kategori = ?', [grup.id, kat.kategori]);
+    }
+  }
+  // Migration: Hala NULL olan stokları Elektrik'e ata
   const elektrik_grup_id = getOne('SELECT id FROM stok_gruplan WHERE ad = ?', ['Elektrik'])?.id;
   if (elektrik_grup_id) {
     db.run('UPDATE stoklar SET grup_id = ? WHERE grup_id IS NULL', [elektrik_grup_id]);
@@ -1568,8 +1576,8 @@ ipcMain.handle('stoklar:getir', () =>
 
 ipcMain.handle('stoklar:ekle', (_, d) => {
   const r = insertAndGet('stoklar',
-    'INSERT INTO stoklar (kod, ad, barkod, birim, kategori, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.kategori ?? '', d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
+    'INSERT INTO stoklar (kod, ad, barkod, birim, grup_id, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.grup_id || null, d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
      d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '']
   );
   // Açılış miktarı varsa hareket olarak kaydet
@@ -1588,8 +1596,8 @@ ipcMain.handle('stoklar:import', (_, { satirlar }) => {
     if (!s.ad || !String(s.ad).trim()) continue;
     const miktar = Number(s.mevcut_miktar) || 0;
     const r = insertAndGet('stoklar',
-      'INSERT INTO stoklar (kod, ad, barkod, birim, kategori, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [s.kod ?? '', String(s.ad).trim(), '', s.birim || 'Pcs', s.kategori ?? '', miktar, 0,
+      'INSERT INTO stoklar (kod, ad, barkod, birim, grup_id, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [s.kod ?? '', String(s.ad).trim(), '', s.birim || 'Pcs', s.grup_id || null, miktar, 0,
        Number(s.alis_fiyat) || 0, Number(s.satis_fiyat) || 0, s.para_birimi || 'USD', '']);
     if (miktar > 0) {
       run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -1604,8 +1612,8 @@ ipcMain.handle('stoklar:import', (_, { satirlar }) => {
 ipcMain.handle('stoklar:guncelle', (_, id, d) => {
   // mevcut_miktar düzenlemesini stok hareketi olarak işle (manuel düzeltme)
   const eski = getOne('SELECT mevcut_miktar FROM stoklar WHERE id = ?', [id]);
-  run('UPDATE stoklar SET kod=?, ad=?, barkod=?, birim=?, kategori=?, mevcut_miktar=?, min_miktar=?, alis_fiyat=?, satis_fiyat=?, para_birimi=?, aciklama=? WHERE id=?',
-    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.kategori ?? '', d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
+  run('UPDATE stoklar SET kod=?, ad=?, barkod=?, birim=?, grup_id=?, mevcut_miktar=?, min_miktar=?, alis_fiyat=?, satis_fiyat=?, para_birimi=?, aciklama=? WHERE id=?',
+    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.grup_id || null, d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
      d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '', id]);
   if (eski && eski.mevcut_miktar !== (d.mevcut_miktar ?? 0)) {
     const fark = (d.mevcut_miktar ?? 0) - eski.mevcut_miktar;
