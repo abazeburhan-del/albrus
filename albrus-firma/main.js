@@ -2183,6 +2183,40 @@ ipcMain.handle('puantaj:guncelle', (_, personel_id, yil, ay, gun, durum) => {
   return true;
 });
 
+// Bir tarih aralığında birden çok personelin puantajını TEK işlemde doldur/temizle.
+// durum='' → temizle; 'X'/'İ'/'G' → doldur (Cuma günleri boş bırakılır). Tek saveDb.
+ipcMain.handle('puantaj:aralik:doldur', (_, personelIds, basStr, bitStr, durum) => {
+  const gunler = [];
+  const aylarSet = new Set();
+  const bas = new Date(basStr + 'T00:00:00'), bit = new Date(bitStr + 'T00:00:00');
+  for (let d = new Date(bas); d <= bit; d.setDate(d.getDate() + 1)) {
+    gunler.push({ yil: d.getFullYear(), ay: d.getMonth() + 1, gun: d.getDate(), cuma: d.getDay() === 5 });
+    aylarSet.add(`${d.getFullYear()}-${d.getMonth() + 1}`);
+  }
+  for (const pid of (personelIds || [])) {
+    const p = getOne('SELECT maas FROM personeller WHERE id=?', [pid]);
+    const maas = p ? p.maas : 0;
+    for (const g of gunler) {
+      const hedef = g.cuma ? '' : durum;   // Cuma tatil → boş
+      if (hedef === '') {
+        run('DELETE FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND gun=?', [pid, g.yil, g.ay, g.gun]);
+      } else {
+        run('INSERT OR IGNORE INTO puantaj (personel_id, yil, ay, gun, durum, mesai_saat) VALUES (?,?,?,?,?,0)', [pid, g.yil, g.ay, g.gun, hedef]);
+        run('UPDATE puantaj SET durum=? WHERE personel_id=? AND yil=? AND ay=? AND gun=?', [hedef, pid, g.yil, g.ay, g.gun]);
+      }
+      run("DELETE FROM personel_hareketleri WHERE personel_id=? AND yil=? AND ay=? AND gun=? AND kaynak IN ('puantaj','mesai')", [pid, g.yil, g.ay, g.gun]);
+      if ((hedef === 'X' || hedef === 'İ') && maas > 0) {
+        const tarih = `${g.yil}-${String(g.ay).padStart(2,'0')}-${String(g.gun).padStart(2,'0')}`;
+        run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, yil, ay, gun, aciklama) VALUES (?,?,?,?,?,?,?,?,?)',
+          [pid, tarih, 'alacak', maas / 30, 'puantaj', g.yil, g.ay, g.gun, hedef === 'X' ? 'Çalışma günü' : 'Ücretli izin']);
+      }
+    }
+    for (const am of aylarSet) { const [yy, mm] = am.split('-').map(Number); cumaTatilleriniIsle(pid, yy, mm); }
+  }
+  saveDb();
+  return true;
+});
+
 ipcMain.handle('puantaj:mesai:guncelle', (_, personel_id, yil, ay, gun, mesai_saat) => {
   run('UPDATE puantaj SET mesai_saat=? WHERE personel_id=? AND yil=? AND ay=? AND gun=?',
     [mesai_saat, personel_id, yil, ay, gun]);

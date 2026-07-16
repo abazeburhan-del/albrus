@@ -6855,33 +6855,23 @@ function tpGunMesaiGir(personelId, tarih) {
 }
 
 async function tpHepsiniDoldur(durum) {
-  for (const p of _tpPersoneller) {
-    for (const gd of _tpGunler) {
-      const hedef = gd.cuma ? '' : durum;   // Cuma tatil → boş
-      const mevcut = _tpData[p.id]?.[gd.tarih] || '';
-      if (mevcut !== hedef) {
-        await inv('puantaj:guncelle', p.id, gd.yil, gd.ay, gd.gun, hedef);
-        if (!_tpData[p.id]) _tpData[p.id] = {};
-        if (hedef === '') delete _tpData[p.id][gd.tarih];
-        else _tpData[p.id][gd.tarih] = hedef;
-      }
-    }
-  }
-  renderTopluPuantajGrid();
+  if (!_tpPersoneller.length || !_tpBas || !_tpBit) return;
+  // Sadece görünen (proje/arama filtreli) personeli doldur
+  let hedefler = _tpProjeFiltre === null ? _tpPersoneller
+    : _tpProjeFiltre === 0 ? _tpPersoneller.filter(p => !p.proje_id)
+    : _tpPersoneller.filter(p => p.proje_id === _tpProjeFiltre);
+  if (_tpAraSorgu) hedefler = hedefler.filter(p => `${p.ad} ${p.soyad || ''}`.toLowerCase().includes(_tpAraSorgu));
+  if (!hedefler.length) return;
+  const ids = hedefler.map(p => p.id);
+  await inv('puantaj:aralik:doldur', ids, _tpBas, _tpBit, durum);
+  await loadTopluPuantaj();
 }
 
 async function tpSifirla() {
   if (!confirm('Bu dönemin tüm puantaj verileri silinecek. Devam edilsin mi?')) return;
-  for (const p of _tpPersoneller) {
-    for (const gd of _tpGunler) {
-      if (_tpData[p.id]?.[gd.tarih]) {
-        await inv('puantaj:guncelle', p.id, gd.yil, gd.ay, gd.gun, '');
-      }
-    }
-    _tpData[p.id]  = {};
-    _tpMesai[p.id] = {};
-  }
-  renderTopluPuantajGrid();
+  const ids = _tpPersoneller.map(p => p.id);
+  await inv('puantaj:aralik:doldur', ids, _tpBas, _tpBit, '');
+  await loadTopluPuantaj();
 }
 
 async function tpPdf() {
