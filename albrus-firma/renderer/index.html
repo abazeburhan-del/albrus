@@ -6855,16 +6855,25 @@ function tpGunMesaiGir(personelId, tarih) {
 }
 
 async function tpHepsiniDoldur(durum) {
-  if (!_tpPersoneller.length || !_tpBas || !_tpBit) return;
+  // Tarihleri gerekiyorsa input'lardan tazele
+  if (!_tpBas) _tpBas = document.getElementById('tp-bas')?.value || '';
+  if (!_tpBit) _tpBit = document.getElementById('tp-bit')?.value || '';
+  if (!_tpBas || !_tpBit) { alert('Önce dönem (başlangıç-bitiş) seçin.'); return; }
+  if (!_tpPersoneller.length) { alert('Personel yüklenmedi.'); return; }
   // Sadece görünen (proje/arama filtreli) personeli doldur
   let hedefler = _tpProjeFiltre === null ? _tpPersoneller
     : _tpProjeFiltre === 0 ? _tpPersoneller.filter(p => !p.proje_id)
     : _tpPersoneller.filter(p => p.proje_id === _tpProjeFiltre);
   if (_tpAraSorgu) hedefler = hedefler.filter(p => `${p.ad} ${p.soyad || ''}`.toLowerCase().includes(_tpAraSorgu));
-  if (!hedefler.length) return;
+  if (!hedefler.length) { alert('Doldurulacak personel yok (filtre?).'); return; }
   const ids = hedefler.map(p => p.id);
-  await inv('puantaj:aralik:doldur', ids, _tpBas, _tpBit, durum);
-  await loadTopluPuantaj();
+  try {
+    await inv('puantaj:aralik:doldur', ids, _tpBas, _tpBit, durum);
+    await loadTopluPuantaj();
+    if (typeof yesilToast === 'function') yesilToast(`${ids.length} personel dolduruldu (${tpTarihMetin(_tpBas)} – ${tpTarihMetin(_tpBit)})`);
+  } catch (e) {
+    alert('Doldurma hatası: ' + (e && e.message ? e.message : e));
+  }
 }
 
 async function tpSifirla() {
