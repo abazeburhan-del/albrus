@@ -515,7 +515,7 @@
       </div>
     </div>
     <div class="card-grid" id="stok-deger-ozet" style="margin-bottom:14px"></div>
-    <div id="stok-grup-filtre" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <div id="stok-grup-filtre" style="margin-bottom:10px"></div>
     <div class="filter-bar">
       <input type="text" placeholder="🔍 Ara (kod, barkod, ad, kategori...)" oninput="filtreTablo(this.value,'stok-wrap')" style="flex:1;min-width:200px">
     </div>
@@ -1980,6 +1980,7 @@
     <div class="modal-title" id="m-stok-grup-title">Yeni Grup</div>
     <input type="hidden" id="grup-edit-id">
     <div class="fg"><label>Grup Adı *</label><input type="text" id="grup-ad" placeholder="Elektrik, Hırdavat..."></div>
+    <div class="fg"><label>Üst Grup</label><select id="grup-parent-id" style="width:100%"><option value="">— Yok (ana grup) —</option></select></div>
     <div class="row2">
       <div class="fg"><label>Kod</label><input type="text" id="grup-kod" placeholder="(opsiyonel)"></div>
       <div class="fg"><label>Açıklama</label><input type="text" id="grup-aciklama" placeholder="(opsiyonel)"></div>
@@ -2001,7 +2002,7 @@
       <input type="text" id="stok-sec-arama" placeholder="Stok adını yazın..." oninput="filterStokSecList()">
     </div>
     <label style="display:block;font-size:11px;color:var(--dim);font-weight:600;margin-top:10px;margin-bottom:6px">Gruplar</label>
-    <div id="stok-grup-buttons" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>
+    <div id="stok-grup-buttons" style="margin-bottom:12px"></div>
     <label style="display:block;font-size:11px;color:var(--dim);font-weight:600;margin-bottom:6px">Stoklar</label>
     <div id="stok-sec-list" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:6px"></div>
     <div class="modal-actions" style="margin-top:12px">
@@ -5040,6 +5041,50 @@ function stokGrupFiltrele(grupId) {
   loadStok();
 }
 
+// ── Grup ağacı yardımcıları (parent_id hiyerarşisi) ──
+function grupCocuklar(gruplar, parentId) {
+  return gruplar.filter(g => (g.parent_id || null) === (parentId || null));
+}
+
+function grupTorunIdleri(gruplar, id) {
+  const ids = [id];
+  for (let i = 0; i < ids.length; i++) {
+    gruplar.forEach(g => { if (g.parent_id === ids[i]) ids.push(g.id); });
+  }
+  return new Set(ids);
+}
+
+function grupZinciri(gruplar, id) {
+  const byId = {};
+  gruplar.forEach(g => byId[g.id] = g);
+  const zincir = [];
+  let g = byId[id];
+  while (g) { zincir.unshift(g.id); g = byId[g.parent_id]; }
+  return zincir;
+}
+
+function grupSecenekleri(gruplar, haricId = null) {
+  const out = [];
+  const gez = (parentId, seviye) => {
+    grupCocuklar(gruplar, parentId).forEach(g => {
+      if (haricId && g.id === haricId) return;
+      out.push({ id: g.id, etiket: '    '.repeat(seviye) + (seviye ? '└ ' : '') + g.ad, seviye });
+      gez(g.id, seviye + 1);
+    });
+  };
+  gez(null, 0);
+  return out;
+}
+
+async function stokGrupDropdownDoldur(selectId, secili, haricId = null) {
+  const gruplar = await inv('stok-gruplan:getir');
+  const select = document.getElementById(selectId);
+  const ilk = selectId === 'grup-parent-id' ? '— Yok (ana grup) —' : '— Seçiniz —';
+  select.innerHTML = `<option value="">${ilk}</option>` +
+    grupSecenekleri(gruplar, haricId).map(o => `<option value="${o.id}">${o.etiket}</option>`).join('');
+  select.value = secili || '';
+}
+
 async function loadStok() {
   _stoklar = await inv('stoklar:getir');
   const ozetEl = document.getElementById('stok-deger-ozet');
@@ -5057,21 +5102,32 @@ async function loadStok() {
   }
 
   const filtreEl = document.getElementById('stok-grup-filtre');
+  let gruplar = [];
+  try { gruplar = await inv('stok-gruplan:getir'); } catch (e) {}
   if (filtreEl) {
-    try {
-      const gruplar = await inv('stok-gruplan:getir');
-      const sayilar = {};
-      _stoklar.forEach(s => { const k = s.grup_id || 0; sayilar[k] = (sayilar[k] || 0) + 1; });
-      const btnStil = aktif => `padding:5px 14px;border-radius:16px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;` +
-        (aktif ? 'background:var(--blue);color:#fff;border-color:var(--blue)' : 'background:transparent;color:var(--text)');
-      filtreEl.innerHTML =
-        `<button style="${btnStil(_stokGrupFiltre === null)}" onclick="stokGrupFiltrele(null)">Tümü (${_stoklar.length})</button>` +
-        gruplar.map(g => `<button style="${btnStil(_stokGrupFiltre === g.id)}" onclick="stokGrupFiltrele(${g.id})">${g.ad} (${sayilar[g.id] || 0})</button>`).join('');
-    } catch (e) { filtreEl.innerHTML = ''; }
+    const sayilar = {};
+    _stoklar.forEach(s => { const k = s.grup_id || 0; sayilar[k] = (sayilar[k] || 0) + 1; });
+    const toplamSayi = gid => { let t = 0; grupTorunIdleri(gruplar, gid).forEach(id => t += (sayilar[id] || 0)); return t; };
+    const zincir = _stokGrupFiltre ? grupZinciri(gruplar, _stokGrupFiltre) : [];
+    const btnStil = aktif => `padding:5px 14px;border-radius:16px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:600;` +
+      (aktif ? 'background:var(--blue);color:#fff;border-color:var(--blue)' : 'background:transparent;color:var(--text)');
+    const btn = g => `<button style="${btnStil(zincir.includes(g.id))}" onclick="stokGrupFiltrele(${g.id})">${g.ad} (${toplamSayi(g.id)})</button>`;
+    let html = `<div style="display:flex;gap:6px;flex-wrap:wrap">` +
+      `<button style="${btnStil(_stokGrupFiltre === null)}" onclick="stokGrupFiltrele(null)">Tümü (${_stoklar.length})</button>` +
+      grupCocuklar(gruplar, null).map(btn).join('') + `</div>`;
+    zincir.forEach(id => {
+      const cocuklar = grupCocuklar(gruplar, id);
+      if (cocuklar.length) {
+        html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;padding-left:16px;border-left:2px solid var(--border)">` +
+          cocuklar.map(btn).join('') + `</div>`;
+      }
+    });
+    filtreEl.innerHTML = html;
   }
 
   const wrap = document.getElementById('stok-wrap');
-  const liste = _stokGrupFiltre === null ? _stoklar : _stoklar.filter(s => s.grup_id === _stokGrupFiltre);
+  const filtreSet = _stokGrupFiltre === null ? null : grupTorunIdleri(gruplar, _stokGrupFiltre);
+  const liste = filtreSet === null ? _stoklar : _stoklar.filter(s => filtreSet.has(s.grup_id));
   if (!liste.length) {
     wrap.innerHTML = `<div style="padding:32px;text-align:center;color:var(--dim)">${_stoklar.length ? 'Bu kategoride stok yok.' : 'Henüz stok tanımı yok — "+ Stok Ekle" ile başlayın.'}</div>`;
     return;
@@ -5326,12 +5382,7 @@ async function openStokEkle() {
   document.getElementById('stok-miktar').value = '';
   document.getElementById('stok-aciklama').value = '';
 
-  // Kategorileri (grupları) dropdown'a yükle
-  const gruplar = await inv('stok-gruplan:getir');
-  const select = document.getElementById('stok-grup-id');
-  select.innerHTML = '<option value="">— Seçiniz —</option>' +
-    gruplar.map(g => `<option value="${g.id}">${g.ad}</option>`).join('');
-  select.value = '';
+  await stokGrupDropdownDoldur('stok-grup-id', '');
 
   openModal('m-stok');
   setTimeout(() => document.getElementById('stok-ad').focus(), 80);
@@ -5353,12 +5404,7 @@ async function openStokDuzenle(id) {
   document.getElementById('stok-miktar').value = s.mevcut_miktar || '';
   document.getElementById('stok-aciklama').value = s.aciklama || '';
 
-  // Kategorileri (grupları) dropdown'a yükle
-  const gruplar = await inv('stok-gruplan:getir');
-  const select = document.getElementById('stok-grup-id');
-  select.innerHTML = '<option value="">— Seçiniz —</option>' +
-    gruplar.map(g => `<option value="${g.id}">${g.ad}</option>`).join('');
-  select.value = s.grup_id || '';
+  await stokGrupDropdownDoldur('stok-grup-id', s.grup_id);
 
   openModal('m-stok');
 }
@@ -9777,15 +9823,7 @@ async function openStokSec(kalmIdx) {
     _stokSecGrups = await inv('stok-gruplan:getir') || [];
     _stokSecTumStoklar = await inv('stoklar:getir') || [];
 
-    // Grup butonlarını oluştur
-    const btnHtml = `
-      <button type="button" class="btn btn-sm" onclick="secGrup(null)" style="background:var(--blue);color:white">Tümü</button>
-    ` + _stokSecGrups.map(g => `
-      <button type="button" class="btn btn-sm" onclick="secGrup(${g.id})" style="background:var(--border)">${g.ad}</button>
-    `).join('');
-    document.getElementById('stok-grup-buttons').innerHTML = btnHtml;
-
-    // İlk olarak tümünü göster
+    renderStokSecGrupButonlari();
     filterStokSecList();
 
     openModal('m-stok-sec');
@@ -9796,13 +9834,26 @@ async function openStokSec(kalmIdx) {
   }
 }
 
+function renderStokSecGrupButonlari() {
+  const zincir = _stokSecSeciliGrup ? grupZinciri(_stokSecGrups, _stokSecSeciliGrup) : [];
+  const btnStil = aktif => aktif ? 'background:var(--blue);color:white' : 'background:var(--border)';
+  const btn = g => `<button type="button" class="btn btn-sm" onclick="secGrup(${g.id})" style="${btnStil(zincir.includes(g.id))}">${g.ad}</button>`;
+  let html = `<div style="display:flex;gap:6px;flex-wrap:wrap">` +
+    `<button type="button" class="btn btn-sm" onclick="secGrup(null)" style="${btnStil(_stokSecSeciliGrup === null)}">Tümü</button>` +
+    grupCocuklar(_stokSecGrups, null).map(btn).join('') + `</div>`;
+  zincir.forEach(id => {
+    const cocuklar = grupCocuklar(_stokSecGrups, id);
+    if (cocuklar.length) {
+      html += `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;padding-left:16px;border-left:2px solid var(--border)">` +
+        cocuklar.map(btn).join('') + `</div>`;
+    }
+  });
+  document.getElementById('stok-grup-buttons').innerHTML = html;
+}
+
 function secGrup(grupId) {
   _stokSecSeciliGrup = grupId;
-  // Grup butonlarının stilini güncelle
-  document.querySelectorAll('#stok-grup-buttons button').forEach(btn => {
-    btn.style.background = btn.onclick.toString().includes(`(${grupId})`) ? 'var(--blue)' : 'var(--border)';
-    btn.style.color = btn.style.background === 'var(--blue)' ? 'white' : 'var(--text)';
-  });
+  renderStokSecGrupButonlari();
   filterStokSecList();
 }
 
@@ -9812,7 +9863,8 @@ function filterStokSecList() {
   // Filtreleme: seçili gruba ait stoklar + arama
   let stoklar = _stokSecTumStoklar;
   if (_stokSecSeciliGrup !== null) {
-    stoklar = stoklar.filter(s => s.grup_id === _stokSecSeciliGrup);
+    const set = grupTorunIdleri(_stokSecGrups, _stokSecSeciliGrup);
+    stoklar = stoklar.filter(s => set.has(s.grup_id));
   }
   if (q) {
     stoklar = stoklar.filter(s => (s.ad || '').toLowerCase().includes(q) || (s.kod || '').toLowerCase().includes(q));
@@ -9860,28 +9912,38 @@ function seçStok(stokId) {
 
 async function loadGruplan() {
   const gruplar = await inv('stok-gruplan:getir');
-  const html = gruplar.map(g => `
+  const satirlar = [];
+  const gez = (parentId, seviye) => {
+    grupCocuklar(gruplar, parentId).forEach(g => {
+      satirlar.push({ g, seviye });
+      gez(g.id, seviye + 1);
+    });
+  };
+  gez(null, 0);
+  const html = satirlar.map(({ g, seviye }) => `
     <tr>
-      <td>${g.ad}</td>
+      <td style="padding-left:${10 + seviye * 24}px">${seviye ? '<span style="color:var(--dim)">└</span> ' : ''}<b>${g.ad}</b></td>
       <td>${g.kod || '—'}</td>
       <td>${(g.aciklama || '').substring(0, 50)}</td>
-      <td style="text-align:right;gap:4px">
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="openGrupEkle(${g.id})">+ Alt Grup</button>
         <button class="btn btn-ghost btn-sm" onclick="openGrupDuzenle(${g.id})">Düzenle</button>
         <button class="btn btn-danger btn-sm" onclick="if(confirm('Sil?')) grupSil(${g.id})">Sil</button>
       </td>
     </tr>
   `).join('');
   document.getElementById('stok-gruplan-wrap').innerHTML =
-    '<table class="tbl"><thead><tr><th>Grup Adı</th><th>Kod</th><th>Açıklama</th><th style="width:180px;text-align:right">İşlemler</th></tr></thead><tbody>' +
+    '<table class="tbl"><thead><tr><th>Grup Adı</th><th>Kod</th><th>Açıklama</th><th style="width:260px;text-align:right">İşlemler</th></tr></thead><tbody>' +
     html + '</tbody></table>';
 }
 
-function openGrupEkle() {
-  document.getElementById('m-stok-grup-title').textContent = 'Yeni Grup';
+async function openGrupEkle(parentId = null) {
+  document.getElementById('m-stok-grup-title').textContent = parentId ? 'Yeni Alt Grup' : 'Yeni Grup';
   document.getElementById('grup-edit-id').value = '';
   document.getElementById('grup-ad').value = '';
   document.getElementById('grup-kod').value = '';
   document.getElementById('grup-aciklama').value = '';
+  await stokGrupDropdownDoldur('grup-parent-id', parentId || '');
   openModal('m-stok-grup');
   setTimeout(() => document.getElementById('grup-ad').focus(), 80);
 }
@@ -9895,6 +9957,7 @@ async function openGrupDuzenle(id) {
   document.getElementById('grup-ad').value = g.ad;
   document.getElementById('grup-kod').value = g.kod || '';
   document.getElementById('grup-aciklama').value = g.aciklama || '';
+  await stokGrupDropdownDoldur('grup-parent-id', g.parent_id || '', g.id);
   openModal('m-stok-grup');
   setTimeout(() => document.getElementById('grup-ad').focus(), 80);
 }
@@ -9904,24 +9967,20 @@ async function saveStokGrup() {
   if (!ad) { alert('Grup adı zorunludur.'); return; }
   const kod = document.getElementById('grup-kod').value.trim();
   const aciklama = document.getElementById('grup-aciklama').value.trim();
+  const parent_id = parseInt(document.getElementById('grup-parent-id').value) || null;
   const editId = document.getElementById('grup-edit-id').value;
   try {
     let yeniGrup = null;
     if (editId) {
-      await inv('stok-gruplan:guncelle', { id: Number(editId), ad, kod, aciklama });
+      await inv('stok-gruplan:guncelle', { id: Number(editId), ad, kod, aciklama, parent_id });
     } else {
-      yeniGrup = await inv('stok-gruplan:ekle', { ad, kod, aciklama });
+      yeniGrup = await inv('stok-gruplan:ekle', { ad, kod, aciklama, parent_id });
     }
     closeModal('m-stok-grup');
 
     // Stok formu açıkken eklendiyse: dropdown'u yenile + yeni grubu seç
     if (document.getElementById('m-stok').classList.contains('open')) {
-      const gruplar = await inv('stok-gruplan:getir');
-      const select = document.getElementById('stok-grup-id');
-      const onceki = select.value;
-      select.innerHTML = '<option value="">— Seçiniz —</option>' +
-        gruplar.map(g => `<option value="${g.id}">${g.ad}</option>`).join('');
-      select.value = yeniGrup ? yeniGrup.id : onceki;
+      await stokGrupDropdownDoldur('stok-grup-id', yeniGrup ? yeniGrup.id : document.getElementById('stok-grup-id').value);
     } else {
       loadGruplan();
     }

@@ -320,6 +320,7 @@ async function initDb() {
     );
   `);
   try { db.run("ALTER TABLE stoklar ADD COLUMN grup_id INTEGER"); } catch (_) {}
+  try { db.run("ALTER TABLE stok_gruplan ADD COLUMN parent_id INTEGER"); } catch (_) {}
 
   // Başlangıç stok grupları — eksik olanları ekle
   const grupAd = ['Elektrik', 'Mekanik', 'İnşaat', 'Hizmet', 'Maintenance'];
@@ -914,22 +915,28 @@ ipcMain.handle('stok-gruplan:getir', () => {
 });
 
 ipcMain.handle('stok-gruplan:ekle', (_, d) => {
-  return insertAndGet('stok_gruplan',
-    'INSERT INTO stok_gruplan (ad, kod, aciklama) VALUES (?, ?, ?)',
-    [d.ad || '', d.kod || '', d.aciklama || '']
+  const r = insertAndGet('stok_gruplan',
+    'INSERT INTO stok_gruplan (ad, kod, aciklama, parent_id) VALUES (?, ?, ?, ?)',
+    [d.ad || '', d.kod || '', d.aciklama || '', d.parent_id || null]
   );
+  saveDb();
+  return r;
 });
 
 ipcMain.handle('stok-gruplan:guncelle', (_, d) => {
-  run('UPDATE stok_gruplan SET ad = ?, kod = ?, aciklama = ? WHERE id = ?',
-    [d.ad || '', d.kod || '', d.aciklama || '', d.id]);
+  run('UPDATE stok_gruplan SET ad = ?, kod = ?, aciklama = ?, parent_id = ? WHERE id = ?',
+    [d.ad || '', d.kod || '', d.aciklama || '', d.parent_id || null, d.id]);
   saveDb();
   return true;
 });
 
 ipcMain.handle('stok-gruplan:sil', (_, id) => {
+  // Alt grupları ve stokları silinen grubun üst grubuna taşı
+  const g = getOne('SELECT parent_id FROM stok_gruplan WHERE id = ?', [id]);
+  const ust = g ? g.parent_id : null;
   run('DELETE FROM stok_gruplan WHERE id = ?', [id]);
-  run('UPDATE stoklar SET grup_id = NULL WHERE grup_id = ?', [id]);
+  run('UPDATE stok_gruplan SET parent_id = ? WHERE parent_id = ?', [ust, id]);
+  run('UPDATE stoklar SET grup_id = ? WHERE grup_id = ?', [ust, id]);
   saveDb();
   return true;
 });
