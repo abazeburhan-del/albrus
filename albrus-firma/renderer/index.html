@@ -287,6 +287,13 @@
       Cariler
     </div>
 
+    <div class="nav-item" data-page="stok-gruplan" onclick="goPage('stok-gruplan')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      Stok Grupları
+    </div>
+
     <div class="nav-item" data-page="projeler" onclick="goPage('projeler')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="12 2 2 7 12 12 22 7 12 2"/>
@@ -445,6 +452,15 @@
       <input type="text" placeholder="🔍 Ara (ad, telefon, adres...)" oninput="filtreTablo(this.value,'cariler-wrap')" style="flex:1;min-width:180px">
     </div>
     <div class="table-wrap" id="cariler-wrap"></div>
+  </div>
+
+  <!-- ── STOK GRUPLAN ── -->
+  <div id="pg-stok-gruplan" class="page">
+    <div class="sec-header">
+      <div class="page-title" style="margin:0">Stok Grupları</div>
+      <button class="btn btn-primary" onclick="openGrupEkle()">+ Yeni Grup</button>
+    </div>
+    <div class="table-wrap" id="stok-gruplan-wrap"></div>
   </div>
 
   <!-- ── PROJELER ── -->
@@ -9665,6 +9681,58 @@ async function ozetRaporPdf() {
   `;
 
   await inv('print:pdf', html);
+}
+
+// ════════════════════════════════════════════════════════════
+// STOK GRUPLAN (Gruplar)
+// ════════════════════════════════════════════════════════════
+
+async function loadGruplan() {
+  const gruplar = await inv('stok-gruplan:getir');
+  const html = gruplar.map(g => `
+    <tr>
+      <td>${g.ad}</td>
+      <td>${g.kod || '—'}</td>
+      <td>${(g.aciklama || '').substring(0, 50)}</td>
+      <td style="text-align:right;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="openGrupDuzenle(${g.id})">Düzenle</button>
+        <button class="btn btn-danger btn-sm" onclick="if(confirm('Sil?')) grupSil(${g.id})">Sil</button>
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('stok-gruplan-wrap').innerHTML =
+    '<table><thead><tr><th>Grup Adı</th><th>Kod</th><th>Açıklama</th><th style="width:180px;text-align:right">İşlemler</th></tr></thead><tbody>' +
+    html + '</tbody></table>';
+}
+
+function openGrupEkle() {
+  const ad = prompt('Grup Adı:', '');
+  if (!ad) return;
+  const kod = prompt('Grup Kodu (opsiyonel):', '');
+  const aciklama = prompt('Açıklama (opsiyonel):', '');
+
+  inv('stok-gruplan:ekle', { ad, kod: kod || '', aciklama: aciklama || '' }).then(() => {
+    loadGruplan();
+  }).catch(e => alert('Hata: ' + e));
+}
+
+async function openGrupDuzenle(id) {
+  const gruplar = await inv('stok-gruplan:getir');
+  const g = gruplar.find(x => x.id === id);
+  if (!g) return;
+
+  const ad = prompt('Grup Adı:', g.ad);
+  if (ad === null) return;
+  const kod = prompt('Grup Kodu:', g.kod || '');
+  const aciklama = prompt('Açıklama:', g.aciklama || '');
+
+  await inv('stok-gruplan:guncelle', { id, ad: ad || g.ad, kod, aciklama });
+  loadGruplan();
+}
+
+async function grupSil(id) {
+  await inv('stok-gruplan:sil', id);
+  loadGruplan();
 }
 </script>
 </body>

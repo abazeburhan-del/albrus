@@ -310,6 +310,17 @@ async function initDb() {
   try { db.run("ALTER TABLE kasa_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
   try { db.run("ALTER TABLE banka_hareketleri ADD COLUMN kategori_id INTEGER"); } catch (_) {}
 
+  // Stok grupları
+  db.run(`
+    CREATE TABLE IF NOT EXISTS stok_gruplan (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ad TEXT NOT NULL,
+      kod TEXT DEFAULT '',
+      aciklama TEXT DEFAULT ''
+    );
+  `);
+  try { db.run("ALTER TABLE stoklar ADD COLUMN grup_id INTEGER"); } catch (_) {}
+
   // Hakediş — BOQ/poz listesi + dönemler + yeşil defter satırları
   db.run(`
     CREATE TABLE IF NOT EXISTS hakedis_pozlar (
@@ -868,6 +879,40 @@ ipcMain.handle('banka:fis:sil', (_, id) => {
   run('DELETE FROM banka_hareketleri WHERE id = ?', [id]);
   saveDb();
   return true;
+});
+
+// ════════════════════════════════════════════════════════════
+// STOK GRUPLAN
+// ════════════════════════════════════════════════════════════
+
+ipcMain.handle('stok-gruplan:getir', () => {
+  return getAll('SELECT * FROM stok_gruplan ORDER BY ad');
+});
+
+ipcMain.handle('stok-gruplan:ekle', (_, d) => {
+  return insertAndGet('stok_gruplan',
+    'INSERT INTO stok_gruplan (ad, kod, aciklama) VALUES (?, ?, ?)',
+    [d.ad || '', d.kod || '', d.aciklama || '']
+  );
+});
+
+ipcMain.handle('stok-gruplan:guncelle', (_, d) => {
+  run('UPDATE stok_gruplan SET ad = ?, kod = ?, aciklama = ? WHERE id = ?',
+    [d.ad || '', d.kod || '', d.aciklama || '', d.id]);
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('stok-gruplan:sil', (_, id) => {
+  run('DELETE FROM stok_gruplan WHERE id = ?', [id]);
+  run('UPDATE stoklar SET grup_id = NULL WHERE grup_id = ?', [id]);
+  saveDb();
+  return true;
+});
+
+ipcMain.handle('stoklar:byGrup', (_, grup_id) => {
+  return getAll('SELECT * FROM stoklar WHERE grup_id = ? OR (? IS NULL AND grup_id IS NULL) ORDER BY ad',
+    [grup_id, grup_id]);
 });
 
 // ════════════════════════════════════════════════════════════
