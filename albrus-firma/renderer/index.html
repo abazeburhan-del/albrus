@@ -1836,13 +1836,20 @@
 <!-- Puantaj Modal -->
 <div class="overlay" id="m-puantaj">
   <div class="modal" style="max-width:640px">
-    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-      <span id="puantaj-baslik"></span>
-      <div style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:400">
-        <button class="btn btn-ghost btn-sm" onclick="puantajAyDegistir(-1)">&#8592;</button>
-        <span id="puantaj-ay-label" style="min-width:130px;text-align:center;font-weight:600;font-size:14px"></span>
-        <button class="btn btn-ghost btn-sm" onclick="puantajAyDegistir(1)">&#8594;</button>
+    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <span id="puantaj-baslik" style="font-size:14px"></span>
+      <div style="display:flex;align-items:center;gap:4px;font-weight:400;flex-wrap:wrap">
+        <select id="puantaj-donem-tip" onchange="puantajDonemPreset()" style="font-size:11px;padding:2px 4px">
+          <option value="ay">Takvim Ayı (1–son)</option>
+          <option value="orta">Ay Ortası (16–15)</option>
+          <option value="ozel">Özel Aralık</option>
+        </select>
+        <input type="month" id="puantaj-donem-ay" onchange="puantajDonemPreset()" style="font-size:11px;padding:2px 4px">
+        <input type="date" id="puantaj-bas" onchange="puantajAralikUygula()" style="font-size:11px;padding:2px 4px" title="Başlangıç">
+        <span style="font-size:11px;color:var(--dim)">→</span>
+        <input type="date" id="puantaj-bit" onchange="puantajAralikUygula()" style="font-size:11px;padding:2px 4px" title="Bitiş">
       </div>
+      <span id="puantaj-ay-label" style="font-weight:600;font-size:12px;color:var(--blue)"></span>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('m-puantaj')" style="margin-left:auto">Kapat</button>
     </div>
     <div style="padding:4px 0 10px;display:flex;gap:20px;font-size:12px;color:var(--text-muted)">
@@ -6268,59 +6275,107 @@ async function bordroPdf(odemeId) {
 }
 
 // ── PUANTAJ ─────────────────────────────────────────────────
-let _puantajYil  = new Date().getFullYear();
-let _puantajAy   = new Date().getMonth() + 1;
-let _puantajData  = {}; // gun → durum
-let _puantajMesai = {}; // gun → mesai_saat
+let _puantajBas = '';   // 'YYYY-MM-DD'
+let _puantajBit = '';
+let _puantajGunler = []; // [{yil,ay,gun,tarih,cuma,gunAdi}]
+let _puantajData  = {}; // 'YYYY-MM-DD' → durum
+let _puantajMesai = {}; // 'YYYY-MM-DD' → mesai_saat
 
 function openPuantaj() {
   if (!_secilenPersonel) return;
-  _puantajYil = new Date().getFullYear();
-  _puantajAy  = new Date().getMonth() + 1;
+  const now = new Date();
+  const yil = now.getFullYear(), ay = now.getMonth() + 1;
   document.getElementById('puantaj-baslik').textContent =
     `${_secilenPersonel.ad}${_secilenPersonel.soyad ? ' ' + _secilenPersonel.soyad : ''} — Puantaj`;
+  document.getElementById('puantaj-donem-tip').value = 'ay';
+  document.getElementById('puantaj-donem-ay').value = `${yil}-${String(ay).padStart(2,'0')}`;
+  _puantajBas = `${yil}-${String(ay).padStart(2,'0')}-01`;
+  _puantajBit = `${yil}-${String(ay).padStart(2,'0')}-${String(new Date(yil, ay, 0).getDate()).padStart(2,'0')}`;
+  document.getElementById('puantaj-bas').value = _puantajBas;
+  document.getElementById('puantaj-bit').value = _puantajBit;
   loadPuantaj();
   openModal('m-puantaj');
 }
 
+function puantajDonemPreset() {
+  const tip = document.getElementById('puantaj-donem-tip').value;
+  if (tip === 'ozel') return;
+  const ay = document.getElementById('puantaj-donem-ay').value;
+  const m = ay.match(/^(\d{4})-(\d{1,2})$/);
+  if (!m) return;
+  const yil = Number(m[1]), aylik = Number(m[2]);
+  const iki = n => String(n).padStart(2, '0');
+  let bas, bit;
+  if (tip === 'orta') {
+    const sy = aylik === 12 ? yil + 1 : yil, sa = aylik === 12 ? 1 : aylik + 1;
+    bas = `${yil}-${iki(aylik)}-16`;
+    bit = `${sy}-${iki(sa)}-15`;
+  } else {
+    bas = `${yil}-${iki(aylik)}-01`;
+    bit = `${yil}-${iki(aylik)}-${iki(new Date(yil, aylik, 0).getDate())}`;
+  }
+  document.getElementById('puantaj-bas').value = bas;
+  document.getElementById('puantaj-bit').value = bit;
+  puantajAralikUygula();
+}
+
+function puantajAralikUygula() {
+  const bas = document.getElementById('puantaj-bas').value;
+  const bit = document.getElementById('puantaj-bit').value;
+  if (!bas || !bit || bit < bas) return;
+  _puantajBas = bas; _puantajBit = bit;
+  loadPuantaj();
+}
+
 async function loadPuantaj() {
   if (!_secilenPersonel) return;
-  const rows = await inv('puantaj:getir', _secilenPersonel.id, _puantajYil, _puantajAy);
+  _puantajGunler = tpAralikGunleri(_puantajBas, _puantajBit);
+  const araligtaki = new Set(_puantajGunler.map(g => g.tarih));
+  const aylar = new Map();
+  _puantajGunler.forEach(g => aylar.set(`${g.yil}-${g.ay}`, { yil: g.yil, ay: g.ay }));
   _puantajData  = {};
   _puantajMesai = {};
-  rows.forEach(r => {
-    _puantajData[r.gun] = r.durum;
-    if (r.mesai_saat > 0) _puantajMesai[r.gun] = r.mesai_saat;
-  });
+  const iki = n => String(n).padStart(2, '0');
+  for (const { yil, ay } of aylar.values()) {
+    const rows = await inv('puantaj:getir', _secilenPersonel.id, yil, ay);
+    rows.forEach(r => {
+      const t = `${yil}-${iki(ay)}-${iki(r.gun)}`;
+      if (!araligtaki.has(t)) return;
+      _puantajData[t] = r.durum;
+      if (r.mesai_saat > 0) _puantajMesai[t] = r.mesai_saat;
+    });
+  }
   renderPuantajGrid();
 }
 
 function renderPuantajGrid() {
-  const aylar = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-  document.getElementById('puantaj-ay-label').textContent = `${aylar[_puantajAy - 1]} ${_puantajYil}`;
+  document.getElementById('puantaj-ay-label').textContent =
+    _puantajBas && _puantajBit ? `${tpTarihMetin(_puantajBas)} – ${tpTarihMetin(_puantajBit)}` : '';
 
-  const gunSayisi = new Date(_puantajYil, _puantajAy, 0).getDate();
-  const cols = Math.ceil(gunSayisi / 3);
+  const gunler = _puantajGunler;
+  const cols = Math.max(1, Math.ceil(gunler.length / 3));
   const grid = document.getElementById('puantaj-grid');
   grid.innerHTML = '';
   grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   grid.style.gridAutoRows = '72px';
 
-  for (let g = 1; g <= gunSayisi; g++) {
-    const durum = _puantajData[g] || '';
-    const mesai = _puantajMesai[g] || 0;
+  gunler.forEach(gd => {
+    const t = gd.tarih;
+    const durum = _puantajData[t] || '';
+    const mesai = _puantajMesai[t] || 0;
     const renkler = {
       X: 'background:rgba(34,197,94,.18);border-color:#22c55e;color:#22c55e',
       G: 'background:rgba(239,68,68,.18);border-color:#ef4444;color:#ef4444',
       'İ': 'background:rgba(96,165,250,.18);border-color:#60a5fa;color:#60a5fa'
     };
+    const cumaBg = gd.cuma && !durum ? 'background:rgba(239,68,68,.05);' : '';
     const cell = document.createElement('div');
     cell.style.cssText = `text-align:center;padding:4px 2px;border-radius:6px;cursor:pointer;
       border:1px solid var(--border);font-size:13px;user-select:none;transition:opacity .1s;
-      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;${cumaBg}
       ${renkler[durum] || 'color:var(--text-muted)'}`;
     const mesaiBtn = durum === 'X'
-      ? `<div onclick="event.stopPropagation();gunMesaiGir(${g})" title="Mesai saati gir"
+      ? `<div onclick="event.stopPropagation();gunMesaiGir('${t}')" title="Mesai saati gir"
            style="margin-top:4px;padding:2px 4px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700;
                   color:#fff;background:${mesai > 0 ? '#d97706' : 'rgba(217,119,6,.35)'};
                   border:1px solid #d97706;line-height:1.2;transition:background .15s">
@@ -6328,12 +6383,12 @@ function renderPuantajGrid() {
          </div>`
       : '<div style="min-height:18px"></div>';
     cell.innerHTML = `
-      <div style="font-size:10px;opacity:.55;line-height:1">${g}</div>
+      <div style="font-size:10px;opacity:.55;line-height:1">${gd.gun} ${gd.gunAdi}</div>
       <div style="font-size:15px;font-weight:700;min-height:20px;line-height:1.3">${durum}</div>
       ${mesaiBtn}`;
-    cell.onclick = () => gunDurumDegistir(g);
+    cell.onclick = () => gunDurumDegistir(t);
     grid.appendChild(cell);
-  }
+  });
 
   const p = _secilenPersonel;
   const x  = Object.values(_puantajData).filter(d => d === 'X').length;
@@ -6371,26 +6426,28 @@ function renderPuantajGrid() {
     </div>`;
 }
 
-async function gunDurumDegistir(gun) {
+async function gunDurumDegistir(tarih) {
   const sira = ['', 'X', 'G', 'İ'];
-  const mevcut = _puantajData[gun] || '';
+  const mevcut = _puantajData[tarih] || '';
   const yeni = sira[(sira.indexOf(mevcut) + 1) % sira.length];
-  await inv('puantaj:guncelle', _secilenPersonel.id, _puantajYil, _puantajAy, gun, yeni);
-  if (yeni === '') { delete _puantajData[gun]; delete _puantajMesai[gun]; }
-  else { _puantajData[gun] = yeni; if (mevcut === 'X') delete _puantajMesai[gun]; }
+  const [yil, ay, gun] = tpTarihParcala(tarih);
+  await inv('puantaj:guncelle', _secilenPersonel.id, yil, ay, gun, yeni);
+  if (yeni === '') { delete _puantajData[tarih]; delete _puantajMesai[tarih]; }
+  else { _puantajData[tarih] = yeni; if (mevcut === 'X') delete _puantajMesai[tarih]; }
   renderPuantajGrid();
 }
 
 let _mesaiGirCallback = null;
 
-function gunMesaiGir(gun) {
-  const mevcut = _puantajMesai[gun] || 0;
-  document.getElementById('mesai-gir-baslik').textContent = `${gun}. Gün — Mesai Girişi`;
-  document.getElementById('mesai-gir-label').textContent = `${gun}. gün toplam çalışma saati:`;
+function gunMesaiGir(tarih) {
+  const mevcut = _puantajMesai[tarih] || 0;
+  document.getElementById('mesai-gir-baslik').textContent = `${tpTarihMetin(tarih)} — Mesai Girişi`;
+  document.getElementById('mesai-gir-label').textContent = `${tpTarihMetin(tarih)} toplam çalışma saati:`;
   document.getElementById('mesai-gir-saat').value = mevcut || '';
   _mesaiGirCallback = async (saat) => {
-    await inv('puantaj:mesai:guncelle', _secilenPersonel.id, _puantajYil, _puantajAy, gun, saat);
-    if (saat === 0) delete _puantajMesai[gun]; else _puantajMesai[gun] = saat;
+    const [yil, ay, gun] = tpTarihParcala(tarih);
+    await inv('puantaj:mesai:guncelle', _secilenPersonel.id, yil, ay, gun, saat);
+    if (saat === 0) delete _puantajMesai[tarih]; else _puantajMesai[tarih] = saat;
     renderPuantajGrid();
     loadPersonel();
   };
@@ -6406,22 +6463,12 @@ async function saveMesaiGir() {
   if (_mesaiGirCallback) { await _mesaiGirCallback(saat); _mesaiGirCallback = null; }
 }
 
-function puantajAyDegistir(delta) {
-  _puantajAy += delta;
-  if (_puantajAy > 12) { _puantajAy = 1; _puantajYil++; }
-  if (_puantajAy < 1)  { _puantajAy = 12; _puantajYil--; }
-  loadPuantaj();
-}
-
 async function puantajPdf() {
   if (!_secilenPersonel) return;
   const p = _secilenPersonel;
-  const AYLAR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
-  const ayAd = AYLAR[_puantajAy - 1];
-  const rows = await inv('puantaj:getir', p.id, _puantajYil, _puantajAy);
-  const data = {}, mesaiData = {};
-  rows.forEach(r => { data[r.gun] = r.durum; if (r.mesai_saat > 0) mesaiData[r.gun] = r.mesai_saat; });
-  const gunSayisi = new Date(_puantajYil, _puantajAy, 0).getDate();
+  const gunler = _puantajGunler;
+  const donemBaslik = `${tpTarihMetin(_puantajBas)} – ${tpTarihMetin(_puantajBit)}`;
+  const data = _puantajData, mesaiData = _puantajMesai;
   const x  = Object.values(data).filter(d => d === 'X').length;
   const iz = Object.values(data).filter(d => d === 'İ').length;
   const g  = Object.values(data).filter(d => d === 'G').length;
@@ -6431,15 +6478,15 @@ async function puantajPdf() {
   const mesaiUcret  = Math.round(mesaiToplam * saatlik);
   const maasKazanc  = Math.round((x + iz) * gunluk);
   const net = maasKazanc + mesaiUcret;
-  const pdfCols = Math.ceil(gunSayisi / 3);
+  const pdfCols = Math.max(1, Math.ceil(gunler.length / 3));
   let gunlerHtml = '';
-  for (let d = 1; d <= gunSayisi; d++) {
-    const durum = data[d] || '';
-    const ms = mesaiData[d] || 0;
+  gunler.forEach(gd => {
+    const durum = data[gd.tarih] || '';
+    const ms = mesaiData[gd.tarih] || 0;
     const cls = durum === 'X' ? 'gx' : durum === 'G' ? 'gg' : durum === 'İ' ? 'gi' : '';
     const mesaiTag = (durum === 'X' && ms > 0) ? `<span class="gm">⏱${ms}h</span>` : '';
-    gunlerHtml += `<div class="gd ${cls}"><span class="gno">${d}</span><span class="gv">${durum}</span>${mesaiTag}</div>`;
-  }
+    gunlerHtml += `<div class="gd ${cls}"><span class="gno">${gd.gun} ${gd.gunAdi}</span><span class="gv">${durum}</span>${mesaiTag}</div>`;
+  });
   const content = `<style>
 h1{font-size:16px;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom:14px}
 .info{display:flex;gap:28px;border:1px solid #ddd;padding:10px 14px;border-radius:6px;margin-bottom:14px}
@@ -6456,7 +6503,7 @@ h1{font-size:16px;margin-bottom:4px}.sub{color:#666;font-size:11px;margin-bottom
 .oz{display:flex;flex-direction:column}.ozl{font-size:10px;color:#999;text-transform:uppercase}.ozv{font-size:13px;font-weight:700}
 .ototal{border-top:2px solid #d1d5db;margin-top:10px;padding-top:10px;display:flex;align-items:baseline;gap:10px}
 </style>
-<h1>PUANTAJ CETVELİ — ${ayAd.toUpperCase()} ${_puantajYil}</h1>
+<h1>PUANTAJ CETVELİ — ${donemBaslik.toUpperCase()}</h1>
 <div class="sub">Albrus Company &mdash; Düzenlenme: ${new Date().toLocaleDateString('tr-TR')}</div>
 <div class="info">
   <div class="il"><span class="ilb">Ad Soyad</span><span class="ilv">${p.ad}${p.soyad?' '+p.soyad:''}</span></div>
