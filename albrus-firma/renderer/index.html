@@ -1745,7 +1745,7 @@
       <div class="fg"><label>Dönem Tipi</label>
         <select id="maas-donem-tip" onchange="donemPresetUygula()">
           <option value="ay">Takvim Ayı (1 – Ay Sonu)</option>
-          <option value="orta">Ay Ortası (15 – 15)</option>
+          <option value="orta">Ay Ortası (16 – 15)</option>
           <option value="ozel">Özel Aralık</option>
         </select>
       </div>
@@ -1867,7 +1867,7 @@
       <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
         <select id="tp-donem-tip" onchange="tpDonemPreset()" style="font-size:11px;padding:2px 4px">
           <option value="ay">Takvim Ayı (1–son)</option>
-          <option value="orta">Ay Ortası (15–15)</option>
+          <option value="orta">Ay Ortası (16–15)</option>
           <option value="ozel">Özel Aralık</option>
         </select>
         <input type="month" id="tp-donem-ay" onchange="tpDonemPreset()" style="font-size:11px;padding:2px 4px">
@@ -5808,7 +5808,7 @@ async function openTopluMaasOde() {
     <div class="fg" style="flex:1;min-width:130px"><label>Dönem Tipi</label>
       <select id="tmo-donem-tip" onchange="topluDonemPreset()">
         <option value="ay">Takvim Ayı (1 – Ay Sonu)</option>
-        <option value="orta">Ay Ortası (15 – 15)</option>
+        <option value="orta">Ay Ortası (16 – 15)</option>
         <option value="ozel">Özel Aralık</option>
       </select></div>
     <div class="fg" style="flex:1;min-width:110px"><label>Ay</label>
@@ -5890,7 +5890,7 @@ function topluDonemPreset() {
   if (tip === 'orta') {
     const sonrakiYil = aylik === 12 ? yil + 1 : yil;
     const sonrakiAy  = aylik === 12 ? 1 : aylik + 1;
-    bas = `${yil}-${iki(aylik)}-15`;
+    bas = `${yil}-${iki(aylik)}-16`;
     bit = `${sonrakiYil}-${iki(sonrakiAy)}-15`;
   } else {
     const sonGun = new Date(yil, aylik, 0).getDate();
@@ -5988,7 +5988,7 @@ function donemPresetUygula() {
     // Ayın 15'i → sonraki ayın 15'i
     const sonrakiYil = aylik === 12 ? yil + 1 : yil;
     const sonrakiAy  = aylik === 12 ? 1 : aylik + 1;
-    bas = `${yil}-${iki(aylik)}-15`;
+    bas = `${yil}-${iki(aylik)}-16`;
     bit = `${sonrakiYil}-${iki(sonrakiAy)}-15`;
   } else {
     // Takvim ayı: 1 → ayın son günü
@@ -6610,7 +6610,7 @@ function tpDonemPreset() {
   let bas, bit;
   if (tip === 'orta') {
     const sy = aylik === 12 ? yil + 1 : yil, sa = aylik === 12 ? 1 : aylik + 1;
-    bas = `${yil}-${iki(aylik)}-15`;
+    bas = `${yil}-${iki(aylik)}-16`;
     bit = `${sy}-${iki(sa)}-15`;
   } else {
     bas = `${yil}-${iki(aylik)}-01`;
