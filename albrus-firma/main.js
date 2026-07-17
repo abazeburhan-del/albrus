@@ -2209,8 +2209,8 @@ ipcMain.handle('puantaj:aralik:doldur', (_, personelIds, basStr, bitStr, durum) 
     const p = getOne('SELECT maas FROM personeller WHERE id=?', [pid]);
     const maas = p ? p.maas : 0;
     for (const g of gunler) {
-      // Temizlerken hepsi boş; doldururken Cuma → İ (ücretli izin), diğer günler → durum
-      const hedef = durum === '' ? '' : (g.cuma ? 'İ' : durum);
+      // Temizlerken hepsi boş; doldururken Cuma → İ; ayın 31. günü ASLA sayılmaz (boş)
+      const hedef = (durum === '' || g.gun === 31) ? '' : (g.cuma ? 'İ' : durum);
       if (hedef === '') {
         run('DELETE FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND gun=?', [pid, g.yil, g.ay, g.gun]);
       } else {
