@@ -6542,42 +6542,75 @@ async function topluPuantajPdf() {
   let topX = 0, topI = 0, topG = 0, topAlacak = {};
   let bireyselGridler = '';
 
-  const satirlar = liste.map(p => {
-    topX += p.x_gun; topI += p.i_gun; topG += p.g_gun;
-    const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
-    const pb = p.para_birimi || '';
-    topAlacak[pb] = (topAlacak[pb] || 0) + p.net_kazanc;
-    const durumMap = p.durumMap || {};
-    const mesaiMap = p.mesaiMap || {};
-    const mesaiToplam = Object.values(mesaiMap).reduce((s, v) => s + v, 0);
-
-    let gunCells = '';
-    for (let g = 1; g <= gunSayisi; g++) {
-      const durum = durumMap[g] || '';
-      const mesai = mesaiMap[g] || 0;
-      const hg = new Date(y, m - 1, g).getDay();
-      const haftaSonu = hg === 5;   // Irak: Cuma tatil
-      const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : haftaSonu ? '#fff0f0' : '#f9f9f9';
-      const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#bbb';
-      const mesaiTag = (durum === 'X' && mesai > 0) ? `<div style="font-size:5px;color:#b45309;font-weight:700">⏱${mesai}h</div>` : '';
-      gunCells += `<div style="text-align:center;padding:2px 1px;border:1px solid #e5e7eb;border-radius:2px;background:${bg};color:${color};font-weight:700"><div style="font-size:5px;color:#aaa">${g}</div><div style="font-size:8px;min-height:10px">${durum}</div>${mesaiTag}</div>`;
+  // Personelleri projeye göre grupla (liste zaten proje adına göre sıralı)
+  const gruplar = [];
+  const grupIndex = new Map();
+  liste.forEach(p => {
+    const anahtar = p.proje_id || 0;
+    if (!grupIndex.has(anahtar)) {
+      grupIndex.set(anahtar, gruplar.length);
+      gruplar.push({ ad: p.proje_id ? (p.proje_ad || 'Proje') : 'Proje Atanmamış', kisiler: [] });
     }
-    const ozet = `<b style="color:#065f46">${p.x_gun}X</b> <b style="color:#1e40af">${p.i_gun}İ</b> <b style="color:#991b1b">${p.g_gun}G</b>${p.cuma_gun > 0 ? ` <b style="color:#7c3aed">+${p.cuma_gun}T</b>` : ''}${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(Math.round(p.net_kazanc))} ${pb}</b>`;
-    bireyselGridler += `<div style="break-inside:avoid;margin-bottom:8px">
-      <div style="font-size:7px;font-weight:700;margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">${adSoyad} &nbsp;<span style="font-weight:400">${ozet}</span></div>
-      <div style="display:grid;grid-template-columns:repeat(${gunSayisi},1fr);gap:2px">${gunCells}</div>
-    </div>`;
+    gruplar[grupIndex.get(anahtar)].kisiler.push(p);
+  });
+  const grupBasliklariGoster = gruplar.length > 1;
 
-    return `<tr>
-      <td>${adSoyad}</td>
-      <td>${p.pozisyon||'—'}</td>
-      <td style="text-align:right">${fmtTutar(Math.round(p.maas))} ${pb}</td>
-      <td style="text-align:center;color:#059669;font-weight:700">${p.x_gun}</td>
-      <td style="text-align:center;color:#2563eb;font-weight:700">${p.i_gun}</td>
-      <td style="text-align:center;color:#dc2626;font-weight:700">${p.g_gun}</td>
-      <td style="text-align:right;font-weight:700;color:#059669">${fmtTutar(Math.round(p.net_kazanc))} ${pb}</td>
-    </tr>`;
-  }).join('');
+  let satirlar = '';
+  gruplar.forEach(gr => {
+    let gX = 0, gI = 0, gG = 0, gAlacak = {};
+    if (grupBasliklariGoster) {
+      satirlar += `<tr><td colspan="7" style="background:#eef2ff;color:#3730a3;font-weight:700;padding:4px 8px">🏗 ${gr.ad} — ${gr.kisiler.length} kişi</td></tr>`;
+      bireyselGridler += `<h3 style="font-size:9px;margin:8px 0 4px;color:#3730a3">🏗 ${gr.ad}</h3>`;
+    }
+    gr.kisiler.forEach(p => {
+      topX += p.x_gun; topI += p.i_gun; topG += p.g_gun;
+      gX += p.x_gun; gI += p.i_gun; gG += p.g_gun;
+      const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
+      const pb = p.para_birimi || '';
+      topAlacak[pb] = (topAlacak[pb] || 0) + p.net_kazanc;
+      gAlacak[pb] = (gAlacak[pb] || 0) + p.net_kazanc;
+      const durumMap = p.durumMap || {};
+      const mesaiMap = p.mesaiMap || {};
+      const mesaiToplam = Object.values(mesaiMap).reduce((s, v) => s + v, 0);
+
+      let gunCells = '';
+      for (let g = 1; g <= gunSayisi; g++) {
+        const durum = durumMap[g] || '';
+        const mesai = mesaiMap[g] || 0;
+        const hg = new Date(y, m - 1, g).getDay();
+        const haftaSonu = hg === 5;   // Irak: Cuma tatil
+        const bg = durum === 'X' ? '#d1fae5' : durum === 'G' ? '#fee2e2' : durum === 'İ' ? '#dbeafe' : haftaSonu ? '#fff0f0' : '#f9f9f9';
+        const color = durum === 'X' ? '#065f46' : durum === 'G' ? '#991b1b' : durum === 'İ' ? '#1e40af' : '#bbb';
+        const mesaiTag = (durum === 'X' && mesai > 0) ? `<div style="font-size:5px;color:#b45309;font-weight:700">⏱${mesai}h</div>` : '';
+        gunCells += `<div style="text-align:center;padding:2px 1px;border:1px solid #e5e7eb;border-radius:2px;background:${bg};color:${color};font-weight:700"><div style="font-size:5px;color:#aaa">${g}</div><div style="font-size:8px;min-height:10px">${durum}</div>${mesaiTag}</div>`;
+      }
+      const ozet = `<b style="color:#065f46">${p.x_gun}X</b> <b style="color:#1e40af">${p.i_gun}İ</b> <b style="color:#991b1b">${p.g_gun}G</b>${p.cuma_gun > 0 ? ` <b style="color:#7c3aed">+${p.cuma_gun}T</b>` : ''}${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(Math.round(p.net_kazanc))} ${pb}</b>`;
+      bireyselGridler += `<div style="break-inside:avoid;margin-bottom:8px">
+        <div style="font-size:7px;font-weight:700;margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">${adSoyad} &nbsp;<span style="font-weight:400">${ozet}</span></div>
+        <div style="display:grid;grid-template-columns:repeat(${gunSayisi},1fr);gap:2px">${gunCells}</div>
+      </div>`;
+
+      satirlar += `<tr>
+        <td>${adSoyad}</td>
+        <td>${p.pozisyon||'—'}</td>
+        <td style="text-align:right">${fmtTutar(Math.round(p.maas))} ${pb}</td>
+        <td style="text-align:center;color:#059669;font-weight:700">${p.x_gun}</td>
+        <td style="text-align:center;color:#2563eb;font-weight:700">${p.i_gun}</td>
+        <td style="text-align:center;color:#dc2626;font-weight:700">${p.g_gun}</td>
+        <td style="text-align:right;font-weight:700;color:#059669">${fmtTutar(Math.round(p.net_kazanc))} ${pb}</td>
+      </tr>`;
+    });
+    if (grupBasliklariGoster) {
+      const grupToplamStr = Object.entries(gAlacak).map(([pb, t]) => `${fmtTutar(Math.round(t))} ${pb}`).join(' + ');
+      satirlar += `<tr style="background:#eef2ff;font-weight:700">
+        <td colspan="3">${gr.ad} Ara Toplam</td>
+        <td style="text-align:center;color:#059669">${gX}</td>
+        <td style="text-align:center;color:#2563eb">${gI}</td>
+        <td style="text-align:center;color:#dc2626">${gG}</td>
+        <td style="text-align:right;color:#059669">${grupToplamStr}</td>
+      </tr>`;
+    }
+  });
 
   const content = `<style>
 @page{size:A4 landscape;margin:8mm}
@@ -6942,18 +6975,28 @@ async function tpSifirla() {
 async function tpPdf() {
   const gunler = _tpGunler;
   const donemBaslik = `${tpTarihMetin(_tpBas)} – ${tpTarihMetin(_tpBit)}`;
-  const isGunu = gunler.filter(gd => !gd.cuma).length;
+
+  // Ekrandaki proje filtresi + isim aramasını rapora da uygula
+  let gorunen = _tpProjeFiltre === null ? _tpPersoneller
+    : _tpProjeFiltre === 0 ? _tpPersoneller.filter(p => !p.proje_id)
+    : _tpPersoneller.filter(p => p.proje_id === _tpProjeFiltre);
+  if (_tpAraSorgu) {
+    gorunen = gorunen.filter(p => `${p.ad} ${p.soyad || ''}`.toLowerCase().includes(_tpAraSorgu));
+  }
+  const projeSecili = _tpProjeFiltre !== null;
+  const projeAd = _tpProjeFiltre === 0 ? 'Proje Atanmamış'
+    : projeSecili ? (gorunen[0]?.proje_ad || 'Proje') : null;
 
   let thGunler = '';
   gunler.forEach(gd => {
     thGunler += `<th class="gcol" style="${gd.cuma ? 'background:#fff0f0;' : ''}">${gd.gun}<br><span style="font-size:6px">${gd.gunAdi}</span></th>`;
   });
 
-  let satirlar = '';
-  let topX = 0, topI = 0, topG = 0, topMesai = 0, topAlacak = {};
-  let bireyselGridler = '';
+  const bosGunHucre = Array(gunler.length).fill('<td class="gcol"></td>').join('');
+  const sutunSayisi = gunler.length + 4;   // Ad + günler + Günler özeti + Alacak + Kesinti
 
-  _tpPersoneller.forEach((p, i) => {
+  // Tek bir personel satırı üret
+  function personelSatir(p, i) {
     const adSoyad = `${p.ad}${p.soyad ? ' ' + p.soyad : ''}`;
     const pb = p.para_birimi || '';
     let tdGunler = '', x = 0, iz = 0, gg = 0, mesaiToplam = 0;
@@ -6967,23 +7010,22 @@ async function tpPdf() {
       const mesaiStr = (durum === 'X' && mesai > 0) ? `<br><span style="font-size:5px;color:#b45309">+${mesai}h</span>` : '';
       tdGunler += `<td class="gcol" style="background:${bg};color:${color};font-weight:700">${durum}${mesaiStr}</td>`;
     });
-    const odenenGun = x + iz;        // sadece işaretli günler
+    const odenenGun = x + iz;
     const gunluk  = p.maas > 0 ? p.maas / 30 : 0;
     const saatlik = gunluk / 9;
     const alacak  = Math.round(odenenGun * gunluk + mesaiToplam * saatlik);
-    const kesinti = 0;
-    topX += x; topI += iz; topG += gg; topMesai += mesaiToplam;
-    topAlacak[pb] = (topAlacak[pb] || 0) + alacak;
-
-    satirlar += `<tr style="${i % 2 === 1 ? 'background:#f9fafb' : ''}">
+    const satir = `<tr style="${i % 2 === 1 ? 'background:#f9fafb' : ''}">
       <td style="white-space:nowrap;font-weight:600">${adSoyad}</td>
       ${tdGunler}
       <td style="text-align:right;white-space:nowrap"><b style="color:#065f46">${x}X</b> <b style="color:#1e40af">${iz}İ</b> <b style="color:#991b1b">${gg}G</b>${mesaiToplam > 0 ? ` <b style="color:#b45309">${mesaiToplam}h</b>` : ''}</td>
       <td style="text-align:right;white-space:nowrap;color:#065f46;font-weight:700">+${fmtTutar(alacak)} ${pb}</td>
-      <td style="text-align:right;white-space:nowrap;color:#991b1b">${kesinti > 0 ? '-'+fmtTutar(kesinti)+' '+pb : '—'}</td>
+      <td style="text-align:right;white-space:nowrap;color:#991b1b">—</td>
     </tr>`;
+    return { satir, adSoyad, pb, x, iz, gg, mesaiToplam, alacak };
+  }
 
-    // Bireysel grid
+  // Bireysel çizelge kartı üret
+  function bireyselKart(p, r) {
     let gunCells = '';
     gunler.forEach(gd => {
       const durum = _tpData[p.id]?.[gd.tarih] || '';
@@ -6997,16 +7039,63 @@ async function tpPdf() {
         ${mesaiTag}
       </div>`;
     });
-    const ozet = `<b style="color:#065f46">${x}X</b> <b style="color:#1e40af">${iz}İ</b> <b style="color:#991b1b">${gg}G</b>${mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(alacak)} ${pb}</b>`;
-    bireyselGridler += `<div style="break-inside:avoid;margin-bottom:8px">
+    const ozet = `<b style="color:#065f46">${r.x}X</b> <b style="color:#1e40af">${r.iz}İ</b> <b style="color:#991b1b">${r.gg}G</b>${r.mesaiToplam > 0 ? ` <b style="color:#b45309">⏱${r.mesaiToplam}h</b>` : ''} — <b style="color:#065f46">${fmtTutar(r.alacak)} ${r.pb}</b>`;
+    return `<div style="break-inside:avoid;margin-bottom:8px">
       <div style="font-size:7px;font-weight:700;margin-bottom:3px;padding-bottom:2px;border-bottom:1px solid #e5e7eb">
-        ${adSoyad} &nbsp; <span style="font-weight:400">${ozet}</span>
+        ${r.adSoyad} &nbsp; <span style="font-weight:400">${ozet}</span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(${gunler.length},1fr);gap:2px">${gunCells}</div>
     </div>`;
+  }
+
+  // Personelleri projeye göre grupla (sıra: backend zaten proje adına göre sıralı)
+  const gruplar = [];
+  const grupIndex = new Map();
+  gorunen.forEach(p => {
+    const anahtar = p.proje_id || 0;
+    if (!grupIndex.has(anahtar)) {
+      grupIndex.set(anahtar, gruplar.length);
+      gruplar.push({ anahtar, ad: p.proje_id ? (p.proje_ad || 'Proje') : 'Proje Atanmamış', kisiler: [] });
+    }
+    gruplar[grupIndex.get(anahtar)].kisiler.push(p);
+  });
+
+  let satirlar = '';
+  let bireyselGridler = '';
+  let topX = 0, topI = 0, topG = 0, topMesai = 0, topAlacak = {};
+  let sira = 0;
+  // Tek proje seçiliyse başlık zaten yukarıda; birden çok grup varsa grup başlıkları göster
+  const grupBasliklariGoster = gruplar.length > 1;
+
+  gruplar.forEach(gr => {
+    let gX = 0, gI = 0, gG = 0, gMesai = 0, gAlacak = {};
+    if (grupBasliklariGoster) {
+      satirlar += `<tr><td colspan="${sutunSayisi}" style="background:#eef2ff;color:#3730a3;font-weight:700;font-size:7px;padding:3px 4px">🏗 ${gr.ad} — ${gr.kisiler.length} kişi</td></tr>`;
+      bireyselGridler += `<h3 style="font-size:8px;margin:8px 0 4px;color:#3730a3">🏗 ${gr.ad}</h3>`;
+    }
+    gr.kisiler.forEach(p => {
+      const r = personelSatir(p, sira++);
+      satirlar += r.satir;
+      bireyselGridler += bireyselKart(p, r);
+      gX += r.x; gI += r.iz; gG += r.gg; gMesai += r.mesaiToplam;
+      gAlacak[r.pb] = (gAlacak[r.pb] || 0) + r.alacak;
+      topX += r.x; topI += r.iz; topG += r.gg; topMesai += r.mesaiToplam;
+      topAlacak[r.pb] = (topAlacak[r.pb] || 0) + r.alacak;
+    });
+    if (grupBasliklariGoster) {
+      const grupToplamStr = Object.entries(gAlacak).map(([pb, t]) => `+${fmtTutar(Math.round(t))} ${pb}`).join(' | ');
+      satirlar += `<tr style="background:#eef2ff">
+        <td style="font-weight:700;font-size:6px">${gr.ad} Ara Toplam</td>
+        ${bosGunHucre}
+        <td style="text-align:center;font-weight:700"><b style="color:#065f46">${gX}X</b> <b style="color:#1e40af">${gI}İ</b> <b style="color:#991b1b">${gG}G</b>${gMesai > 0 ? ` <b style="color:#b45309">${gMesai}h</b>` : ''}</td>
+        <td style="text-align:right;font-weight:700;color:#065f46">${grupToplamStr}</td>
+        <td></td>
+      </tr>`;
+    }
   });
 
   const toplamStr = Object.entries(topAlacak).map(([pb, t]) => `+${fmtTutar(Math.round(t))} ${pb}`).join(' | ');
+  const baslik = projeSecili ? `TOPLU PUANTAJ — ${projeAd.toUpperCase()}` : 'TOPLU PUANTAJ ÇİZELGESİ';
 
   const content = `<style>
 @page{size:A4 landscape;margin:8mm}
@@ -7019,9 +7108,10 @@ th{background:#f3f4f6;font-weight:700;text-align:left}
 .gcol{width:11px;min-width:11px;max-width:11px;padding:1px 0;text-align:center}
 .tfoot td{background:#f0fdf4;font-weight:700;border-top:2px solid #9ca3af}
 h2{font-size:8px;margin:10px 0 6px;border-bottom:1px solid #d1d5db;padding-bottom:3px}
+h3{font-size:8px;margin:8px 0 4px}
 </style>
-<h1>TOPLU PUANTAJ ÇİZELGESİ — ${donemBaslik.toUpperCase()}</h1>
-<div class="sub">Albrus Company &mdash; Personel: ${_tpPersoneller.length} &mdash; ${new Date().toLocaleDateString('tr-TR')}</div>
+<h1>${baslik} — ${donemBaslik.toUpperCase()}</h1>
+<div class="sub">Albrus Company &mdash; ${projeSecili ? 'Proje: ' + projeAd + ' &mdash; ' : ''}Personel: ${gorunen.length} &mdash; ${new Date().toLocaleDateString('tr-TR')}</div>
 <table>
 <thead><tr>
   <th style="min-width:60px">Ad Soyad</th>
@@ -7032,8 +7122,8 @@ h2{font-size:8px;margin:10px 0 6px;border-bottom:1px solid #d1d5db;padding-botto
 </tr></thead>
 <tbody>${satirlar}</tbody>
 <tfoot><tr class="tfoot">
-  <td><b>TOPLAM</b></td>
-  ${Array(gunler.length).fill('<td class="gcol"></td>').join('')}
+  <td><b>GENEL TOPLAM</b></td>
+  ${bosGunHucre}
   <td style="text-align:center"><b style="color:#065f46">${topX}X</b> <b style="color:#1e40af">${topI}İ</b> <b style="color:#991b1b">${topG}G</b>${topMesai > 0 ? ` <b style="color:#b45309">${topMesai}h</b>` : ''}</td>
   <td style="text-align:right;color:#065f46">${toplamStr}</td>
   <td></td>
