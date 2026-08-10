@@ -214,6 +214,20 @@ function cekHareketGeriAl(cs) {
     run("DELETE FROM cari_hareketleri WHERE cari_id=? AND tutar=? AND tarih=? AND kaynak='kasa'",
       [fis.cari_id, fis.tutar, fis.tarih]);
   }
+
+  // Personel ödemesi / avans / maaş ise personel hareketini de geri al
+  const ph = getOne(
+    "SELECT * FROM personel_hareketleri WHERE tur='borc' AND tutar=? AND tarih=? AND aciklama=? AND kaynak IN ('kasa_odeme','avans','maas_odeme') ORDER BY id DESC LIMIT 1",
+    [fis.tutar, fis.tarih, fis.aciklama || '']);
+  if (ph) {
+    run('DELETE FROM personel_hareketleri WHERE id=?', [ph.id]);
+    // Maaş ödemesi ise (belge MAA-XXXX) maas_odemeleri kaydını da sil
+    if (fis.belge_no && /^MAA-/.test(fis.belge_no)) {
+      const moId = parseInt(String(fis.belge_no).replace('MAA-', ''), 10);
+      if (moId) run('DELETE FROM maas_odemeleri WHERE id=?', [moId]);
+    }
+  }
+
   run('DELETE FROM kasa_hareketleri WHERE id = ?', [id]);
   saveDb();
   return true;
@@ -351,9 +365,52 @@ function cekHareketGeriAl(cs) {
       [fis.cari_id, fis.tutar, fis.tarih]);
   }
 
+  // Personel ödemesi / avans / maaş ise personel hareketini de geri al
+  const ph = getOne(
+    "SELECT * FROM personel_hareketleri WHERE tur='borc' AND tutar=? AND tarih=? AND aciklama=? AND kaynak IN ('kasa_odeme','avans','maas_odeme') ORDER BY id DESC LIMIT 1",
+    [fis.tutar, fis.tarih, fis.aciklama || '']);
+  if (ph) {
+    run('DELETE FROM personel_hareketleri WHERE id=?', [ph.id]);
+    if (fis.belge_no && /^MAA-/.test(fis.belge_no)) {
+      const moId = parseInt(String(fis.belge_no).replace('MAA-', ''), 10);
+      if (moId) run('DELETE FROM maas_odemeleri WHERE id=?', [moId]);
+    }
+  }
+
   run('DELETE FROM banka_hareketleri WHERE id = ?', [id]);
   saveDb();
   return true;
+};
+  H["stok-gruplan:getir"] = () => {
+  return getAll('SELECT * FROM stok_gruplan ORDER BY ad');
+};
+  H["stok-gruplan:ekle"] = (_, d) => {
+  const r = insertAndGet('stok_gruplan',
+    'INSERT INTO stok_gruplan (ad, kod, aciklama, parent_id) VALUES (?, ?, ?, ?)',
+    [d.ad || '', d.kod || '', d.aciklama || '', d.parent_id || null]
+  );
+  saveDb();
+  return r;
+};
+  H["stok-gruplan:guncelle"] = (_, d) => {
+  run('UPDATE stok_gruplan SET ad = ?, kod = ?, aciklama = ?, parent_id = ? WHERE id = ?',
+    [d.ad || '', d.kod || '', d.aciklama || '', d.parent_id || null, d.id]);
+  saveDb();
+  return true;
+};
+  H["stok-gruplan:sil"] = (_, id) => {
+  // Alt grupları ve stokları silinen grubun üst grubuna taşı
+  const g = getOne('SELECT parent_id FROM stok_gruplan WHERE id = ?', [id]);
+  const ust = g ? g.parent_id : null;
+  run('DELETE FROM stok_gruplan WHERE id = ?', [id]);
+  run('UPDATE stok_gruplan SET parent_id = ? WHERE parent_id = ?', [ust, id]);
+  run('UPDATE stoklar SET grup_id = ? WHERE grup_id = ?', [ust, id]);
+  saveDb();
+  return true;
+};
+  H["stoklar:byGrup"] = (_, grup_id) => {
+  return getAll('SELECT * FROM stoklar WHERE grup_id = ? OR (? IS NULL AND grup_id IS NULL) ORDER BY ad',
+    [grup_id, grup_id]);
 };
   H["cariler:getir"] = (_, f) => {
   if (f?.tur) return getAll('SELECT * FROM cariler WHERE tur = ? ORDER BY ad', [f.tur]);
@@ -361,8 +418,8 @@ function cekHareketGeriAl(cs) {
 };
   H["cariler:ekle"] = (_, d) => {
   const r = insertAndGet('cariler',
-    'INSERT INTO cariler (ad, tur, telefon, adres, vergi_no) VALUES (?, ?, ?, ?, ?)',
-    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '']
+    'INSERT INTO cariler (ad, tur, telefon, adres, vergi_no, fatura_no_prefix) VALUES (?, ?, ?, ?, ?, ?)',
+    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '', d.fatura_no_prefix ?? '']
   );
   // Açılış bakiyesi — borç: cari bize borçlu (+), alacak: biz cariye borçluyuz (−)
   const acilis = Math.abs(Number(d.acilis) || 0);
@@ -379,8 +436,8 @@ function cekHareketGeriAl(cs) {
   return getOne('SELECT * FROM cariler WHERE id = ?', [r.id]);
 };
   H["cariler:guncelle"] = (_, d) => {
-  run('UPDATE cariler SET ad = ?, tur = ?, telefon = ?, adres = ?, vergi_no = ? WHERE id = ?',
-    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '', d.id]);
+  run('UPDATE cariler SET ad = ?, tur = ?, telefon = ?, adres = ?, vergi_no = ?, fatura_no_prefix = ? WHERE id = ?',
+    [d.ad, d.tur, d.telefon ?? '', d.adres ?? '', d.vergi_no ?? '', d.fatura_no_prefix ?? '', d.id]);
   saveDb();
   return getOne('SELECT * FROM cariler WHERE id = ?', [d.id]);
 };
@@ -440,7 +497,13 @@ function cekHareketGeriAl(cs) {
     new Set([...Object.keys(gelir), ...Object.keys(gider)]).forEach(pb => {
       kar[pb] = (gelir[pb] || 0) - (gider[pb] || 0);
     });
-    return { ...p, gelir, gider, kar };
+    // Sözleşme/keşif bedeli (malzeme keşfi + işçilik keşfi), para birimine göre
+    const kesif = {};
+    getAll('SELECT para_birimi, SUM(miktar*birim_fiyat) as t FROM proje_kesif WHERE proje_id=? GROUP BY para_birimi', [p.id])
+      .forEach(r => { if (r.para_birimi) kesif[r.para_birimi] = (kesif[r.para_birimi] || 0) + (r.t || 0); });
+    getAll('SELECT para_birimi, SUM(gun*gundelik) as t FROM proje_iscilik_kesif WHERE proje_id=? GROUP BY para_birimi', [p.id])
+      .forEach(r => { if (r.para_birimi) kesif[r.para_birimi] = (kesif[r.para_birimi] || 0) + (r.t || 0); });
+    return { ...p, gelir, gider, kar, kesif };
   });
 };
   H["proje:hareketler"] = (_, proje_id) =>
@@ -455,7 +518,271 @@ function cekHareketGeriAl(cs) {
       FROM banka_hareketleri bh JOIN banka_hesaplari b ON b.id = bh.hesap_id WHERE bh.proje_id = ?
     ) ORDER BY tarih DESC
   `, [proje_id, proje_id]);
-  H["sonraki:fatura:no"] = (_, tur) => {
+  H["kesif:getir"] = (_, proje_id, tur) => {
+  const rows = getAll(
+    'SELECT * FROM proje_kesif WHERE proje_id=? AND tur=? ORDER BY sira,id',
+    [proje_id, tur]
+  ).map(s => ({ ...s, tutar: (Number(s.miktar)||0) * (Number(s.birim_fiyat)||0) }));
+  const genelToplam = rows.reduce((a,r) => a + r.tutar, 0);
+  return { rows, genelToplam };
+};
+  H["kesif:kaydet"] = (_, proje_id, tur, satirlar) => {
+  run('DELETE FROM proje_kesif WHERE proje_id=? AND tur=?', [proje_id, tur]);
+  (satirlar||[]).forEach((s,i) =>
+    run('INSERT INTO proje_kesif (proje_id,tur,poz_no,ad,birim,miktar,birim_fiyat,para_birimi,sira) VALUES (?,?,?,?,?,?,?,?,?)',
+      [proje_id, tur, s.poz_no||'', s.ad||'', s.birim||'Adet',
+       Number(s.miktar)||0, Number(s.birim_fiyat)||0, s.para_birimi||'USD', i+1])
+  );
+  saveDb();
+  return true;
+};
+  H["iscilik:getir"] = (_, proje_id) => {
+  const rows = getAll(
+    'SELECT * FROM proje_iscilik_kesif WHERE proje_id=? ORDER BY sira,id',
+    [proje_id]
+  ).map(s => ({ ...s, toplam: (Number(s.gun)||0) * (Number(s.gundelik)||0) }));
+  const genelToplam = rows.reduce((a,r) => a + r.toplam, 0);
+  return { rows, genelToplam };
+};
+  H["iscilik:kaydet"] = (_, proje_id, satirlar) => {
+  run('DELETE FROM proje_iscilik_kesif WHERE proje_id=?', [proje_id]);
+  (satirlar||[]).forEach((s,i) =>
+    run('INSERT INTO proje_iscilik_kesif (proje_id,isci_adi,gun,gundelik,para_birimi,sira) VALUES (?,?,?,?,?,?)',
+      [proje_id, s.isci_adi||'', Number(s.gun)||0, Number(s.gundelik)||0, s.para_birimi||'USD', i+1])
+  );
+  saveDb();
+  return true;
+};
+  H["3d:getir"] = (_, kesif_id) => {
+  return getOne('SELECT * FROM proje_kesif_3d WHERE kesif_id=?', [kesif_id]) || null;
+};
+  H["3d:kaydet"] = (_, kesif_id, x, y, z, rx, ry, rz, olcek) => {
+  const existing = getOne('SELECT id FROM proje_kesif_3d WHERE kesif_id=?', [kesif_id]);
+  if (existing) {
+    run('UPDATE proje_kesif_3d SET x=?, y=?, z=?, rotasyon_x=?, rotasyon_y=?, rotasyon_z=?, olcek=? WHERE kesif_id=?',
+      [x, y, z, rx, ry, rz, olcek, kesif_id]);
+  } else {
+    run('INSERT INTO proje_kesif_3d (kesif_id, x, y, z, rotasyon_x, rotasyon_y, rotasyon_z, olcek) VALUES (?,?,?,?,?,?,?,?)',
+      [kesif_id, x, y, z, rx, ry, rz, olcek]);
+  }
+  saveDb();
+  return true;
+};
+  H["kat-plani:kaydet"] = (_, proje_id, data) => {
+  const existing = getOne('SELECT id FROM proje_kat_plani WHERE proje_id=?', [proje_id]);
+  const itemsJson = JSON.stringify(data.items || []);
+
+  if (existing) {
+    run('UPDATE proje_kat_plani SET resim_data=?, items_json=?, tur=?, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE proje_id=?',
+      [data.resim || null, itemsJson, data.tur || 'elektrik', proje_id]);
+  } else {
+    run('INSERT INTO proje_kat_plani (proje_id, resim_data, items_json, tur) VALUES (?,?,?,?)',
+      [proje_id, data.resim || null, itemsJson, data.tur || 'elektrik']);
+  }
+  saveDb();
+  return true;
+};
+  H["kat-plani:getir"] = (_, proje_id) => {
+  const row = getOne('SELECT * FROM proje_kat_plani WHERE proje_id=?', [proje_id]);
+  if (!row) return { resim: null, items: [] };
+  return {
+    resim: row.resim_data,
+    items: row.items_json ? JSON.parse(row.items_json) : []
+  };
+};
+  H["depo:kaydet"] = (_, proje_id, data) => {
+  const existing = getOne('SELECT id FROM proje_depo_3d WHERE proje_id=?', [proje_id]);
+  const nesnelerJson = JSON.stringify(data.nesneler || []);
+  const katmanlarJson = JSON.stringify(data.katmanlar || []);
+
+  if (existing) {
+    run('UPDATE proje_depo_3d SET nesneler_json=?, katmanlar_json=?, tur=?, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE proje_id=?',
+      [nesnelerJson, katmanlarJson, data.tur || 'elektrik', proje_id]);
+  } else {
+    run('INSERT INTO proje_depo_3d (proje_id, nesneler_json, katmanlar_json, tur) VALUES (?,?,?,?)',
+      [proje_id, nesnelerJson, katmanlarJson, data.tur || 'elektrik']);
+  }
+  saveDb();
+  return true;
+};
+  H["depo:getir"] = (_, proje_id) => {
+  const row = getOne('SELECT * FROM proje_depo_3d WHERE proje_id=?', [proje_id]);
+  if (!row) return { nesneler: [], katmanlar: [] };
+  return {
+    nesneler: row.nesneler_json ? JSON.parse(row.nesneler_json) : [],
+    katmanlar: row.katmanlar_json ? JSON.parse(row.katmanlar_json) : []
+  };
+};
+  H["editor3d:kaydet"] = (_, proje_id, data) => {
+  const existing = getOne('SELECT id FROM proje_3d_editor WHERE proje_id=?', [proje_id]);
+  const nesnelerJson = JSON.stringify(data.nesneler || []);
+
+  if (existing) {
+    run('UPDATE proje_3d_editor SET nesneler_json=?, tur=?, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE proje_id=?',
+      [nesnelerJson, data.tur || 'elektrik', proje_id]);
+  } else {
+    run('INSERT INTO proje_3d_editor (proje_id, nesneler_json, tur) VALUES (?,?,?)',
+      [proje_id, nesnelerJson, data.tur || 'elektrik']);
+  }
+  saveDb();
+  return true;
+};
+  H["editor3d:getir"] = (_, proje_id) => {
+  const row = getOne('SELECT * FROM proje_3d_editor WHERE proje_id=?', [proje_id]);
+  if (!row) return { nesneler: [] };
+  return {
+    nesneler: row.nesneler_json ? JSON.parse(row.nesneler_json) : []
+  };
+};
+  H["dwg:openDxf"] = async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'DXF Dosyası Seç (AutoCAD\'da export edin)',
+    properties: ['openFile'],
+    filters: [{ name: 'AutoCAD DXF', extensions: ['dxf'] }]
+  });
+  if (canceled || !filePaths?.length) return { ok: false };
+  return { ok: true, filePath: filePaths[0] };
+};
+  H["dwg:parseDxf"] = async (_, filePath) => {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const lines = content.split('\n');
+
+    // Step 1: Parse BLOCKS section to get block descriptions
+    const blockDescs = {}; // C1 -> "CEILING RECESSED..."
+    let inBlocks = false;
+    let currentBlockName = '';
+    let i = 0;
+
+    while (i < lines.length && i < lines.length / 2) { // BLOCKS section is early, limit scan
+      const lineNum = lines[i].trim();
+      if (lineNum === '0') {
+        const entityType = lines[i + 1]?.trim();
+
+        if (entityType === 'SECTION') {
+          const nextCode = lines[i + 2]?.trim();
+          if (nextCode === '2' && lines[i + 3]?.trim() === 'BLOCKS') {
+            inBlocks = true;
+            i += 4;
+            continue;
+          }
+        }
+
+        if (inBlocks && entityType === 'ENDSEC') {
+          break; // end of BLOCKS
+        }
+
+        if (inBlocks && entityType === 'BLOCK') {
+          let j = i + 2;
+          while (j < lines.length && lines[j].trim() !== '0') {
+            const code = lines[j].trim();
+            if (code === '2') {
+              currentBlockName = lines[j + 1]?.trim() || '';
+              blockDescs[currentBlockName] = currentBlockName; // default to block name
+            }
+            j += 2;
+          }
+        }
+
+        // First TEXT in a block = description
+        if (inBlocks && entityType === 'TEXT' && currentBlockName) {
+          let j = i + 2;
+          while (j < lines.length && lines[j].trim() !== '0') {
+            const code = lines[j].trim();
+            if (code === '1') {
+              const desc = lines[j + 1]?.trim() || '';
+              if (desc && blockDescs[currentBlockName] === currentBlockName) {
+                blockDescs[currentBlockName] = desc; // overwrite default
+              }
+              break; // only first TEXT
+            }
+            j += 2;
+          }
+        }
+      }
+      i++;
+    }
+
+    // Step 2: Parse ENTITIES section to count INSERT instances
+    const blocks = {}; // block name -> { layer, count, description }
+    i = 0;
+    while (i < lines.length) {
+      const lineNum = lines[i].trim();
+      if (lineNum === '0') {
+        const entityType = lines[i + 1]?.trim();
+
+        // INSERT entity: count instances
+        if (entityType === 'INSERT') {
+          let layer = 'elektrik', blockName = '';
+          let j = i + 2;
+          while (j < lines.length && lines[j].trim() !== '0') {
+            const code = lines[j].trim();
+            if (code === '8') layer = (lines[j + 1]?.trim() || '').toLowerCase();
+            if (code === '2') blockName = (lines[j + 1]?.trim() || '');
+            j += 2;
+          }
+          if (blockName) {
+            const mappedLayer = mapDxfLayer(layer);
+            if (!blocks[blockName]) {
+              blocks[blockName] = { layer: mappedLayer, count: 0, description: blockDescs[blockName] || blockName };
+            }
+            blocks[blockName].count++;
+          }
+          i = j;
+          continue;
+        }
+
+        // TEXT entity: fallback (for non-block text entities)
+        if (entityType === 'TEXT') {
+          let layer = 'elektrik', text = '';
+          let j = i + 2;
+          while (j < lines.length && lines[j].trim() !== '0') {
+            const code = lines[j].trim();
+            if (code === '8') layer = (lines[j + 1]?.trim() || '').toLowerCase();
+            if (code === '1') text = lines[j + 1]?.trim() || '';
+            j += 2;
+          }
+          if (text && !blocks[text]) {
+            blocks[text] = { layer: mapDxfLayer(layer), count: 1, description: text };
+          }
+          i = j;
+          continue;
+        }
+      }
+      i++;
+    }
+
+    // Convert to entity array: { layer, text, count }
+    const entities = Object.entries(blocks).map(([name, info]) => ({
+      layer: info.layer,
+      text: info.description, // use description (malzeme adı)
+      count: info.count
+    }));
+
+    return entities;
+  } catch (e) {
+    return { error: e.message };
+  }
+};
+  H["sonraki:fatura:no"] = (_, tur, cari_id) => {
+  // Cari özel prefix'i varsa onu kullan
+  if (cari_id) {
+    const cari = getOne('SELECT fatura_no_prefix FROM cariler WHERE id = ?', [cari_id]);
+    if (cari?.fatura_no_prefix) {
+      const prefix = cari.fatura_no_prefix;
+      const baseNum = parseInt(prefix.replace(/\D/g, '')) || 0;
+      const rows = getAll('SELECT fatura_no FROM faturalar WHERE cari_id = ?', [cari_id]);
+      let max = baseNum;
+      for (const r of rows) {
+        const m = /(\d+)\s*$/.exec(r.fatura_no || '');
+        if (m) max = Math.max(max, parseInt(m[1], 10));
+      }
+      const nextNum = max + 1;
+      const letters = prefix.replace(/\d/g, '');
+      return letters + nextNum;
+    }
+  }
+  // Default global numara
   const prefix = tur === 'satis' ? 'SAT' : 'AL';
   const rows = getAll('SELECT fatura_no FROM faturalar WHERE tur = ?', [tur]);
   let max = 0;
@@ -615,11 +942,11 @@ function cekHareketGeriAl(cs) {
   return true;
 };
   H["stoklar:getir"] = () =>
-  getAll('SELECT * FROM stoklar ORDER BY ad');
+  getAll('SELECT s.*, g.ad AS grup_ad FROM stoklar s LEFT JOIN stok_gruplan g ON g.id = s.grup_id ORDER BY s.ad');
   H["stoklar:ekle"] = (_, d) => {
   const r = insertAndGet('stoklar',
-    'INSERT INTO stoklar (kod, ad, barkod, birim, kategori, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.kategori ?? '', d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
+    'INSERT INTO stoklar (kod, ad, barkod, birim, grup_id, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.grup_id || null, d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
      d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '']
   );
   // Açılış miktarı varsa hareket olarak kaydet
@@ -636,8 +963,8 @@ function cekHareketGeriAl(cs) {
     if (!s.ad || !String(s.ad).trim()) continue;
     const miktar = Number(s.mevcut_miktar) || 0;
     const r = insertAndGet('stoklar',
-      'INSERT INTO stoklar (kod, ad, barkod, birim, kategori, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [s.kod ?? '', String(s.ad).trim(), '', s.birim || 'Pcs', s.kategori ?? '', miktar, 0,
+      'INSERT INTO stoklar (kod, ad, barkod, birim, grup_id, mevcut_miktar, min_miktar, alis_fiyat, satis_fiyat, para_birimi, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [s.kod ?? '', String(s.ad).trim(), '', s.birim || 'Pcs', s.grup_id || null, miktar, 0,
        Number(s.alis_fiyat) || 0, Number(s.satis_fiyat) || 0, s.para_birimi || 'USD', '']);
     if (miktar > 0) {
       run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -651,9 +978,9 @@ function cekHareketGeriAl(cs) {
   H["stoklar:guncelle"] = (_, id, d) => {
   // mevcut_miktar düzenlemesini stok hareketi olarak işle (manuel düzeltme)
   const eski = getOne('SELECT mevcut_miktar FROM stoklar WHERE id = ?', [id]);
-  run('UPDATE stoklar SET kod=?, ad=?, barkod=?, birim=?, kategori=?, mevcut_miktar=?, min_miktar=?, alis_fiyat=?, satis_fiyat=?, para_birimi=?, aciklama=? WHERE id=?',
-    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.kategori ?? '', d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
-     d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '', id]);
+  run('UPDATE stoklar SET kod=?, ad=?, barkod=?, birim=?, grup_id=?, mevcut_miktar=?, min_miktar=?, alis_fiyat=?, satis_fiyat=?, para_birimi=?, aciklama=?, kategori=? WHERE id=?',
+    [d.kod ?? '', d.ad, d.barkod ?? '', d.birim ?? 'Pcs', d.grup_id || null, d.mevcut_miktar ?? 0, d.min_miktar ?? 0,
+     d.alis_fiyat ?? 0, d.satis_fiyat ?? 0, d.para_birimi ?? 'USD', d.aciklama ?? '', '', id]);
   if (eski && eski.mevcut_miktar !== (d.mevcut_miktar ?? 0)) {
     const fark = (d.mevcut_miktar ?? 0) - eski.mevcut_miktar;
     run('INSERT INTO stok_hareketleri (stok_id, tarih, tur, miktar, onceki_miktar, sonraki_miktar, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -930,7 +1257,7 @@ function cekHareketGeriAl(cs) {
   return getAll('SELECT * FROM kategoriler ORDER BY tur, ad');
 };
   H["personeller:getir"] = () => {
-  const personeller = getAll('SELECT * FROM personeller ORDER BY ad, soyad');
+  const personeller = getAll('SELECT p.*, pr.ad AS proje_ad FROM personeller p LEFT JOIN projeler pr ON pr.id = p.proje_id ORDER BY p.ad, p.soyad');
   return personeller.map(p => {
     const alacak = getOne("SELECT COALESCE(SUM(tutar),0) as t FROM personel_hareketleri WHERE personel_id=? AND tur='alacak'", [p.id])?.t || 0;
     const borc   = getOne("SELECT COALESCE(SUM(tutar),0) as t FROM personel_hareketleri WHERE personel_id=? AND tur='borc'",   [p.id])?.t || 0;
@@ -939,15 +1266,28 @@ function cekHareketGeriAl(cs) {
 };
   H["personeller:ekle"] = (_, d) => {
   const r = insertAndGet('personeller',
-    'INSERT INTO personeller (ad, soyad, pozisyon, telefon, ise_giris, maas, para_birimi, durum) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif']
+    'INSERT INTO personeller (ad, soyad, pozisyon, telefon, ise_giris, maas, para_birimi, durum, proje_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif', d.proje_id || null]
   );
   saveDb();
   return r;
 };
+  H["personeller:import"] = (_, { satirlar }) => {
+  let eklenen = 0;
+  for (const s of (satirlar || [])) {
+    if (!s.ad || !String(s.ad).trim()) continue;
+    insertAndGet('personeller',
+      'INSERT INTO personeller (ad, soyad, pozisyon, telefon, ise_giris, maas, para_birimi, durum, proje_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [String(s.ad).trim(), s.soyad ?? '', s.pozisyon ?? '', s.telefon ?? '', s.ise_giris ?? '',
+       Number(s.maas) || 0, s.para_birimi || 'USD', 'aktif', s.proje_id || null]);
+    eklenen++;
+  }
+  saveDb();
+  return { ok: true, eklenen };
+};
   H["personeller:guncelle"] = (_, id, d) => {
-  run('UPDATE personeller SET ad=?, soyad=?, pozisyon=?, telefon=?, ise_giris=?, maas=?, para_birimi=?, durum=? WHERE id=?',
-    [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif', id]);
+  run('UPDATE personeller SET ad=?, soyad=?, pozisyon=?, telefon=?, ise_giris=?, maas=?, para_birimi=?, durum=?, proje_id=? WHERE id=?',
+    [d.ad, d.soyad ?? '', d.pozisyon ?? '', d.telefon ?? '', d.ise_giris ?? '', d.maas ?? 0, d.para_birimi ?? 'USD', d.durum ?? 'aktif', d.proje_id || null, id]);
   saveDb();
   return getOne('SELECT * FROM personeller WHERE id = ?', [id]);
 };
@@ -982,14 +1322,15 @@ function cekHareketGeriAl(cs) {
   const net = Math.max(0, brut + prim - kesinti);
 
   const odeme = insertAndGet('maas_odemeleri',
-    'INSERT INTO maas_odemeleri (personel_id, donem, tarih, brut, kesinti, prim, kesinti_neden, net, para_birimi, odeme_turu, kaynak_id, aciklama) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO maas_odemeleri (personel_id, donem, tarih, brut, kesinti, prim, kesinti_neden, net, para_birimi, odeme_turu, kaynak_id, aciklama, donem_bas, donem_bit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [d.personel_id, d.donem, d.tarih, brut, kesinti, prim, d.kesinti_neden ?? '', net,
      d.para_birimi ?? 'USD', d.odeme_turu ?? 'kasa',
-     d.kaynak_id ? Number(d.kaynak_id) : null, d.aciklama ?? '']
+     d.kaynak_id ? Number(d.kaynak_id) : null, d.aciklama ?? '', d.donem_bas ?? '', d.donem_bit ?? '']
   );
 
   const belgeNo = `MAA-${String(odeme.id).padStart(4, '0')}`;
-  const aciklama = `Maaş — ${personel.ad} ${personel.soyad} (${d.donem})`;
+  const donemMetin = (d.donem_bas && d.donem_bit) ? `${d.donem_bas} – ${d.donem_bit}` : d.donem;
+  const aciklama = `Maaş — ${personel.ad} ${personel.soyad} (${donemMetin})`;
 
   if (d.odeme_turu === 'banka' && d.kaynak_id) {
     const hesap = getOne('SELECT * FROM banka_hesaplari WHERE id = ?', [Number(d.kaynak_id)]);
@@ -1064,6 +1405,39 @@ function cekHareketGeriAl(cs) {
          durum === 'X' ? 'Çalışma günü' : 'Ücretli izin']);
     }
   }
+  cumaTatilleriniIsle(personel_id, yil, ay);
+  saveDb();
+  return true;
+};
+  H["puantaj:aralik:doldur"] = (_, personelIds, basStr, bitStr, durum) => {
+  const gunler = [];
+  const aylarSet = new Set();
+  const bas = new Date(basStr + 'T00:00:00'), bit = new Date(bitStr + 'T00:00:00');
+  for (let d = new Date(bas); d <= bit; d.setDate(d.getDate() + 1)) {
+    gunler.push({ yil: d.getFullYear(), ay: d.getMonth() + 1, gun: d.getDate(), cuma: d.getDay() === 5 });
+    aylarSet.add(`${d.getFullYear()}-${d.getMonth() + 1}`);
+  }
+  for (const pid of (personelIds || [])) {
+    const p = getOne('SELECT maas FROM personeller WHERE id=?', [pid]);
+    const maas = p ? p.maas : 0;
+    for (const g of gunler) {
+      // Temizlerken hepsi boş; doldururken Cuma → İ; ayın 31. günü ASLA sayılmaz (boş)
+      const hedef = (durum === '' || g.gun === 31) ? '' : (g.cuma ? 'İ' : durum);
+      if (hedef === '') {
+        run('DELETE FROM puantaj WHERE personel_id=? AND yil=? AND ay=? AND gun=?', [pid, g.yil, g.ay, g.gun]);
+      } else {
+        run('INSERT OR IGNORE INTO puantaj (personel_id, yil, ay, gun, durum, mesai_saat) VALUES (?,?,?,?,?,0)', [pid, g.yil, g.ay, g.gun, hedef]);
+        run('UPDATE puantaj SET durum=? WHERE personel_id=? AND yil=? AND ay=? AND gun=?', [hedef, pid, g.yil, g.ay, g.gun]);
+      }
+      run("DELETE FROM personel_hareketleri WHERE personel_id=? AND yil=? AND ay=? AND gun=? AND kaynak IN ('puantaj','mesai')", [pid, g.yil, g.ay, g.gun]);
+      if ((hedef === 'X' || hedef === 'İ') && maas > 0) {
+        const tarih = `${g.yil}-${String(g.ay).padStart(2,'0')}-${String(g.gun).padStart(2,'0')}`;
+        run('INSERT INTO personel_hareketleri (personel_id, tarih, tur, tutar, kaynak, yil, ay, gun, aciklama) VALUES (?,?,?,?,?,?,?,?,?)',
+          [pid, tarih, 'alacak', maas / 30, 'puantaj', g.yil, g.ay, g.gun, hedef === 'X' ? 'Çalışma günü' : 'Ücretli izin']);
+      }
+    }
+    for (const am of aylarSet) { const [yy, mm] = am.split('-').map(Number); cumaTatilleriniIsle(pid, yy, mm); }
+  }
   saveDb();
   return true;
 };
@@ -1086,7 +1460,10 @@ function cekHareketGeriAl(cs) {
   return true;
 };
   H["puantaj:toplu:ozet"] = (_, yil, ay) => {
-  const personeller = getAll('SELECT * FROM personeller ORDER BY ad, soyad');
+  const personeller = getAll('SELECT p.*, pr.ad AS proje_ad FROM personeller p LEFT JOIN projeler pr ON pr.id = p.proje_id ORDER BY pr.ad, p.ad, p.soyad');
+  personeller.forEach(p => cumaTatilleriniIsle(p.id, yil, ay));   // hafta tatillerini mutabık kıl
+  saveDb();
+  const isGunu = ayCalismaGunu(yil, ay);   // aydaki çalışma günü (Cuma hariç)
   return personeller.map(p => {
     const gunler = getAll(
       'SELECT gun, durum, COALESCE(mesai_saat,0) as mesai_saat FROM puantaj WHERE personel_id=? AND yil=? AND ay=? ORDER BY gun',
@@ -1104,8 +1481,10 @@ function cekHareketGeriAl(cs) {
     const saatlik = gunluk / 9;
     const mesaiToplamSaat = gunler.reduce((s, g) => s + (g.mesai_saat || 0), 0);
     const mesai_ucreti = mesaiToplamSaat * saatlik;
-    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik,
-             net_kazanc: (x + iz) * gunluk + mesai_ucreti,
+    // Sadece işaretli günler: X (çalıştı) + İ (izin)
+    const odenenGun = x + iz;
+    return { ...p, x_gun: x, i_gun: iz, g_gun: g2, gunluk, saatlik, cuma_gun: 0, odenen_gun: odenenGun,
+             net_kazanc: odenenGun * gunluk + mesai_ucreti,
              mesai_saat_toplam: mesaiToplamSaat, mesai_ucreti, durumMap, mesaiMap };
   });
 };
@@ -1740,5 +2119,5 @@ function cekHareketGeriAl(cs) {
 };
   return H;
 };
-module.exports.SEMA = "\r\n    CREATE TABLE IF NOT EXISTS kasalar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      para_birimi TEXT NOT NULL DEFAULT 'IQD',\r\n      bakiye REAL NOT NULL DEFAULT 0\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS kasa_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      kasa_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL,\r\n      aciklama TEXT DEFAULT '',\r\n      belge_no TEXT DEFAULT '',\r\n      cari_id INTEGER,\r\n      proje_id INTEGER\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS banka_hesaplari (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      banka_adi TEXT NOT NULL,\r\n      hesap_no TEXT DEFAULT '',\r\n      para_birimi TEXT NOT NULL DEFAULT 'IQD',\r\n      bakiye REAL NOT NULL DEFAULT 0\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS banka_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      hesap_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL,\r\n      aciklama TEXT DEFAULT '',\r\n      belge_no TEXT DEFAULT '',\r\n      cari_id INTEGER,\r\n      proje_id INTEGER\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS cariler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      telefon TEXT DEFAULT '',\r\n      adres TEXT DEFAULT '',\r\n      bakiye_IQD REAL DEFAULT 0,\r\n      bakiye_USD REAL DEFAULT 0\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS cari_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      cari_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL,\r\n      para_birimi TEXT NOT NULL DEFAULT 'IQD',\r\n      aciklama TEXT DEFAULT '',\r\n      belge_no TEXT DEFAULT '',\r\n      kaynak TEXT DEFAULT ''\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS projeler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      aciklama TEXT DEFAULT '',\r\n      durum TEXT DEFAULT 'aktif',\r\n      baslangic TEXT DEFAULT '',\r\n      bitis TEXT DEFAULT ''\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS kategoriler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      tur TEXT NOT NULL\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS faturalar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      fatura_no TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      cari_id INTEGER,\r\n      para_birimi TEXT NOT NULL DEFAULT 'IQD',\r\n      toplam REAL NOT NULL DEFAULT 0,\r\n      aciklama TEXT DEFAULT '',\r\n      durum TEXT DEFAULT 'acik'\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS fatura_kalemleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      fatura_id INTEGER NOT NULL,\r\n      aciklama TEXT NOT NULL,\r\n      miktar REAL NOT NULL DEFAULT 1,\r\n      birim_fiyat REAL NOT NULL DEFAULT 0,\r\n      toplam REAL NOT NULL DEFAULT 0\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS stoklar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      kod TEXT DEFAULT '',\r\n      ad TEXT NOT NULL,\r\n      birim TEXT DEFAULT 'Pcs',\r\n      kategori TEXT DEFAULT '',\r\n      mevcut_miktar REAL DEFAULT 0,\r\n      min_miktar REAL DEFAULT 0,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n    CREATE TABLE IF NOT EXISTS stok_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      stok_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      miktar REAL NOT NULL,\r\n      onceki_miktar REAL NOT NULL DEFAULT 0,\r\n      sonraki_miktar REAL NOT NULL DEFAULT 0,\r\n      fatura_id INTEGER,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS ortaklar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      soyad TEXT DEFAULT '',\r\n      telefon TEXT DEFAULT '',\r\n      email TEXT DEFAULT '',\r\n      hisse_orani REAL DEFAULT 0,\r\n      giris_tarihi TEXT DEFAULT '',\r\n      notlar TEXT DEFAULT '',\r\n      durum TEXT DEFAULT 'aktif'\r\n    );\r\n    CREATE TABLE IF NOT EXISTS ortak_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ortak_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL,\r\n      para_birimi TEXT DEFAULT 'USD',\r\n      odeme_turu TEXT DEFAULT 'kasa',\r\n      kaynak_id INTEGER,\r\n      aciklama TEXT DEFAULT '',\r\n      belge_no TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS puantaj (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      personel_id INTEGER NOT NULL,\r\n      yil INTEGER NOT NULL,\r\n      ay INTEGER NOT NULL,\r\n      gun INTEGER NOT NULL,\r\n      durum TEXT DEFAULT '',\r\n      UNIQUE(personel_id, yil, ay, gun)\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS personeller (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      soyad TEXT DEFAULT '',\r\n      pozisyon TEXT DEFAULT '',\r\n      telefon TEXT DEFAULT '',\r\n      ise_giris TEXT DEFAULT '',\r\n      maas REAL DEFAULT 0,\r\n      para_birimi TEXT DEFAULT 'USD',\r\n      durum TEXT DEFAULT 'aktif'\r\n    );\r\n    CREATE TABLE IF NOT EXISTS maas_odemeleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      personel_id INTEGER NOT NULL,\r\n      donem TEXT NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      brut REAL NOT NULL DEFAULT 0,\r\n      kesinti REAL DEFAULT 0,\r\n      net REAL NOT NULL DEFAULT 0,\r\n      para_birimi TEXT DEFAULT 'USD',\r\n      odeme_turu TEXT DEFAULT 'kasa',\r\n      kaynak_id INTEGER,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n    CREATE TABLE IF NOT EXISTS personel_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      personel_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL DEFAULT 0,\r\n      kaynak TEXT DEFAULT '',\r\n      yil INTEGER DEFAULT NULL,\r\n      ay INTEGER DEFAULT NULL,\r\n      gun INTEGER DEFAULT NULL,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS ayarlar (\r\n      anahtar TEXT PRIMARY KEY,\r\n      deger TEXT\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS hakedis_pozlar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      grup TEXT DEFAULT '',\r\n      poz_no TEXT DEFAULT '',\r\n      tanim TEXT NOT NULL,\r\n      birim TEXT DEFAULT 'Adet',\r\n      kesif_miktar REAL DEFAULT 0,\r\n      bf_iscilik REAL DEFAULT 0,\r\n      bf_malzeme REAL DEFAULT 0,\r\n      sira INTEGER DEFAULT 0\r\n    );\r\n    CREATE TABLE IF NOT EXISTS hakedisler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      hakedis_no INTEGER NOT NULL DEFAULT 1,\r\n      tarih TEXT DEFAULT ''\r\n    );\r\n    CREATE TABLE IF NOT EXISTS hakedis_satirlar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      hakedis_id INTEGER NOT NULL,\r\n      poz_id INTEGER NOT NULL,\r\n      bu_miktar REAL DEFAULT 0,\r\n      UNIQUE(hakedis_id, poz_id)\r\n    );\r\n    CREATE TABLE IF NOT EXISTS ilave_isler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      hakedis_id INTEGER NOT NULL,\r\n      tutanak_no TEXT DEFAULT '',\r\n      tutanak_tarih TEXT DEFAULT '',\r\n      imalat_adi TEXT DEFAULT '',\r\n      kirilim TEXT DEFAULT '',\r\n      birim TEXT DEFAULT '',\r\n      miktar REAL DEFAULT 0,\r\n      birim_fiyat REAL DEFAULT 0,\r\n      parite REAL DEFAULT 0,\r\n      sira INTEGER DEFAULT 0\r\n    );\r\n    CREATE TABLE IF NOT EXISTS kesintiler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      hakedis_id INTEGER NOT NULL,\r\n      tarih TEXT DEFAULT '',\r\n      aciklama TEXT DEFAULT '',\r\n      birim TEXT DEFAULT '',\r\n      miktar REAL DEFAULT 0,\r\n      birim_fiyat REAL DEFAULT 0,\r\n      parite REAL DEFAULT 0,\r\n      sira INTEGER DEFAULT 0\r\n    );\r\n    CREATE TABLE IF NOT EXISTS progress_report (\r\n      hakedis_id INTEGER PRIMARY KEY,\r\n      subcontractor TEXT DEFAULT '',\r\n      works_name TEXT DEFAULT '',\r\n      type_manuf TEXT DEFAULT '',\r\n      nusha TEXT DEFAULT '',\r\n      ppc_type TEXT DEFAULT '',\r\n      project_name TEXT DEFAULT '',\r\n      project_location TEXT DEFAULT '',\r\n      scope TEXT DEFAULT '',\r\n      employer TEXT DEFAULT '',\r\n      contract_no TEXT DEFAULT '',\r\n      subcontractor_full TEXT DEFAULT '',\r\n      contract_value REAL DEFAULT 0,\r\n      change_order TEXT DEFAULT '',\r\n      guarantee TEXT DEFAULT '',\r\n      site_delivery_date TEXT DEFAULT '',\r\n      time_completion TEXT DEFAULT '',\r\n      additional_days TEXT DEFAULT '',\r\n      notes TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS cek_senet (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      tip TEXT NOT NULL DEFAULT 'cek',\r\n      yon TEXT NOT NULL DEFAULT 'alinan',\r\n      cari_id INTEGER,\r\n      tutar REAL NOT NULL DEFAULT 0,\r\n      para_birimi TEXT NOT NULL DEFAULT 'USD',\r\n      vade TEXT DEFAULT '',\r\n      tarih TEXT DEFAULT '',\r\n      banka TEXT DEFAULT '',\r\n      cek_no TEXT DEFAULT '',\r\n      durum TEXT DEFAULT 'portfoy',\r\n      hesap_tip TEXT DEFAULT '',\r\n      hesap_id INTEGER,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n  \n";
-module.exports.MIGRATIONS = ["ALTER TABLE cariler ADD COLUMN vergi_no TEXT DEFAULT ''","ALTER TABLE fatura_kalemleri ADD COLUMN birim TEXT DEFAULT 'Adet'","ALTER TABLE fatura_kalemleri ADD COLUMN marka TEXT DEFAULT ''","ALTER TABLE faturalar ADD COLUMN indirim INTEGER DEFAULT 0","ALTER TABLE fatura_kalemleri ADD COLUMN stok_id INTEGER","ALTER TABLE kasa_hareketleri ADD COLUMN ortak_id INTEGER","ALTER TABLE banka_hareketleri ADD COLUMN ortak_id INTEGER","ALTER TABLE personel_hareketleri ADD COLUMN yil INTEGER DEFAULT NULL","ALTER TABLE personel_hareketleri ADD COLUMN ay INTEGER DEFAULT NULL","ALTER TABLE personel_hareketleri ADD COLUMN gun INTEGER DEFAULT NULL","ALTER TABLE puantaj ADD COLUMN mesai_saat REAL DEFAULT 0","ALTER TABLE faturalar ADD COLUMN belge_turu TEXT DEFAULT 'fatura'","ALTER TABLE maas_odemeleri ADD COLUMN prim REAL DEFAULT 0","ALTER TABLE maas_odemeleri ADD COLUMN kesinti_neden TEXT DEFAULT ''","ALTER TABLE stoklar ADD COLUMN barkod TEXT DEFAULT ''","ALTER TABLE stoklar ADD COLUMN alis_fiyat REAL DEFAULT 0","ALTER TABLE stoklar ADD COLUMN satis_fiyat REAL DEFAULT 0","ALTER TABLE stoklar ADD COLUMN para_birimi TEXT DEFAULT 'USD'","ALTER TABLE faturalar ADD COLUMN odenen REAL DEFAULT 0","ALTER TABLE faturalar ADD COLUMN vade TEXT DEFAULT ''","ALTER TABLE kasa_hareketleri ADD COLUMN kategori_id INTEGER","ALTER TABLE banka_hareketleri ADD COLUMN kategori_id INTEGER"];
+module.exports.SEMA = "\r\n    CREATE TABLE IF NOT EXISTS kasalar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      para_birimi TEXT NOT NULL DEFAULT 'IQD',\r\n      bakiye REAL NOT NULL DEFAULT 0\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS kasa_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      kasa_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL,\r\n      aciklama TEXT DEFAULT '',\r\n      belge_no TEXT DEFAULT '',\r\n      cari_id INTEGER,\r\n      proje_id INTEGER\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS banka_hesaplari (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      banka_adi TEXT NOT NULL,\r\n      hesap_no TEXT DEFAULT '',\r\n      para_birimi TEXT NOT NULL DEFAULT 'IQD',\r\n      bakiye REAL NOT NULL DEFAULT 0\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS banka_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      hesap_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL,\r\n      aciklama TEXT DEFAULT '',\r\n      belge_no TEXT DEFAULT '',\r\n      cari_id INTEGER,\r\n      proje_id INTEGER\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS cariler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      telefon TEXT DEFAULT '',\r\n      adres TEXT DEFAULT '',\r\n      bakiye_IQD REAL DEFAULT 0,\r\n      bakiye_USD REAL DEFAULT 0\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS cari_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      cari_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL,\r\n      para_birimi TEXT NOT NULL DEFAULT 'IQD',\r\n      aciklama TEXT DEFAULT '',\r\n      belge_no TEXT DEFAULT '',\r\n      kaynak TEXT DEFAULT ''\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS projeler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      aciklama TEXT DEFAULT '',\r\n      durum TEXT DEFAULT 'aktif',\r\n      baslangic TEXT DEFAULT '',\r\n      bitis TEXT DEFAULT ''\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS kategoriler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      tur TEXT NOT NULL\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS faturalar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      fatura_no TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      cari_id INTEGER,\r\n      para_birimi TEXT NOT NULL DEFAULT 'IQD',\r\n      toplam REAL NOT NULL DEFAULT 0,\r\n      aciklama TEXT DEFAULT '',\r\n      durum TEXT DEFAULT 'acik'\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS fatura_kalemleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      fatura_id INTEGER NOT NULL,\r\n      aciklama TEXT NOT NULL,\r\n      miktar REAL NOT NULL DEFAULT 1,\r\n      birim_fiyat REAL NOT NULL DEFAULT 0,\r\n      toplam REAL NOT NULL DEFAULT 0\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS stoklar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      kod TEXT DEFAULT '',\r\n      ad TEXT NOT NULL,\r\n      birim TEXT DEFAULT 'Pcs',\r\n      kategori TEXT DEFAULT '',\r\n      mevcut_miktar REAL DEFAULT 0,\r\n      min_miktar REAL DEFAULT 0,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n    CREATE TABLE IF NOT EXISTS stok_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      stok_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      miktar REAL NOT NULL,\r\n      onceki_miktar REAL NOT NULL DEFAULT 0,\r\n      sonraki_miktar REAL NOT NULL DEFAULT 0,\r\n      fatura_id INTEGER,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS ortaklar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      soyad TEXT DEFAULT '',\r\n      telefon TEXT DEFAULT '',\r\n      email TEXT DEFAULT '',\r\n      hisse_orani REAL DEFAULT 0,\r\n      giris_tarihi TEXT DEFAULT '',\r\n      notlar TEXT DEFAULT '',\r\n      durum TEXT DEFAULT 'aktif'\r\n    );\r\n    CREATE TABLE IF NOT EXISTS ortak_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ortak_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL,\r\n      para_birimi TEXT DEFAULT 'USD',\r\n      odeme_turu TEXT DEFAULT 'kasa',\r\n      kaynak_id INTEGER,\r\n      aciklama TEXT DEFAULT '',\r\n      belge_no TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS puantaj (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      personel_id INTEGER NOT NULL,\r\n      yil INTEGER NOT NULL,\r\n      ay INTEGER NOT NULL,\r\n      gun INTEGER NOT NULL,\r\n      durum TEXT DEFAULT '',\r\n      UNIQUE(personel_id, yil, ay, gun)\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS personeller (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      soyad TEXT DEFAULT '',\r\n      pozisyon TEXT DEFAULT '',\r\n      telefon TEXT DEFAULT '',\r\n      ise_giris TEXT DEFAULT '',\r\n      maas REAL DEFAULT 0,\r\n      para_birimi TEXT DEFAULT 'USD',\r\n      durum TEXT DEFAULT 'aktif'\r\n    );\r\n    CREATE TABLE IF NOT EXISTS maas_odemeleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      personel_id INTEGER NOT NULL,\r\n      donem TEXT NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      brut REAL NOT NULL DEFAULT 0,\r\n      kesinti REAL DEFAULT 0,\r\n      net REAL NOT NULL DEFAULT 0,\r\n      para_birimi TEXT DEFAULT 'USD',\r\n      odeme_turu TEXT DEFAULT 'kasa',\r\n      kaynak_id INTEGER,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n    CREATE TABLE IF NOT EXISTS personel_hareketleri (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      personel_id INTEGER NOT NULL,\r\n      tarih TEXT NOT NULL,\r\n      tur TEXT NOT NULL,\r\n      tutar REAL NOT NULL DEFAULT 0,\r\n      kaynak TEXT DEFAULT '',\r\n      yil INTEGER DEFAULT NULL,\r\n      ay INTEGER DEFAULT NULL,\r\n      gun INTEGER DEFAULT NULL,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS ayarlar (\r\n      anahtar TEXT PRIMARY KEY,\r\n      deger TEXT\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS stok_gruplan (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      ad TEXT NOT NULL,\r\n      kod TEXT DEFAULT '',\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS hakedis_pozlar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      grup TEXT DEFAULT '',\r\n      poz_no TEXT DEFAULT '',\r\n      tanim TEXT NOT NULL,\r\n      birim TEXT DEFAULT 'Adet',\r\n      kesif_miktar REAL DEFAULT 0,\r\n      bf_iscilik REAL DEFAULT 0,\r\n      bf_malzeme REAL DEFAULT 0,\r\n      sira INTEGER DEFAULT 0\r\n    );\r\n    CREATE TABLE IF NOT EXISTS hakedisler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      hakedis_no INTEGER NOT NULL DEFAULT 1,\r\n      tarih TEXT DEFAULT ''\r\n    );\r\n    CREATE TABLE IF NOT EXISTS hakedis_satirlar (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      hakedis_id INTEGER NOT NULL,\r\n      poz_id INTEGER NOT NULL,\r\n      bu_miktar REAL DEFAULT 0,\r\n      UNIQUE(hakedis_id, poz_id)\r\n    );\r\n    CREATE TABLE IF NOT EXISTS ilave_isler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      hakedis_id INTEGER NOT NULL,\r\n      tutanak_no TEXT DEFAULT '',\r\n      tutanak_tarih TEXT DEFAULT '',\r\n      imalat_adi TEXT DEFAULT '',\r\n      kirilim TEXT DEFAULT '',\r\n      birim TEXT DEFAULT '',\r\n      miktar REAL DEFAULT 0,\r\n      birim_fiyat REAL DEFAULT 0,\r\n      parite REAL DEFAULT 0,\r\n      sira INTEGER DEFAULT 0\r\n    );\r\n    CREATE TABLE IF NOT EXISTS kesintiler (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      hakedis_id INTEGER NOT NULL,\r\n      tarih TEXT DEFAULT '',\r\n      aciklama TEXT DEFAULT '',\r\n      birim TEXT DEFAULT '',\r\n      miktar REAL DEFAULT 0,\r\n      birim_fiyat REAL DEFAULT 0,\r\n      parite REAL DEFAULT 0,\r\n      sira INTEGER DEFAULT 0\r\n    );\r\n    CREATE TABLE IF NOT EXISTS progress_report (\r\n      hakedis_id INTEGER PRIMARY KEY,\r\n      subcontractor TEXT DEFAULT '',\r\n      works_name TEXT DEFAULT '',\r\n      type_manuf TEXT DEFAULT '',\r\n      nusha TEXT DEFAULT '',\r\n      ppc_type TEXT DEFAULT '',\r\n      project_name TEXT DEFAULT '',\r\n      project_location TEXT DEFAULT '',\r\n      scope TEXT DEFAULT '',\r\n      employer TEXT DEFAULT '',\r\n      contract_no TEXT DEFAULT '',\r\n      subcontractor_full TEXT DEFAULT '',\r\n      contract_value REAL DEFAULT 0,\r\n      change_order TEXT DEFAULT '',\r\n      guarantee TEXT DEFAULT '',\r\n      site_delivery_date TEXT DEFAULT '',\r\n      time_completion TEXT DEFAULT '',\r\n      additional_days TEXT DEFAULT '',\r\n      notes TEXT DEFAULT ''\r\n    );\r\n  \n\r\n    CREATE TABLE IF NOT EXISTS cek_senet (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      tip TEXT NOT NULL DEFAULT 'cek',\r\n      yon TEXT NOT NULL DEFAULT 'alinan',\r\n      cari_id INTEGER,\r\n      tutar REAL NOT NULL DEFAULT 0,\r\n      para_birimi TEXT NOT NULL DEFAULT 'USD',\r\n      vade TEXT DEFAULT '',\r\n      tarih TEXT DEFAULT '',\r\n      banka TEXT DEFAULT '',\r\n      cek_no TEXT DEFAULT '',\r\n      durum TEXT DEFAULT 'portfoy',\r\n      hesap_tip TEXT DEFAULT '',\r\n      hesap_id INTEGER,\r\n      aciklama TEXT DEFAULT ''\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS proje_kesif (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      tur TEXT NOT NULL DEFAULT 'elektrik',\r\n      poz_no TEXT DEFAULT '',\r\n      ad TEXT NOT NULL DEFAULT '',\r\n      birim TEXT DEFAULT 'Adet',\r\n      miktar REAL DEFAULT 0,\r\n      birim_fiyat REAL DEFAULT 0,\r\n      para_birimi TEXT DEFAULT 'USD',\r\n      sira INTEGER DEFAULT 0\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS proje_iscilik_kesif (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      isci_adi TEXT NOT NULL DEFAULT '',\r\n      gun REAL DEFAULT 0,\r\n      gundelik REAL DEFAULT 0,\r\n      para_birimi TEXT DEFAULT 'USD',\r\n      sira INTEGER DEFAULT 0\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS proje_kesif_3d (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      kesif_id INTEGER NOT NULL,\r\n      x REAL DEFAULT 0,\r\n      y REAL DEFAULT 0,\r\n      z REAL DEFAULT 0,\r\n      rotasyon_x REAL DEFAULT 0,\r\n      rotasyon_y REAL DEFAULT 0,\r\n      rotasyon_z REAL DEFAULT 0,\r\n      olcek REAL DEFAULT 1\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS proje_kat_plani (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      resim_data TEXT,\r\n      items_json TEXT DEFAULT '[]',\r\n      tur TEXT DEFAULT 'elektrik',\r\n      olusturma_tarihi TEXT DEFAULT CURRENT_TIMESTAMP,\r\n      guncelleme_tarihi TEXT DEFAULT CURRENT_TIMESTAMP\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS proje_depo_3d (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      nesneler_json TEXT DEFAULT '[]',\r\n      katmanlar_json TEXT DEFAULT '[]',\r\n      tur TEXT DEFAULT 'elektrik',\r\n      olusturma_tarihi TEXT DEFAULT CURRENT_TIMESTAMP,\r\n      guncelleme_tarihi TEXT DEFAULT CURRENT_TIMESTAMP\r\n    );\r\n\r\n    CREATE TABLE IF NOT EXISTS proje_3d_editor (\r\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n      proje_id INTEGER NOT NULL,\r\n      nesneler_json TEXT DEFAULT '[]',\r\n      tur TEXT DEFAULT 'elektrik',\r\n      olusturma_tarihi TEXT DEFAULT CURRENT_TIMESTAMP,\r\n      guncelleme_tarihi TEXT DEFAULT CURRENT_TIMESTAMP\r\n    );\r\n  \n";
+module.exports.MIGRATIONS = ["ALTER TABLE cariler ADD COLUMN vergi_no TEXT DEFAULT ''","ALTER TABLE fatura_kalemleri ADD COLUMN birim TEXT DEFAULT 'Adet'","ALTER TABLE fatura_kalemleri ADD COLUMN marka TEXT DEFAULT ''","ALTER TABLE faturalar ADD COLUMN indirim INTEGER DEFAULT 0","ALTER TABLE fatura_kalemleri ADD COLUMN stok_id INTEGER","ALTER TABLE kasa_hareketleri ADD COLUMN ortak_id INTEGER","ALTER TABLE banka_hareketleri ADD COLUMN ortak_id INTEGER","ALTER TABLE personel_hareketleri ADD COLUMN yil INTEGER DEFAULT NULL","ALTER TABLE personel_hareketleri ADD COLUMN ay INTEGER DEFAULT NULL","ALTER TABLE personel_hareketleri ADD COLUMN gun INTEGER DEFAULT NULL","ALTER TABLE puantaj ADD COLUMN mesai_saat REAL DEFAULT 0","ALTER TABLE faturalar ADD COLUMN belge_turu TEXT DEFAULT 'fatura'","ALTER TABLE maas_odemeleri ADD COLUMN prim REAL DEFAULT 0","ALTER TABLE maas_odemeleri ADD COLUMN kesinti_neden TEXT DEFAULT ''","ALTER TABLE stoklar ADD COLUMN barkod TEXT DEFAULT ''","ALTER TABLE stoklar ADD COLUMN alis_fiyat REAL DEFAULT 0","ALTER TABLE cariler ADD COLUMN fatura_no_prefix TEXT DEFAULT ''","ALTER TABLE stoklar ADD COLUMN satis_fiyat REAL DEFAULT 0","ALTER TABLE stoklar ADD COLUMN para_birimi TEXT DEFAULT 'USD'","ALTER TABLE faturalar ADD COLUMN odenen REAL DEFAULT 0","ALTER TABLE faturalar ADD COLUMN vade TEXT DEFAULT ''","ALTER TABLE kasa_hareketleri ADD COLUMN kategori_id INTEGER","ALTER TABLE banka_hareketleri ADD COLUMN kategori_id INTEGER","ALTER TABLE personeller ADD COLUMN proje_id INTEGER","ALTER TABLE maas_odemeleri ADD COLUMN donem_bas TEXT DEFAULT ''","ALTER TABLE maas_odemeleri ADD COLUMN donem_bit TEXT DEFAULT ''","ALTER TABLE stoklar ADD COLUMN grup_id INTEGER","ALTER TABLE stok_gruplan ADD COLUMN parent_id INTEGER"];

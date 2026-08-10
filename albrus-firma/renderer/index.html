@@ -3521,14 +3521,18 @@ async function loadProjeler() {
   S.projeler = list;
   const el = document.getElementById('projeler-wrap');
   if (!list.length) { el.innerHTML = '<div class="empty">Proje yok</div>'; return; }
+  // Tüm projelerin genel toplamı (para birimine göre)
+  const topla = (key) => { const t = {}; list.forEach(p => Object.entries(p[key] || {}).forEach(([pb, v]) => { t[pb] = (t[pb] || 0) + v; })); return t; };
+  const tKesif = topla('kesif'), tGelir = topla('gelir'), tGider = topla('gider'), tKar = topla('kar');
   el.innerHTML = `
     <table><thead><tr>
-      <th>Proje Adı</th><th>Durum</th><th>Gelir</th><th>Gider</th><th>Kâr/Zarar</th><th></th>
+      <th>Proje Adı</th><th>Durum</th><th>Sözleşme (Keşif)</th><th>Gelir (Tahsilat)</th><th>Gider</th><th>Kâr/Zarar</th><th></th>
     </tr></thead><tbody>
       ${list.map(p => `
         <tr>
           <td><a class="btn-link" onclick="openProjeDetay(${p.id})">${p.ad}</a></td>
           <td><span class="badge b-${p.durum}">${p.durum}</span></td>
+          <td>${karZararHucre(p.kesif)}</td>
           <td>${karZararHucre(p.gelir)}</td>
           <td>${karZararHucre(p.gider)}</td>
           <td style="font-weight:700">${karZararHucre(p.kar)}</td>
@@ -3539,7 +3543,16 @@ async function loadProjeler() {
           </td>
         </tr>
       `).join('')}
-    </tbody></table>
+    </tbody>
+    <tfoot><tr style="border-top:2px solid var(--border);font-weight:700;background:rgba(120,160,255,.05)">
+      <td colspan="2" style="text-align:right">TOPLAM</td>
+      <td>${karZararHucre(tKesif)}</td>
+      <td>${karZararHucre(tGelir)}</td>
+      <td>${karZararHucre(tGider)}</td>
+      <td>${karZararHucre(tKar)}</td>
+      <td></td>
+    </tr></tfoot>
+    </table>
   `;
 }
 

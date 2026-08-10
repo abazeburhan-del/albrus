@@ -1080,7 +1080,13 @@ ipcMain.handle('proje:ozet', () => {
     new Set([...Object.keys(gelir), ...Object.keys(gider)]).forEach(pb => {
       kar[pb] = (gelir[pb] || 0) - (gider[pb] || 0);
     });
-    return { ...p, gelir, gider, kar };
+    // Sözleşme/keşif bedeli (malzeme keşfi + işçilik keşfi), para birimine göre
+    const kesif = {};
+    getAll('SELECT para_birimi, SUM(miktar*birim_fiyat) as t FROM proje_kesif WHERE proje_id=? GROUP BY para_birimi', [p.id])
+      .forEach(r => { if (r.para_birimi) kesif[r.para_birimi] = (kesif[r.para_birimi] || 0) + (r.t || 0); });
+    getAll('SELECT para_birimi, SUM(gun*gundelik) as t FROM proje_iscilik_kesif WHERE proje_id=? GROUP BY para_birimi', [p.id])
+      .forEach(r => { if (r.para_birimi) kesif[r.para_birimi] = (kesif[r.para_birimi] || 0) + (r.t || 0); });
+    return { ...p, gelir, gider, kar, kesif };
   });
 });
 
