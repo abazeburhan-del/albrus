@@ -1999,10 +1999,12 @@ ipcMain.handle('whatsapp:klasor:sec', async () => {
   return { ok: true, klasor: filePaths[0] };
 });
 
-ipcMain.handle('whatsapp:duzenle', (_, { kaynak, deneme, tasi }) => {
+ipcMain.handle('whatsapp:duzenle', (_, { kaynak, deneme, tasi, tumAylar }) => {
   const { duzenle } = require(path.join(__dirname, '..', 'whatsapp-duzenle', 'cekirdek.js'));
   const hedef = app.getPath('desktop');
-  const r = duzenle(kaynak, hedef, { denemeModu: !!deneme, kopyala: !tasi });
+  // Varsayılan: yalnız içinde bulunulan ay — eski aylara dokunulmaz
+  const r = duzenle(kaynak, hedef, { denemeModu: !!deneme, kopyala: !tasi,
+    sadeceAy: tumAylar ? null : 'bu' });
   return { ...r, hedef };
 });
 

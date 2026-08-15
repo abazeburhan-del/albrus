@@ -656,6 +656,10 @@
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <button class="btn btn-primary btn-sm" onclick="waKlasorSec()">Klasör Seç ve Düzenle</button>
+          <label style="font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer">
+            <input type="checkbox" id="wa-tum-aylar" onchange="waKlasorTekrar()"> Tüm ayları işle
+            <span style="color:var(--dim)">(varsayılan: sadece bu ay)</span>
+          </label>
           <span id="wa-secili" style="font-size:12px;color:var(--dim)"></span>
         </div>
         <div id="wa-sonuc" style="margin-top:14px;font-size:13px"></div>
@@ -9621,19 +9625,27 @@ async function firmaAdiKaydet() {
 
 // ── WhatsApp bakım fotoğrafı düzenleyici ──
 let _waKaynak = null;
+const waTumAylar = () => !!document.getElementById('wa-tum-aylar')?.checked;
+
 async function waKlasorSec() {
-  const sonuc = document.getElementById('wa-sonuc');
   const r = await inv('whatsapp:klasor:sec');
   if (!r || r.iptal) return;
   _waKaynak = r.klasor;
   document.getElementById('wa-secili').textContent = _waKaynak;
+  waOnizle();
+}
+// Kutu değişince aynı klasörü yeniden incele
+function waKlasorTekrar() { if (_waKaynak) waOnizle(); }
+
+async function waOnizle() {
+  const sonuc = document.getElementById('wa-sonuc');
   sonuc.innerHTML = '<span style="color:var(--dim)">İnceleniyor…</span>';
   try {
     // Önce deneme: hiçbir dosya yazmadan dağılımı göster
-    const d = await inv('whatsapp:duzenle', { kaynak: _waKaynak, deneme: true });
+    const d = await inv('whatsapp:duzenle', { kaynak: _waKaynak, deneme: true, tumAylar: waTumAylar() });
     if (!d.tasinan) {
-      sonuc.innerHTML = '<span style="color:var(--red)">Klasörlenecek dosya bulunamadı. '
-        + '"_chat.txt" içeren, medya ekli dışa aktarma klasörünü seçtiğinden emin ol.</span>';
+      sonuc.innerHTML = `<span style="color:var(--red)">Bu dönemde klasörlenecek dosya bulunamadı.</span>`
+        + (d.eskiAtlanan ? `<div style="font-size:12px;color:var(--dim);margin-top:6px">${d.eskiAtlanan} dosya önceki aylara ait — dokunulmadı. Hepsini işlemek için "Tüm ayları işle" kutusunu işaretle.</div>` : '');
       return;
     }
     const satirlar = Object.entries(d.dagilim).sort((a,b)=>b[1]-a[1])
@@ -9641,6 +9653,7 @@ async function waKlasorSec() {
     sonuc.innerHTML = `
       <div style="margin-bottom:8px"><b>${d.ayKlasoru || '—'}</b> · ${d.tasinan} dosya klasörlenecek
         ${d.atlanan ? `<span style="color:var(--dim)">(${d.atlanan} atlanacak: sesli mesaj vb.)</span>` : ''}</div>
+      ${d.eskiAtlanan ? `<div style="font-size:12px;color:var(--dim);margin-bottom:8px">${d.eskiAtlanan} dosya önceki aylara ait — dokunulmayacak.</div>` : ''}
       <table style="font-size:12.5px;margin-bottom:10px">${satirlar}</table>
       <button class="btn btn-primary btn-sm" onclick="waUygula()">Masaüstüne Kopyala</button>`;
   } catch (e) {
@@ -9650,7 +9663,7 @@ async function waKlasorSec() {
 async function waUygula() {
   const sonuc = document.getElementById('wa-sonuc');
   try {
-    const r = await inv('whatsapp:duzenle', { kaynak: _waKaynak, deneme: false });
+    const r = await inv('whatsapp:duzenle', { kaynak: _waKaynak, deneme: false, tumAylar: waTumAylar() });
     sonuc.innerHTML = `<span style="color:var(--green)">✓ ${r.tasinan} dosya kopyalandı — ${r.ayKlasoru}</span>
       <button class="btn btn-ghost btn-sm" style="margin-left:10px" onclick="inv('whatsapp:klasor:ac', ${JSON.stringify(r.hedef + '\\' + (r.ayKlasoru||''))})">Klasörü Aç</button>`;
   } catch (e) {

@@ -53,6 +53,17 @@ Türkçe karakter/büyük-küçük harf farkı otomatik yok sayılır ("Boya"="b
   ardından 10 foto atarsan hepsi Boya klasörüne gider.
 - Eşleşme yoksa **"Diğer"** klasörüne konur.
 
+## Hangi ay işlenir?
+**Varsayılan: yalnız içinde bulunulan ay.** Önceki aylara ait dosyalara **dokunulmaz**
+(eski klasörlerin olduğu gibi kalır). Ekranda "şu kadar dosya önceki aylara ait —
+dokunulmayacak" diye bildirilir.
+
+Tüm ayları işlemek istersen:
+- **Albrus:** "Tüm ayları işle" kutusunu işaretle
+- **Masaüstü aracı:** `node duzenle.js "<klasör>" --tum-aylar`
+
+Her ay kendi klasörüne gider (TEMMUZ 2026 BAKIM, AĞUSTOS 2026 BAKIM…).
+
 ## Notlar
 - **Kopyalar** (taşımaz) — orijinal export klasörün bozulmaz. Taşımak için: `node duzenle.js "<klasör>" --tasi`
 - Alınanlar: resim (.jpg/.png/.heic…), **video (.mp4/.mov…)**, belge (.pdf/.docx/.xlsx…)
