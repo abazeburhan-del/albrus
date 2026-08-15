@@ -39,6 +39,36 @@ const AYAR = botAyar();
 
 const log = (...a) => console.log(new Date().toLocaleTimeString('tr-TR'), ...a);
 
+// ── Tek kopya kilidi ──
+// Aynı oturumla iki bot çalışırsa WhatsApp birini sürekli düşürür ("bağlantı koptu"
+// döngüsü). Bu yüzden ikinci kopyanın açılmasını engelliyoruz.
+const KILIT = path.join(__dirname, 'bot.kilit');
+function surecYasiyorMu(pid) {
+  try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+}
+function kilitAl() {
+  if (fs.existsSync(KILIT)) {
+    const eski = Number(fs.readFileSync(KILIT, 'utf8').trim());
+    if (eski && eski !== process.pid && surecYasiyorMu(eski)) {
+      console.log('\n╔═══════════════════════════════════════════════════════╗');
+      console.log('║  BOT ZATEN ÇALIŞIYOR (PID ' + String(eski).padEnd(6) + ')                     ║');
+      console.log('║                                                       ║');
+      console.log('║  İkinci kopya açılamaz — iki bot aynı anda çalışırsa  ║');
+      console.log('║  WhatsApp bağlantıyı sürekli koparır.                 ║');
+      console.log('║                                                       ║');
+      console.log('║  Açık olan bot penceresini kullan. Yoksa o pencereyi  ║');
+      console.log('║  kapatıp bu botu yeniden başlat.                      ║');
+      console.log('╚═══════════════════════════════════════════════════════╝\n');
+      process.exit(1);
+    }
+  }
+  fs.writeFileSync(KILIT, String(process.pid));
+  const birak = () => { try { if (fs.existsSync(KILIT) && Number(fs.readFileSync(KILIT,'utf8')) === process.pid) fs.unlinkSync(KILIT); } catch (_) {} };
+  process.on('exit', birak);
+  process.on('SIGINT', () => { birak(); process.exit(0); });
+  process.on('SIGTERM', () => { birak(); process.exit(0); });
+}
+
 function guvenliAd(s) { return String(s).replace(/[<>:"/\\|?*]/g, '_').trim(); }
 function benzersiz(hedef) {
   if (!fs.existsSync(hedef)) return hedef;
@@ -77,7 +107,14 @@ function uzantiBul(mesaj, tur) {
   return '.bin';
 }
 
+let _sock = null;          // aynı anda tek soket
+let _denemeler = 0;        // arka arkaya başarısız bağlantı sayacı
+let _bagliMi = false;
+
 async function baslat() {
+  // Önceki soketi tamamen kapat (dinleyicileri üst üste binmesin)
+  if (_sock) { try { _sock.ev.removeAllListeners(); _sock.end(); } catch (_) {} _sock = null; }
+
   const { state, saveCreds } = await useMultiFileAuthState(OTURUM);
   const { version } = await fetchLatestBaileysVersion();
 
@@ -88,7 +125,12 @@ async function baslat() {
     browser: Browsers.appropriate('Albrus Bakim Bot'),
     markOnlineOnConnect: false,      // telefonundaki bildirimler bozulmasın
     syncFullHistory: false,
+    shouldSyncHistoryMessage: () => false,   // geçmişi çekme (oturum şişmesin, hızlı bağlansın)
+    qrTimeout: 120000,               // QR okutmak için 2 dakika süre
+    connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 25000,
   });
+  _sock = sock;
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -96,25 +138,51 @@ async function baslat() {
     const { connection, lastDisconnect, qr } = u;
     if (qr) {
       console.log('\n═══════════════════════════════════════════');
-      console.log('  TELEFONUNDAN OKUT:');
+      console.log('  TELEFONUNDAN OKUT  (2 dakika geçerli):');
       console.log('  WhatsApp > Ayarlar > Bağlı Cihazlar > Cihaz Bağla');
       console.log('═══════════════════════════════════════════\n');
       qrcode.generate(qr, { small: true });
     }
     if (connection === 'open') {
+      _denemeler = 0; _bagliMi = true;
       log('✓ BAĞLANDI. Gruplar dinleniyor…');
       log('  Hedef klasör:', AYAR.hedef_klasor);
       log('  İzlenen gruplar:', (AYAR.izlenen_gruplar || []).length ? AYAR.izlenen_gruplar.join(', ') : 'HEPSİ');
       log('  Bu pencereyi kapatma. Kapatırsan yeni mesajlar kaydedilmez.\n');
     }
     if (connection === 'close') {
-      const kod = lastDisconnect?.error?.output?.statusCode;
-      if (kod === DisconnectReason.loggedOut) {
-        log('✗ Oturum kapatıldı (telefondan çıkarıldı). "oturum" klasörünü silip tekrar QR okut.');
+      _bagliMi = false;
+      const hata = lastDisconnect?.error;
+      const kod = hata?.output?.statusCode;
+
+      // Telefondan çıkarılmış → oturum geçersiz, yeniden QR gerekir
+      if (kod === DisconnectReason.loggedOut || kod === 401) {
+        log('✗ Oturum geçersiz (telefondan çıkarılmış).');
+        log('  "oturum" klasörünü sil, sonra botu yeniden başlat ve QR okut.');
         process.exit(1);
       }
-      log('Bağlantı koptu, yeniden bağlanılıyor…');
-      setTimeout(baslat, 3000);
+      // QR okutulduktan sonra WhatsApp yeniden başlatma ister — bu NORMALDİR
+      if (kod === DisconnectReason.restartRequired || kod === 515) {
+        log('Eşleşme tamam, oturum başlatılıyor…');
+        setTimeout(baslat, 1500);
+        return;
+      }
+      // QR süresi doldu (okutulmadı)
+      if (kod === DisconnectReason.timedOut || /QR refs attempts ended/i.test(hata?.message || '')) {
+        log('QR süresi doldu (okutulmadı). Yeni QR üretiliyor…');
+        setTimeout(baslat, 2000);
+        return;
+      }
+
+      _denemeler++;
+      if (_denemeler >= 6) {
+        log(`✗ ${_denemeler} denemede bağlanılamadı. Sebep: ${hata?.message || kod || 'bilinmiyor'}`);
+        log('  İnternet bağlantını kontrol et. Sorun sürerse "oturum" klasörünü silip QR\'ı yeniden okut.');
+        process.exit(1);
+      }
+      const bekle = Math.min(3000 * _denemeler, 20000);   // kademeli bekleme
+      log(`Bağlantı koptu (${hata?.message || kod || '?'}). ${bekle / 1000} sn sonra yeniden denenecek… [${_denemeler}/6]`);
+      setTimeout(baslat, bekle);
     }
   });
 
@@ -199,4 +267,5 @@ console.log('══════════════════════�
 console.log('  Ayar dosyası: bot-ayar.json');
 console.log('  Durdurmak için: bu pencereyi kapat veya Ctrl+C\n');
 
+kilitAl();   // ikinci kopyayı engelle
 baslat().catch(e => { console.error('BAŞLATILAMADI:', e.message); process.exit(1); });

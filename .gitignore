@@ -18,3 +18,4 @@ cloudflared.exe
 # WhatsApp botu — OTURUM ANAHTARLARI asla commit edilmez (hesabına erişim sağlar)
 whatsapp-bot/oturum/
 whatsapp-bot/bot-ayar.json
+whatsapp-bot/bot.kilit
