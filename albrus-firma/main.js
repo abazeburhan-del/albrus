@@ -1952,7 +1952,11 @@ ipcMain.handle('fatura:tahsilat', (_, d) => {
 // PDF PRINT
 // ════════════════════════════════════════════════════════════
 
-ipcMain.handle('print:pdf', async (_, htmlContent) => {
+ipcMain.handle('print:pdf', async (_, arg) => {
+  // Geriye uyumlu: arg string ise HTML; obje ise { html, pageSize, landscape, margins }
+  const htmlContent = typeof arg === 'string' ? arg : (arg?.html || '');
+  const opts = (arg && typeof arg === 'object') ? arg : {};
+
   const printWin = new BrowserWindow({
     show: false,
     width: 900, height: 700,
@@ -1968,11 +1972,13 @@ ipcMain.handle('print:pdf', async (_, htmlContent) => {
 
   await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(fullHtml));
 
-  const pdfData = await printWin.webContents.printToPDF({
+  const pdfSecenek = {
     printBackground: true,
-    pageSize: 'A4',
-    margins: { marginType: 'default' }
-  });
+    pageSize: opts.pageSize || 'A4',
+    margins: opts.margins || { marginType: 'default' }   // margins: {top,bottom,left,right} inç
+  };
+  if (opts.landscape) pdfSecenek.landscape = true;
+  const pdfData = await printWin.webContents.printToPDF(pdfSecenek);
 
   printWin.close();
 
