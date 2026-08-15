@@ -8,7 +8,8 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'albrus-firma', 'main.js'
 
 // Electron'a özgü (sunucuda çalışamaz) — atlanır; istemci bunları yerelde çağırır
 const ELECTRON = new Set(['print:pdf', 'export:xls', 'xlsx:onizle', 'win:focus', 'win:focus-force',
-  'db:konum', 'db:yedekle', 'db:geri-yukle', 'lisans:durum', 'lisans:aktiflestir']);
+  'db:konum', 'db:yedekle', 'db:geri-yukle', 'lisans:durum', 'lisans:aktiflestir',
+  'whatsapp:klasor:sec', 'whatsapp:duzenle', 'whatsapp:klasor:ac']);
 
 // String/yorum-duyarlı: idx'teki '(' ile eşleşen ')' indexini bul
 function matchParen(s, open) {

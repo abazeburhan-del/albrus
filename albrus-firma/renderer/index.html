@@ -647,6 +647,22 @@
     </div>
 
     <div class="table-wrap" style="margin-bottom:18px;">
+      <div class="table-head"><div class="table-head-title">WhatsApp Bakım Fotoğrafları</div></div>
+      <div style="padding:18px;">
+        <div style="font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.6;">
+          WhatsApp grubundan gelen foto, video ve tutanakları açıklamalarına göre
+          <b>Masaüstü → "&lt;AY YIL&gt; BAKIM → Lokasyon → Kategori"</b> klasörlerine ayırır.<br>
+          WhatsApp'ta: <b>Grup → Menü → Daha fazla → Sohbeti dışa aktar → MEDYA EKLE</b> → zip'i klasöre çıkar.
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="waKlasorSec()">Klasör Seç ve Düzenle</button>
+          <span id="wa-secili" style="font-size:12px;color:var(--dim)"></span>
+        </div>
+        <div id="wa-sonuc" style="margin-top:14px;font-size:13px"></div>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="margin-bottom:18px;">
       <div class="table-head"><div class="table-head-title">Banka Bilgileri (Fatura PDF)</div></div>
       <div style="padding:18px;">
         <div style="font-size:13px;color:var(--dim);margin-bottom:14px;line-height:1.6;">
@@ -2103,7 +2119,8 @@ async function srv(method, yol, govde) {
 
 // Sunucu modunda bu kanallar YİNE YERELDE çalışır (Electron'a özel + istemci yapılandırması)
 const YEREL_KANALLAR = new Set(['print:pdf','export:xls','xlsx:onizle','win:focus','win:focus-force',
-  'db:konum','db:yedekle','db:geri-yukle','lisans:durum','lisans:aktiflestir','ayar:getir','ayar:kaydet']);
+  'db:konum','db:yedekle','db:geri-yukle','lisans:durum','lisans:aktiflestir','ayar:getir','ayar:kaydet',
+  'whatsapp:klasor:sec','whatsapp:duzenle','whatsapp:klasor:ac']);
 
 // Birleşik veri erişimi: sunucu modunda HTTP, değilse yerel IPC. api.invoke yerine her yerde bu kullanılır.
 async function inv(channel, ...args) {
@@ -9600,6 +9617,45 @@ async function firmaAdiKaydet() {
   await inv('ayar:kaydet', 'firma_adi', ad);
   FIRMA = ad;
   alert('Firma adı kaydedildi: ' + ad + '\nRaporlarda bu ad kullanılacak.');
+}
+
+// ── WhatsApp bakım fotoğrafı düzenleyici ──
+let _waKaynak = null;
+async function waKlasorSec() {
+  const sonuc = document.getElementById('wa-sonuc');
+  const r = await inv('whatsapp:klasor:sec');
+  if (!r || r.iptal) return;
+  _waKaynak = r.klasor;
+  document.getElementById('wa-secili').textContent = _waKaynak;
+  sonuc.innerHTML = '<span style="color:var(--dim)">İnceleniyor…</span>';
+  try {
+    // Önce deneme: hiçbir dosya yazmadan dağılımı göster
+    const d = await inv('whatsapp:duzenle', { kaynak: _waKaynak, deneme: true });
+    if (!d.tasinan) {
+      sonuc.innerHTML = '<span style="color:var(--red)">Klasörlenecek dosya bulunamadı. '
+        + '"_chat.txt" içeren, medya ekli dışa aktarma klasörünü seçtiğinden emin ol.</span>';
+      return;
+    }
+    const satirlar = Object.entries(d.dagilim).sort((a,b)=>b[1]-a[1])
+      .map(([ad,n]) => `<tr><td style="padding:3px 10px 3px 0">${ad}</td><td style="text-align:right;font-weight:600">${n}</td></tr>`).join('');
+    sonuc.innerHTML = `
+      <div style="margin-bottom:8px"><b>${d.ayKlasoru || '—'}</b> · ${d.tasinan} dosya klasörlenecek
+        ${d.atlanan ? `<span style="color:var(--dim)">(${d.atlanan} atlanacak: sesli mesaj vb.)</span>` : ''}</div>
+      <table style="font-size:12.5px;margin-bottom:10px">${satirlar}</table>
+      <button class="btn btn-primary btn-sm" onclick="waUygula()">Masaüstüne Kopyala</button>`;
+  } catch (e) {
+    sonuc.innerHTML = `<span style="color:var(--red)">${e.message}</span>`;
+  }
+}
+async function waUygula() {
+  const sonuc = document.getElementById('wa-sonuc');
+  try {
+    const r = await inv('whatsapp:duzenle', { kaynak: _waKaynak, deneme: false });
+    sonuc.innerHTML = `<span style="color:var(--green)">✓ ${r.tasinan} dosya kopyalandı — ${r.ayKlasoru}</span>
+      <button class="btn btn-ghost btn-sm" style="margin-left:10px" onclick="inv('whatsapp:klasor:ac', ${JSON.stringify(r.hedef + '\\' + (r.ayKlasoru||''))})">Klasörü Aç</button>`;
+  } catch (e) {
+    sonuc.innerHTML = `<span style="color:var(--red)">${e.message}</span>`;
+  }
 }
 
 async function bankaBilgileriKaydet() {

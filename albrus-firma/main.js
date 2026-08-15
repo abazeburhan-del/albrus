@@ -1988,6 +1988,26 @@ ipcMain.handle('print:pdf', async (_, arg) => {
   return true;
 });
 
+// ── WhatsApp bakım fotoğraflarını kategorilere göre klasörle ──
+// Klasör seçtirir, önce DENEME (yazmadan dağılım) döner; onaylanınca kopyalar.
+ipcMain.handle('whatsapp:klasor:sec', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'WhatsApp dışa aktarma klasörünü seç (_chat.txt içeren)',
+    properties: ['openDirectory']
+  });
+  if (canceled || !filePaths?.length) return { ok: false, iptal: true };
+  return { ok: true, klasor: filePaths[0] };
+});
+
+ipcMain.handle('whatsapp:duzenle', (_, { kaynak, deneme, tasi }) => {
+  const { duzenle } = require(path.join(__dirname, '..', 'whatsapp-duzenle', 'cekirdek.js'));
+  const hedef = app.getPath('desktop');
+  const r = duzenle(kaynak, hedef, { denemeModu: !!deneme, kopyala: !tasi });
+  return { ...r, hedef };
+});
+
+ipcMain.handle('whatsapp:klasor:ac', (_, yol) => { shell.openPath(yol); return true; });
+
 // HTML tabloyu Excel'de açılan .xls dosyasına aktar (kayıt yeri sorar)
 ipcMain.handle('export:xls', async (_, { html, ad, sheet }) => {
   const sheetAd = (sheet || 'Sayfa1').replace(/[^\w]/g, '_');

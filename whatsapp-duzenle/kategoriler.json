@@ -1,0 +1,23 @@
+{
+  "_aciklama": "Açıklamadaki (caption) anahtar kelimeye göre klasörleme. Kendi işlerine göre düzenle.",
+  "kategoriler": [
+    { "klasor": "Mobilya",           "anahtarlar": ["mobilya", "mobiliya", "furniture"] },
+    { "klasor": "Spot Tamiri",       "anahtarlar": ["spot"] },
+    { "klasor": "Boya",              "anahtarlar": ["boya", "boyama", "paint"] },
+    { "klasor": "Elektrik Tesisatı", "anahtarlar": ["elektrik", "priz", "aydınlatma", "aydinlatma", "kablo", "pano"] },
+    { "klasor": "Mekanik",           "anahtarlar": ["mekanik", "klima", "fan coil", "fancoil", "pissu", "su kaç", "su kac", "tesisat", "havalandırma", "havalandirma"] },
+    { "klasor": "Yangın",            "anahtarlar": ["yangın", "yangin", "sprinkler", "duman"] },
+    { "klasor": "Tutanaklar",        "anahtarlar": ["tutanak", "form", "rapor", "imza", "teslim"] }
+  ],
+  "lokasyonlar": [
+    { "klasor": "DUHOK MALL",   "anahtarlar": ["duhok"] },
+    { "klasor": "FAMILY MALL",  "anahtarlar": ["family"] },
+    { "klasor": "MAJIDI MALL",  "anahtarlar": ["majidi", "majıdı", "majidi mall"] },
+    { "klasor": "GULAN MALL",   "anahtarlar": ["gulan"] }
+  ],
+  "varsayilan_kategori": "Diğer",
+  "belge_uzantilari": [".pdf", ".doc", ".docx", ".xls", ".xlsx"],
+  "resim_uzantilari": [".jpg", ".jpeg", ".png", ".webp", ".heic"],
+  "video_uzantilari": [".mp4", ".mov", ".3gp", ".avi", ".mkv"],
+  "_not": "Sesli mesajlar (.opus/.m4a) alınmaz — istenirse buraya ses_uzantilari eklenebilir."
+}
