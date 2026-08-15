@@ -1,0 +1,16 @@
+{
+  "name": "albrus-sunucu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Albrus merkezi API + mobil PWA sunucusu (Render/on-prem)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "sql.js": "1.14.1"
+  }
+}

@@ -1,0 +1,27 @@
+# Render.com dağıtım planı — Albrus sunucu (mobil web + API)
+# Render panelinde "New +" > "Blueprint" > bu repoyu seç → otomatik okur.
+# ÜCRETSİZ plan: veri KALICI DEĞİL (yeniden başlatınca silinir) — sadece deneme için.
+# Kalıcı veri için: aşağıdaki "disk" bloğunu aç + plan: starter yap + DB_PATH ekle
+# (bkz. albrus-sunucu/RENDER-KURULUM.md).
+services:
+  - type: web
+    name: albrus
+    runtime: node
+    rootDir: albrus-sunucu
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: ALBRUS_SECRET
+        generateValue: true      # token imza sırrı — otomatik üretilir
+    # ── Kalıcı veri için (ücretli Starter plan) — yorumu kaldır ──
+    # plan: starter
+    # envVars:
+    #   - key: ALBRUS_SECRET
+    #     generateValue: true
+    #   - key: DB_PATH
+    #     value: /var/data/data.db
+    # disk:
+    #   name: albrus-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

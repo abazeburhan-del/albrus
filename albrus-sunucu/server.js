@@ -6,12 +6,16 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const initSqlJs = require('../albrus-firma/node_modules/sql.js');
+// sql.js: üretimde (Render) yerel bağımlılıktan; yerel geliştirmede albrus-firma'dan
+let initSqlJs;
+try { initSqlJs = require('sql.js'); }
+catch (_) { initSqlJs = require('../albrus-firma/node_modules/sql.js'); }
 const createCore = require('./core.js');
 
 const PORT = process.env.PORT || 4000;
 const SECRET = process.env.ALBRUS_SECRET || 'albrus-degistir-bu-sirri-uretimde';
-const DB_PATH = path.join(__dirname, 'data.db');
+// DB_PATH env ile kalıcı diske yönlendirilebilir (Render persistent disk)
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.db');
 
 let SQL, db, H;
 function saveDb() { fs.writeFileSync(DB_PATH, Buffer.from(db.export())); }
