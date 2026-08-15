@@ -14,3 +14,7 @@ lisans-public.txt
 
 # Cloudflare Tunnel ikilisi (52MB — her makinede yeniden indirilir)
 cloudflared.exe
+
+# WhatsApp botu — OTURUM ANAHTARLARI asla commit edilmez (hesabına erişim sağlar)
+whatsapp-bot/oturum/
+whatsapp-bot/bot-ayar.json
